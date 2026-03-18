@@ -1,0 +1,372 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 7% 6%;
+    --foreground: 0 0% 93%;
+
+    --card: 240 5% 10%;
+    --card-foreground: 0 0% 93%;
+
+    --popover: 240 5% 10%;
+    --popover-foreground: 0 0% 93%;
+
+    --primary: 252 90% 71%;
+    --primary-foreground: 240 7% 6%;
+
+    --secondary: 240 5% 14%;
+    --secondary-foreground: 0 0% 93%;
+
+    --muted: 240 4% 16%;
+    --muted-foreground: 240 3% 55%;
+
+    --accent: 252 90% 71%;
+    --accent-foreground: 240 7% 6%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 100% / 0.08;
+    --input: 0 0% 100% / 0.12;
+    --ring: 252 90% 71%;
+
+    --radius: 0.75rem;
+
+    /* Canvas tokens */
+    --canvas-bg: #0e0e10;
+    --canvas-dot: rgba(255, 255, 255, 0.055);
+    --bg-node: rgba(255, 255, 255, 0.07);
+    --bg-node-header: rgba(0, 0, 0, 0.28);
+    --border-node: rgba(255, 255, 255, 0.11);
+    --accent-color: #7c6ff7;
+    --accent-hover: #9d98f9;
+    --port-input: #6ee7b7;
+    --port-output: #a78bfa;
+    --text-primary: rgba(255, 255, 255, 0.92);
+    --text-muted: rgba(255, 255, 255, 0.38);
+    --shadow-node: 0 8px 32px rgba(0, 0, 0, 0.45);
+    --radius-node: 14px;
+    --edge-stroke: #7c6ff7;
+
+    /* Legacy compat aliases */
+    --glass-bg: var(--bg-node);
+    --glass-border: var(--border-node);
+    --glass-header: var(--bg-node-header);
+    --node-shadow: var(--shadow-node);
+    --accent-violet: var(--accent-color);
+
+    --sidebar-background: 240 5% 10%;
+    --sidebar-foreground: 0 0% 93%;
+    --sidebar-primary: 252 90% 71%;
+    --sidebar-primary-foreground: 240 7% 6%;
+    --sidebar-accent: 240 5% 14%;
+    --sidebar-accent-foreground: 0 0% 93%;
+    --sidebar-border: 0 0% 100% / 0.08;
+    --sidebar-ring: 252 90% 71%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+/* Canvas dot grid */
+.canvas-dot-grid {
+  background-color: var(--canvas-bg);
+  background-image: radial-gradient(var(--canvas-dot) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+.canvas-grid {
+  background-color: var(--canvas-bg);
+  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.canvas-lines {
+  background-color: var(--canvas-bg);
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 27px,
+    rgba(255, 255, 255, 0.04) 27px,
+    rgba(255, 255, 255, 0.04) 28px
+  );
+}
+.canvas-plain {
+  background-color: var(--canvas-bg);
+}
+
+.workflow-hide-labels .glass-node-header {
+  display: none !important;
+}
+
+/* Freepik-style input / output node chrome */
+.glass-node-input:not(.glass-node) {
+  border: 1px solid rgba(212, 168, 83, 0.5) !important;
+  box-shadow:
+    0 0 0 1px rgba(212, 168, 83, 0.12),
+    var(--shadow-node);
+}
+.glass-node-input.glass-node {
+  border: 1px solid rgba(212, 168, 83, 0.5) !important;
+  box-shadow:
+    0 0 0 1px rgba(212, 168, 83, 0.12),
+    var(--shadow-node);
+}
+.glass-node-output.glass-node {
+  border: 1px solid rgba(147, 197, 253, 0.38) !important;
+  box-shadow:
+    0 0 0 1px rgba(147, 197, 253, 0.1),
+    var(--shadow-node);
+}
+
+/* Glass node styling */
+.glass-node {
+  background: var(--bg-node);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--border-node);
+  border-radius: var(--radius-node);
+  box-shadow: var(--shadow-node);
+  overflow: visible;
+  min-width: 260px;
+}
+
+.glass-node-header {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, var(--bg-node-header) 100%);
+  border-radius: var(--radius-node) var(--radius-node) 0 0;
+  font-family: 'DM Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Glass toolbar */
+.glass-toolbar {
+  background: rgba(14, 14, 16, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-node);
+}
+
+/* Port styling */
+.port-input {
+  width: 11px !important;
+  height: 11px !important;
+  background: var(--port-input) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+.port-input:hover {
+  box-shadow: 0 0 10px 3px var(--port-input);
+  transform: scale(1.08);
+}
+.port-output {
+  width: 11px !important;
+  height: 11px !important;
+  background: var(--port-output) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+.port-output:hover {
+  box-shadow: 0 0 10px 3px var(--port-output);
+  transform: scale(1.08);
+}
+
+/* Animated edge */
+@keyframes edge-flow {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+.react-flow__edge-path.animated-edge {
+  stroke-dasharray: 6 4;
+  animation: edge-flow 0.4s linear infinite;
+}
+
+/* Node action bar fade */
+.node-action-bar {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+.react-flow__node:hover .node-action-bar,
+.react-flow__node.selected .node-action-bar {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Node selection state */
+.node-selected {
+  outline: 2px solid hsl(217 91% 60%);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px hsla(217, 91%, 60%, 0.15);
+  border-radius: var(--radius-node);
+}
+
+/* Ensure node wrapper allows overflow for action bars */
+.react-flow__node {
+  overflow: visible !important;
+}
+
+/* Tiptap editor styling */
+.ProseMirror {
+  outline: none;
+}
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--text-muted);
+  pointer-events: none;
+  height: 0;
+}
+.ProseMirror ul {
+  list-style: disc;
+  padding-left: 1.2em;
+}
+.ProseMirror ol {
+  list-style: decimal;
+  padding-left: 1.2em;
+}
+.ProseMirror h1 { font-size: 1.4em; font-weight: 600; }
+.ProseMirror h2 { font-size: 1.2em; font-weight: 600; }
+.ProseMirror h3 { font-size: 1.05em; font-weight: 600; }
+
+/* Custom scrollbar for node content */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+
+/* React Flow overrides */
+.react-flow__background {
+  background-color: var(--canvas-bg) !important;
+}
+.react-flow__controls {
+  display: none !important;
+}
+.react-flow__attribution {
+  display: none !important;
+}
+.react-flow__minimap {
+  display: none !important;
+}
+
+/* DM Mono class */
+.font-mono-display {
+  font-family: 'DM Mono', monospace;
+}
+
+/* Pulsing spinner */
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+.pulse-ring {
+  animation: pulse-ring 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Fade in for generated image */
+@keyframes soft-fade-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+.soft-fade-in {
+  animation: soft-fade-in 0.6s ease-out forwards;
+}
+
+/* Performance mode */
+[data-performance="true"] .glass-node {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-performance="true"] .glass-toolbar {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Comment pin */
+.comment-pin {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.comment-pin:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 12px 3px rgba(124, 111, 247, 0.4);
+}
+
+/* Snip cursor */
+.cursor-scissors {
+  cursor: crosshair;
+}
+
+/* Connection cursor */
+.cursor-crosshair {
+  cursor: crosshair;
+}
+
+/* Light theme */
+[data-theme="light"] {
+  --canvas-bg: #f5f5f7;
+  --canvas-dot: rgba(0, 0, 0, 0.08);
+  --bg-node: rgba(255, 255, 255, 0.85);
+  --bg-node-header: rgba(0, 0, 0, 0.06);
+  --border-node: rgba(0, 0, 0, 0.1);
+  --text-primary: rgba(0, 0, 0, 0.88);
+  --text-muted: rgba(0, 0, 0, 0.4);
+  --shadow-node: 0 4px 20px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .glass-toolbar {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .canvas-dot-grid {
+  background-color: var(--canvas-bg);
+  background-image: radial-gradient(var(--canvas-dot) 1px, transparent 1px);
+}
+
+[data-theme="light"] .react-flow__background {
+  background-color: var(--canvas-bg) !important;
+}
+
+/* Select dropdown dark styling */
+.node-select {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+}
+.node-select option {
+  background: #1a1a1e;
+  color: var(--text-primary);
+}

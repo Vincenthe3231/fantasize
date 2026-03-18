@@ -1,0 +1,99 @@
+import { memo, useState } from 'react';
+import { Handle, Position, type NodeProps } from 'reactflow';
+import { RefreshCw, Grid3X3 } from 'lucide-react';
+import { useWorkflowStore } from '@/stores/workflowStore';
+import NodeActionBar from './NodeActionBar';
+import ImageCellOverlay from './ImageCellOverlay';
+import { MOCK } from '@/lib/mockPipelineAssets';
+
+const CAMERA_SRC = [MOCK.camera1, MOCK.camera2, MOCK.camera3, MOCK.camera4];
+
+const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
+  const runFromNode = useWorkflowStore((s) => s.runFromNode);
+  const deleteNode = useWorkflowStore((s) => s.deleteNode);
+  const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
+  const lockNode = useWorkflowStore((s) => s.lockNode);
+  const gridLayout = useWorkflowStore((s) => s.nodeGridLayouts[id] || '2x2');
+  const toggleGrid = useWorkflowStore((s) => s.toggleGridLayout);
+  const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
+  const [splitImages, setSplitImages] = useState(false);
+  const [selectedCount] = useState(4);
+
+  const cols = gridLayout === '1x1' ? 1 : gridLayout === '2x2' ? 2 : 3;
+  const cellCount = cols * cols;
+  const cells = Array.from({ length: Math.min(cellCount, 4) }, (_, i) => i);
+
+  return (
+    <div className={`glass-node w-[380px] relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}>
+      <NodeActionBar
+        variant="multiImage"
+        onRun={() => runFromNode(id)}
+        onDuplicate={() => duplicateNode(id)}
+        onDelete={() => deleteNode(id)}
+        onLock={() => lockNode(id)}
+        showDownload
+        onGridToggle={() => toggleGrid(id)}
+      />
+
+      <div className="glass-node-header px-3 py-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-[var(--text-primary)]">
+          <Grid3X3 size={13} />
+          <span>Angle variations</span>
+        </div>
+        <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
+          <span>variations</span>
+          <span>•</span>
+          <span>1 image</span>
+        </div>
+      </div>
+
+      {/* Resolution badge */}
+      <div className="absolute top-12 right-3 bg-black/60 rounded px-1.5 py-0.5 text-[10px] font-mono text-white/80 z-10">
+        5504 × 3072
+      </div>
+
+      <div className={`grid gap-2 p-3`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+        {cells.map((i) => (
+          <ImageCellOverlay
+            key={i}
+            src={CAMERA_SRC[i] ?? MOCK.camera1}
+            index={i}
+            nodeId={id}
+            resolution="4K"
+          />
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between px-3 py-2 border-t border-white/[0.06] text-[10px]">
+        <div className="flex items-center gap-2 text-white/50">
+          <span className="text-[var(--accent-color)] cursor-pointer hover:underline">Reframe</span>
+          <span className="bg-white/10 rounded px-1.5 py-0.5">16:9</span>
+          <span className="bg-white/10 rounded px-1.5 py-0.5">4K</span>
+          <span className="bg-white/10 rounded px-1.5 py-0.5">{gridLayout}</span>
+        </div>
+        <div className="flex items-center gap-2 text-white/60">
+          <span>{selectedCount} Selected</span>
+          <label className="flex items-center gap-1 cursor-pointer">
+            <span className="text-[9px]">Split</span>
+            <div
+              className={`w-7 h-3.5 rounded-full transition-colors ${splitImages ? 'bg-blue-500' : 'bg-white/20'} relative cursor-pointer`}
+              onClick={() => setSplitImages(!splitImages)}
+            >
+              <div className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform ${splitImages ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+            </div>
+          </label>
+          <button className="p-1 rounded hover:bg-white/10 transition-colors">
+            <RefreshCw size={10} />
+          </button>
+        </div>
+      </div>
+
+      <Handle type="target" position={Position.Left} className="port-input" />
+      <Handle type="source" position={Position.Right} className="port-output" />
+    </div>
+  );
+});
+
+AngleVariationsNode.displayName = 'AngleVariationsNode';
+export default AngleVariationsNode;
