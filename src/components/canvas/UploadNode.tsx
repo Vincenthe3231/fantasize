@@ -4,6 +4,8 @@ import { Image, Upload } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
+import { NodeContentFocus } from './NodeContentFocus';
+import { NodeLabelRow } from './NodeLabelRow';
 
 const UploadNode = memo(({ id, data }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
@@ -11,6 +13,7 @@ const UploadNode = memo(({ id, data }: NodeProps) => {
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
+  const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
 
   const mediaUrl = (data.mediaUrl as string) || '';
   const label = (data.label as string) || '';
@@ -40,19 +43,26 @@ const UploadNode = memo(({ id, data }: NodeProps) => {
   });
 
   return (
-    <div className={`glass-node glass-node-input w-[280px] relative ${isRunning ? 'ring-1 ring-amber-500/40' : ''}`}>
+    <div className="w-[280px] relative">
+      <NodeLabelRow
+        nodeId={id}
+        nodeType="uploadNode"
+        labelPrefix="Upload"
+        icon={<Image size={12} />}
+        fallbackText={label}
+      />
+      <div
+        className={`glass-node glass-node-input w-full relative ${isRunning ? 'ring-1 ring-amber-500/40' : ''}`}
+        data-content-focused={contentFocused || undefined}
+      >
       <NodeActionBar
         onRun={() => runFromNode(id)}
         onDuplicate={() => duplicateNode(id)}
         onDelete={() => deleteNode(id)}
       />
 
-      <div className="glass-node-header px-3 py-2.5 flex items-center gap-2 text-[var(--text-primary)]">
-        <Image size={13} />
-        <span>Upload</span>
-      </div>
-
-      <div className="p-3">
+      <NodeContentFocus nodeId={id}>
+        <div className="p-3 pt-2">
         {mediaUrl ? (
           <div className="relative rounded-lg overflow-hidden">
             {mediaUrl.includes('.mp4') || mediaUrl.includes('.mov') ? (
@@ -70,7 +80,7 @@ const UploadNode = memo(({ id, data }: NodeProps) => {
           <div
             {...getRootProps()}
             className={`h-[140px] border border-dashed rounded-lg flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors ${
-              isDragActive ? 'border-[var(--port-input)] bg-[var(--port-input)]/5' : 'border-white/[0.15] hover:border-white/25'
+              isDragActive ? 'border-[var(--port-input)] bg-[var(--port-input)]/5' : 'border-[var(--border-node)] hover:border-[var(--accent-color)]/35'
             }`}
           >
             <input {...getInputProps()} />
@@ -80,9 +90,11 @@ const UploadNode = memo(({ id, data }: NodeProps) => {
             </span>
           </div>
         )}
-      </div>
+        </div>
+      </NodeContentFocus>
 
       <Handle type="source" position={Position.Right} className="port-output" />
+      </div>
     </div>
   );
 });

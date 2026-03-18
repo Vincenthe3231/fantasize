@@ -3,6 +3,8 @@ import { Handle, Position, type NodeProps } from 'reactflow';
 import { Cloud, Download } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
+import { NodeContentFocus } from './NodeContentFocus';
+import { NodeLabelRow } from './NodeLabelRow';
 import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
 import { toast } from 'sonner';
@@ -20,11 +22,15 @@ const AtmosphereTestNode = memo(({ id, selected }: NodeProps) => {
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
   const lockNode = useWorkflowStore((s) => s.lockNode);
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
+  const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
 
   return (
-    <div
-      className={`glass-node-output glass-node w-[420px] relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
-    >
+    <div className="w-[420px] relative">
+      <NodeLabelRow nodeId={id} nodeType="atmosphereTestNode" labelPrefix="Atmosphere test" icon={<Cloud size={12} />} />
+      <div
+        className={`glass-node-output glass-node w-full relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        data-content-focused={contentFocused || undefined}
+      >
       <NodeActionBar
         variant="multiImage"
         onRun={() => runFromNode(id)}
@@ -35,12 +41,8 @@ const AtmosphereTestNode = memo(({ id, selected }: NodeProps) => {
         onDownload={() => toast.success('Export queued (mock)')}
       />
 
-      <div className="glass-node-header px-3 py-2.5 flex items-center gap-2 text-[var(--text-primary)]">
-        <Cloud size={13} />
-        <span>Atmosphere test</span>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 p-3">
+      <NodeContentFocus nodeId={id}>
+        <div className="grid grid-cols-2 gap-2 p-3 pt-2">
         {MOODS.map((m, i) => (
           <div key={m.label} className="rounded-lg overflow-hidden border border-white/10">
             <ImageCellOverlay src={m.src} label={m.label} resolution="4K" index={i} nodeId={id} />
@@ -48,7 +50,7 @@ const AtmosphereTestNode = memo(({ id, selected }: NodeProps) => {
         ))}
       </div>
 
-      <div className="flex items-center justify-between px-3 py-2 border-t border-white/[0.06]">
+      <div className="flex items-center justify-between px-3 py-2 border-t border-border">
         <div className="flex flex-wrap gap-1 text-[9px] font-mono-display text-[var(--text-muted)] uppercase tracking-wider">
           {MOODS.map((m) => (
             <span key={m.label} className="px-1.5 py-0.5 rounded bg-white/5">
@@ -68,9 +70,11 @@ const AtmosphereTestNode = memo(({ id, selected }: NodeProps) => {
           Export
         </button>
       </div>
+      </NodeContentFocus>
 
       <Handle type="target" position={Position.Left} className="port-input" />
       <Handle type="source" position={Position.Right} className="port-output" />
+      </div>
     </div>
   );
 });

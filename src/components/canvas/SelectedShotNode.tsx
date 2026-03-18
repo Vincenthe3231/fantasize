@@ -4,6 +4,8 @@ import { ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
+import { NodeContentFocus } from './NodeContentFocus';
+import { NodeLabelRow } from './NodeLabelRow';
 
 const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -11,6 +13,7 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
   const lockNode = useWorkflowStore((s) => s.lockNode);
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
+  const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
   const [hovered, setHovered] = useState(false);
 
   const mediaUrl =
@@ -18,11 +21,14 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
   const resolution = (data.resolution as string) || '2738 × 1524';
 
   return (
-    <div
-      className={`glass-node glass-node-output w-[280px] relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
+    <div className="w-[280px] relative">
+      <NodeLabelRow nodeId={id} nodeType="selectedShotNode" labelPrefix="Selected shot" icon={<ImageIcon size={12} />} />
+      <div
+        className={`glass-node glass-node-output w-full relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        data-content-focused={contentFocused || undefined}
+      >
       <NodeActionBar
         variant="image"
         onRun={() => runFromNode(id)}
@@ -33,12 +39,8 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
         onDownload={() => {}}
       />
 
-      <div className="glass-node-header px-3 py-2.5 flex items-center gap-2 text-[var(--text-primary)]">
-        <ImageIcon size={13} />
-        <span>Selected shot</span>
-      </div>
-
-      <div className="relative">
+      <NodeContentFocus nodeId={id}>
+        <div className="relative">
         <img src={mediaUrl} alt="Selected shot" className="w-full aspect-[16/9] object-cover rounded-b-[12px]" />
 
         {/* Resolution badge */}
@@ -60,10 +62,12 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
             </motion.button>
           )}
         </AnimatePresence>
-      </div>
+        </div>
+      </NodeContentFocus>
 
       <Handle type="target" position={Position.Left} className="port-input" />
       <Handle type="source" position={Position.Right} className="port-output" />
+      </div>
     </div>
   );
 });

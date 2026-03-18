@@ -4,6 +4,8 @@ import { Video, Loader2, Play, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
+import { NodeContentFocus } from './NodeContentFocus';
+import { NodeLabelRow } from './NodeLabelRow';
 
 const VideoGeneratorNode = memo(({ id, data }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
@@ -11,6 +13,7 @@ const VideoGeneratorNode = memo(({ id, data }: NodeProps) => {
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
+  const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
 
   const mode = (data.mode as string) || 'text-to-video';
   const duration = (data.duration as string) || '5s';
@@ -26,19 +29,20 @@ const VideoGeneratorNode = memo(({ id, data }: NodeProps) => {
   };
 
   return (
-    <div className={`glass-node w-[300px] relative ${isRunning || status === 'generating' ? 'ring-1 ring-[var(--accent-color)]' : ''}`}>
+    <div className="w-[300px] relative">
+      <NodeLabelRow nodeId={id} nodeType="videoGeneratorNode" labelPrefix="Video Generator" icon={<Video size={12} />} />
+      <div
+        className={`glass-node w-full relative ${isRunning || status === 'generating' ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        data-content-focused={contentFocused || undefined}
+      >
       <NodeActionBar
         onRun={() => runFromNode(id)}
         onDuplicate={() => duplicateNode(id)}
         onDelete={() => deleteNode(id)}
       />
 
-      <div className="glass-node-header px-3 py-2.5 flex items-center gap-2 text-[var(--text-primary)]">
-        <Video size={13} />
-        <span>Video Generator</span>
-      </div>
-
-      <div className="p-3 space-y-3">
+      <NodeContentFocus nodeId={id}>
+        <div className="p-3 space-y-3">
         <div className="grid grid-cols-3 gap-2">
           <div>
             <label className="text-[10px] font-mono-display text-[var(--text-muted)] uppercase tracking-wider mb-1 block">Mode</label>
@@ -106,11 +110,13 @@ const VideoGeneratorNode = memo(({ id, data }: NodeProps) => {
             <><Play size={13} /> {status === 'success' ? 'Re-generate' : 'Run'}</>
           )}
         </button>
-      </div>
+        </div>
+      </NodeContentFocus>
 
       <Handle type="target" position={Position.Left} id="text-in" className="port-input" style={{ top: '35%' }} />
       <Handle type="target" position={Position.Left} id="image-in" className="port-input" style={{ top: '65%' }} />
       <Handle type="source" position={Position.Right} className="port-output" />
+      </div>
     </div>
   );
 });

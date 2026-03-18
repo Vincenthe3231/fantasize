@@ -3,6 +3,8 @@ import { Handle, Position, type NodeProps } from 'reactflow';
 import { Sun } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
+import { NodeContentFocus } from './NodeContentFocus';
+import { NodeLabelRow } from './NodeLabelRow';
 import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
 
@@ -19,12 +21,16 @@ const LightingScenarioNode = memo(({ id, selected }: NodeProps) => {
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
   const lockNode = useWorkflowStore((s) => s.lockNode);
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
+  const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
   const [active, setActive] = useState<string>('golden');
 
   return (
-    <div
-      className={`glass-node w-[400px] relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
-    >
+    <div className="w-[400px] relative">
+      <NodeLabelRow nodeId={id} nodeType="lightingScenarioNode" labelPrefix="Lighting scenario" icon={<Sun size={12} />} />
+      <div
+        className={`glass-node w-full relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        data-content-focused={contentFocused || undefined}
+      >
       <NodeActionBar
         variant="multiImage"
         onRun={() => runFromNode(id)}
@@ -35,12 +41,8 @@ const LightingScenarioNode = memo(({ id, selected }: NodeProps) => {
         onDownload={() => window.open(PRESETS.find((p) => p.id === active)?.src || MOCK.lightWarm, '_blank')}
       />
 
-      <div className="glass-node-header px-3 py-2.5 flex items-center gap-2 text-[var(--text-primary)]">
-        <Sun size={13} />
-        <span>Lighting scenario</span>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 p-3">
+      <NodeContentFocus nodeId={id}>
+        <div className="grid grid-cols-2 gap-2 p-3 pt-2">
         {PRESETS.map((p, i) => (
           <div
             key={p.id}
@@ -65,7 +67,7 @@ const LightingScenarioNode = memo(({ id, selected }: NodeProps) => {
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-1.5 px-3 pb-3 border-t border-white/[0.06] pt-2">
+      <div className="flex flex-wrap gap-1.5 px-3 pb-3 border-t border-border pt-2">
         {PRESETS.map((p) => (
           <button
             key={p.id}
@@ -75,16 +77,18 @@ const LightingScenarioNode = memo(({ id, selected }: NodeProps) => {
               setActive(p.id);
             }}
             className={`text-[10px] font-mono-display uppercase tracking-wider px-2 py-1 rounded-md transition-colors ${
-              active === p.id ? 'bg-amber-500/20 text-amber-200' : 'bg-white/5 text-[var(--text-muted)] hover:bg-white/10'
+              active === p.id ? 'bg-amber-500/20 text-amber-200' : 'bg-muted/50 text-muted-foreground hover:bg-muted'
             }`}
           >
             {p.label}
           </button>
         ))}
       </div>
+      </NodeContentFocus>
 
       <Handle type="target" position={Position.Left} className="port-input" />
       <Handle type="source" position={Position.Right} className="port-output" />
+      </div>
     </div>
   );
 });

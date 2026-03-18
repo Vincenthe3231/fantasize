@@ -3,6 +3,8 @@ import { Handle, Position, type NodeProps } from 'reactflow';
 import { RefreshCw, Grid3X3 } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
+import { NodeContentFocus } from './NodeContentFocus';
+import { NodeLabelRow } from './NodeLabelRow';
 import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
 
@@ -16,6 +18,7 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
   const gridLayout = useWorkflowStore((s) => s.nodeGridLayouts[id] || '2x2');
   const toggleGrid = useWorkflowStore((s) => s.toggleGridLayout);
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
+  const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
   const [splitImages, setSplitImages] = useState(false);
   const [selectedCount] = useState(4);
 
@@ -24,7 +27,12 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
   const cells = Array.from({ length: Math.min(cellCount, 4) }, (_, i) => i);
 
   return (
-    <div className={`glass-node w-[380px] relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}>
+    <div className="w-[380px] relative">
+      <NodeLabelRow nodeId={id} nodeType="angleVariationsNode" labelPrefix="Angle variations" icon={<Grid3X3 size={12} />} />
+      <div
+        className={`glass-node w-full relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        data-content-focused={contentFocused || undefined}
+      >
       <NodeActionBar
         variant="multiImage"
         onRun={() => runFromNode(id)}
@@ -35,17 +43,12 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
         onGridToggle={() => toggleGrid(id)}
       />
 
-      <div className="glass-node-header px-3 py-2.5 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-[var(--text-primary)]">
-          <Grid3X3 size={13} />
-          <span>Angle variations</span>
-        </div>
-        <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
+      <NodeContentFocus nodeId={id}>
+        <div className="px-3 py-2 flex items-center justify-end text-[10px] text-[var(--text-muted)]">
           <span>variations</span>
-          <span>•</span>
+          <span className="mx-1">•</span>
           <span>1 image</span>
         </div>
-      </div>
 
       {/* Resolution badge */}
       <div className="absolute top-12 right-3 bg-black/60 rounded px-1.5 py-0.5 text-[10px] font-mono text-white/80 z-10">
@@ -65,7 +68,7 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between px-3 py-2 border-t border-white/[0.06] text-[10px]">
+      <div className="flex items-center justify-between px-3 py-2 border-t border-border text-[10px]">
         <div className="flex items-center gap-2 text-white/50">
           <span className="text-[var(--accent-color)] cursor-pointer hover:underline">Reframe</span>
           <span className="bg-white/10 rounded px-1.5 py-0.5">16:9</span>
@@ -88,9 +91,11 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
           </button>
         </div>
       </div>
+      </NodeContentFocus>
 
       <Handle type="target" position={Position.Left} className="port-input" />
       <Handle type="source" position={Position.Right} className="port-output" />
+      </div>
     </div>
   );
 });

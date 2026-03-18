@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { getSmoothStepPath, type EdgeProps } from 'reactflow';
+import { getBezierPath, type EdgeProps } from 'reactflow';
 import { X } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 
@@ -16,28 +16,32 @@ const CustomEdge = memo(({
   const isRunning = useWorkflowStore((s) => s.runningEdges.has(id));
   const edgeAnimation = useWorkflowStore((s) => s.settings.edgeAnimation);
   const selectedTool = useWorkflowStore((s) => s.selectedTool);
-  const setEdges = useWorkflowStore((s) => s.setEdges);
-  const edges = useWorkflowStore((s) => s.edges);
+  const removeEdgeById = useWorkflowStore((s) => s.removeEdgeById);
   const [hovered, setHovered] = useState(false);
 
-  const [edgePath] = getSmoothStepPath({
-    sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 16,
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+    curvature: 0.35,
   });
 
   const handleClick = () => {
     if (selectedTool === 'cut') {
-      setEdges(edges.filter((e) => e.id !== id));
+      removeEdgeById(id);
     }
   };
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setEdges(edges.filter((edge) => edge.id !== id));
+    removeEdgeById(id);
   };
 
-  // Midpoint for delete button
-  const midX = (sourceX + targetX) / 2;
-  const midY = (sourceY + targetY) / 2;
+  const midX = labelX;
+  const midY = labelY;
 
   const strokeColor = selected ? '#3b82f6' : hovered ? '#7c6ff7' : 'var(--edge-stroke)';
   const strokeW = hovered || selected ? 2 : 1.5;
@@ -45,7 +49,6 @@ const CustomEdge = memo(({
 
   return (
     <>
-      {/* Invisible wider hit area */}
       <path
         d={edgePath}
         fill="none"
@@ -65,10 +68,10 @@ const CustomEdge = memo(({
         className={isRunning && edgeAnimation ? 'animated-edge' : ''}
         style={{ opacity, pointerEvents: 'none' }}
       />
-      {/* Delete button at midpoint when selected */}
       {selected && (
         <foreignObject x={midX - 8} y={midY - 8} width={16} height={16} className="overflow-visible">
           <button
+            type="button"
             onClick={handleDelete}
             className="w-4 h-4 rounded-full bg-red-500/80 flex items-center justify-center hover:bg-red-500 transition-colors"
           >

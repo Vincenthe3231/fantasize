@@ -6,7 +6,7 @@
 
 - **Vite** + **TypeScript** + **React**
 - **shadcn/ui**, **Tailwind CSS**
-- **Zustand** (canvas state), **React Flow** (graph)
+- **Zustand** (canvas state), **TanStack Query** (load/save space + persisted cache), **React Flow** (graph)
 - **Supabase** (Postgres, Auth, RLS)
 
 ## Prerequisites
@@ -46,7 +46,12 @@ Migrations live in [`supabase/migrations/`](supabase/migrations/).
 | Table | Purpose |
 |-------|--------|
 | `profiles` | One row per signed-up user (display name, avatar). Created automatically via trigger on `auth.users`. |
-| `spaces` | User-owned saved canvases: `nodes`, `edges`, `comments`, optional `settings` and `node_grid_layouts` as JSON (matches the app’s Zustand workflow state). |
+| `spaces` | User-owned saved canvases: `nodes`, `edges`, `comments`, `settings`, `node_grid_layouts`, `viewport` (pan/zoom) as JSON. |
+
+### Auth (canvas load/save)
+
+1. In **Authentication → Providers**, enable **Anonymous sign-ins** so the app can create a session and load/save the user’s single space.
+2. Optional: users can **Create account** (top bar) to attach email/password to the same anonymous session via `updateUser`.
 
 Row Level Security (RLS) restricts `profiles` and `spaces` to the authenticated user.
 

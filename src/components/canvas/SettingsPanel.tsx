@@ -29,17 +29,17 @@ const Toggle = ({
 }) => (
   <label className="flex items-center justify-between py-2.5 cursor-pointer group">
     <div className="flex flex-col gap-0.5">
-      <span className="text-[13px] text-[var(--text-primary)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+      <span className="text-[13px] text-foreground" style={{ fontFamily: 'Inter, sans-serif' }}>
         {label}
       </span>
       {description && (
-        <span className="text-[11px] text-[var(--text-muted)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+        <span className="text-[11px] text-muted-foreground" style={{ fontFamily: 'Inter, sans-serif' }}>
           {description}
         </span>
       )}
     </div>
     <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="sr-only peer" />
-    <div className="w-9 h-5 bg-white/10 rounded-full peer peer-checked:bg-[var(--accent-color)] transition-colors relative after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-4" />
+    <div className="w-9 h-5 rounded-full bg-muted peer peer-checked:bg-[var(--accent-color)] transition-colors relative after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:rounded-full after:bg-background after:shadow-sm after:ring-1 after:ring-border/50 after:transition-transform peer-checked:after:translate-x-4" />
   </label>
 );
 
@@ -59,7 +59,7 @@ const RadioOption = ({
     className={`px-3 py-1.5 rounded-lg text-[12px] transition-colors ${
       selected
         ? 'bg-[var(--accent-color)]/20 text-[var(--accent-color)] border border-[var(--accent-color)]/40'
-        : 'bg-white/[0.05] text-[var(--text-muted)] border border-white/[0.08] hover:bg-white/[0.08]'
+        : 'bg-muted/50 text-muted-foreground border border-border hover:bg-muted'
     }`}
     style={{ fontFamily: 'Inter, sans-serif' }}
   >
@@ -71,14 +71,14 @@ const RadioOption = ({
 
 const ShortcutRow = ({ action, keys }: { action: string; keys: string[] }) => (
   <div className="flex items-center justify-between py-1.5">
-    <span className="text-[12px] text-[var(--text-primary)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+    <span className="text-[12px] text-foreground" style={{ fontFamily: 'Inter, sans-serif' }}>
       {action}
     </span>
     <div className="flex gap-1">
       {keys.map((k) => (
         <kbd
           key={k}
-          className="px-2 py-0.5 rounded bg-white/[0.06] text-[11px] font-mono-display text-[var(--text-muted)] border border-white/[0.08]"
+          className="px-2 py-0.5 rounded bg-muted text-[11px] font-mono-display text-muted-foreground border border-border"
         >
           {k}
         </kbd>
@@ -95,24 +95,24 @@ const SettingsPanel = ({ open, onClose }: SettingsPanelProps) => {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="bg-[#141418] border-white/[0.08] text-[var(--text-primary)] max-w-lg p-0 gap-0">
+      <DialogContent className="bg-card text-card-foreground border-border max-w-lg p-0 gap-0 shadow-xl">
         <DialogHeader className="px-5 pt-5 pb-0">
-          <DialogTitle className="text-[14px] font-mono-display uppercase tracking-widest text-[var(--text-primary)]">
+          <DialogTitle className="text-[14px] font-mono-display uppercase tracking-widest text-foreground">
             Settings
           </DialogTitle>
         </DialogHeader>
 
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="w-full justify-start bg-transparent border-b border-white/[0.06] rounded-none px-5 h-auto py-0 gap-4">
+          <TabsList className="w-full justify-start rounded-none border-0 border-b border-border bg-transparent px-5 h-auto py-0 gap-4 text-muted-foreground">
             <TabsTrigger
               value="general"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--accent-color)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--text-primary)] text-[var(--text-muted)] text-[12px] font-mono-display uppercase tracking-wider pb-2.5 pt-3 px-0"
+              className="rounded-none border-b-2 border-transparent bg-transparent shadow-none data-[state=active]:border-[var(--accent-color)] data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none text-muted-foreground text-[12px] font-mono-display uppercase tracking-wider pb-2.5 pt-3 px-0"
             >
               General
             </TabsTrigger>
             <TabsTrigger
               value="shortcuts"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--accent-color)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--text-primary)] text-[var(--text-muted)] text-[12px] font-mono-display uppercase tracking-wider pb-2.5 pt-3 px-0"
+              className="rounded-none border-b-2 border-transparent bg-transparent shadow-none data-[state=active]:border-[var(--accent-color)] data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none text-muted-foreground text-[12px] font-mono-display uppercase tracking-wider pb-2.5 pt-3 px-0"
             >
               Shortcuts
             </TabsTrigger>
@@ -157,8 +157,8 @@ const SettingsPanel = ({ open, onClose }: SettingsPanelProps) => {
               onChange={(v) => updateSettings({ darkMode: v })}
             />
 
-            <div className="pt-2 border-t border-white/[0.06]">
-              <p className="text-[11px] font-mono-display text-[var(--text-muted)] uppercase tracking-widest mb-2">
+            <div className="pt-2 border-t border-border">
+              <p className="text-[11px] font-mono-display text-muted-foreground uppercase tracking-widest mb-2">
                 Edge path type
               </p>
               <div className="flex gap-2">
@@ -175,8 +175,8 @@ const SettingsPanel = ({ open, onClose }: SettingsPanelProps) => {
               </div>
             </div>
 
-            <div className="pt-2 border-t border-white/[0.06]">
-              <p className="text-[11px] font-mono-display text-[var(--text-muted)] uppercase tracking-widest mb-2">
+            <div className="pt-2 border-t border-border">
+              <p className="text-[11px] font-mono-display text-muted-foreground uppercase tracking-widest mb-2">
                 Mouse wheel
               </p>
               <div className="flex gap-2">
@@ -211,8 +211,8 @@ const SettingsPanel = ({ open, onClose }: SettingsPanelProps) => {
               onChange={(v) => updateSettings({ showNodeLabels: v })}
             />
 
-            <div className="pt-2 border-t border-white/[0.06]">
-              <p className="text-[11px] font-mono-display text-[var(--text-muted)] uppercase tracking-widest mb-2">
+            <div className="pt-2 border-t border-border">
+              <p className="text-[11px] font-mono-display text-muted-foreground uppercase tracking-widest mb-2">
                 Canvas background
               </p>
               <div className="flex gap-2 flex-wrap">
@@ -239,7 +239,7 @@ const SettingsPanel = ({ open, onClose }: SettingsPanelProps) => {
           <TabsContent value="shortcuts" className="px-5 py-4 mt-0 max-h-[400px] overflow-y-auto space-y-4">
             {/* Basics */}
             <div>
-              <p className="text-[10px] font-mono-display text-[var(--text-muted)] uppercase tracking-widest mb-2">
+              <p className="text-[10px] font-mono-display text-muted-foreground uppercase tracking-widest mb-2">
                 Basics
               </p>
               <div className="space-y-0.5">
@@ -256,7 +256,7 @@ const SettingsPanel = ({ open, onClose }: SettingsPanelProps) => {
 
             {/* Control */}
             <div>
-              <p className="text-[10px] font-mono-display text-[var(--text-muted)] uppercase tracking-widest mb-2">
+              <p className="text-[10px] font-mono-display text-muted-foreground uppercase tracking-widest mb-2">
                 Control
               </p>
               <div className="space-y-0.5">
@@ -273,7 +273,7 @@ const SettingsPanel = ({ open, onClose }: SettingsPanelProps) => {
 
             {/* Navigation + Board */}
             <div>
-              <p className="text-[10px] font-mono-display text-[var(--text-muted)] uppercase tracking-widest mb-2">
+              <p className="text-[10px] font-mono-display text-muted-foreground uppercase tracking-widest mb-2">
                 Navigation + Board
               </p>
               <div className="space-y-0.5">

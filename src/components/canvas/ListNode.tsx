@@ -4,6 +4,8 @@ import { List, Plus, X } from 'lucide-react';
 import { Reorder } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
+import { NodeContentFocus } from './NodeContentFocus';
+import { NodeLabelRow } from './NodeLabelRow';
 
 interface ListItem {
   id: string;
@@ -16,6 +18,7 @@ const ListNode = memo(({ id, data }: NodeProps) => {
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
+  const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
 
   const items: ListItem[] = (data.items as ListItem[]) || [
     { id: '1', text: 'Scene description' },
@@ -39,19 +42,20 @@ const ListNode = memo(({ id, data }: NodeProps) => {
   };
 
   return (
-    <div className={`glass-node w-[260px] relative ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}>
+    <div className="w-[260px] relative">
+      <NodeLabelRow nodeId={id} nodeType="listNode" labelPrefix="List" icon={<List size={12} />} />
+      <div
+        className={`glass-node w-full relative ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        data-content-focused={contentFocused || undefined}
+      >
       <NodeActionBar
         onRun={() => runFromNode(id)}
         onDuplicate={() => duplicateNode(id)}
         onDelete={() => deleteNode(id)}
       />
 
-      <div className="glass-node-header px-3 py-2.5 flex items-center gap-2 text-[var(--text-primary)]">
-        <List size={13} />
-        <span>List</span>
-      </div>
-
-      <div className="p-3 space-y-1">
+      <NodeContentFocus nodeId={id}>
+        <div className="p-3 space-y-1">
         <Reorder.Group
           axis="y"
           values={items}
@@ -84,9 +88,11 @@ const ListNode = memo(({ id, data }: NodeProps) => {
         >
           <Plus size={10} /> Add item
         </button>
-      </div>
+        </div>
+      </NodeContentFocus>
 
       <Handle type="source" position={Position.Right} className="port-output" />
+      </div>
     </div>
   );
 });

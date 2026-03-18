@@ -195,15 +195,18 @@
   animation: edge-flow 0.4s linear infinite;
 }
 
-/* Node action bar fade */
+/* Action bar only when node body was clicked (data-content-focused). Never use inline opacity on .node-action-bar — it breaks this. */
 .node-action-bar {
   opacity: 0;
-  transition: opacity 0.15s ease;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
   pointer-events: none;
 }
-.react-flow__node:hover .node-action-bar,
-.react-flow__node.selected .node-action-bar {
+.glass-node[data-content-focused] .node-action-bar,
+.glass-node-input[data-content-focused] .node-action-bar,
+.glass-node-output[data-content-focused] .node-action-bar {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
 }
 
@@ -351,6 +354,82 @@
 
 [data-theme="light"] .react-flow__background {
   background-color: var(--canvas-bg) !important;
+}
+
+[data-theme="light"] {
+  --background: 240 5% 96%;
+  --foreground: 240 10% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 12%;
+  --secondary: 240 5% 92%;
+  --secondary-foreground: 240 10% 12%;
+  --muted: 240 5% 90%;
+  --muted-foreground: 240 4% 40%;
+  --border: 240 6% 88%;
+  --input: 240 6% 88%;
+  --sidebar-background: 0 0% 100%;
+  --sidebar-foreground: 240 10% 12%;
+  --sidebar-accent: 240 5% 94%;
+  --sidebar-border: 240 6% 88%;
+}
+
+[data-theme="light"] .canvas-grid {
+  background-image: linear-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+}
+[data-theme="light"] .canvas-lines {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 27px,
+    rgba(0, 0, 0, 0.06) 27px,
+    rgba(0, 0, 0, 0.06) 28px
+  );
+}
+
+[data-theme="light"] .node-select {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: var(--text-primary);
+}
+[data-theme="light"] .node-select option {
+  background: #fff;
+  color: #111;
+}
+
+.context-menu-item {
+  color: rgba(255, 255, 255, 0.82);
+}
+.context-menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.context-menu-kbd {
+  color: rgba(255, 255, 255, 0.35);
+}
+.context-menu-surface {
+  background: rgba(26, 26, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="light"] .context-menu-surface {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+[data-theme="light"] .context-menu-item {
+  color: rgba(0, 0, 0, 0.82) !important;
+}
+[data-theme="light"] .context-menu-item:hover {
+  background: rgba(0, 0, 0, 0.06) !important;
+}
+[data-theme="light"] .context-menu-kbd {
+  color: rgba(0, 0, 0, 0.35) !important;
+}
+
+[data-theme="light"] .minimap-light {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
 }
 
 /* Select dropdown dark styling */

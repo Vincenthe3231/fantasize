@@ -96,10 +96,10 @@ const TemplateGallery = ({ open, onClose }: TemplateGalleryProps) => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <span className="text-[13px] font-mono-display uppercase tracking-widest text-[var(--text-primary)]">
+              <span className="text-[13px] font-mono-display uppercase tracking-widest text-foreground">
                 Templates
               </span>
-              <button onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+              <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
                 <X size={16} />
               </button>
             </div>
@@ -112,16 +112,16 @@ const TemplateGallery = ({ open, onClose }: TemplateGalleryProps) => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.08 }}
                   onClick={() => handleSelect(t)}
-                  className="text-left rounded-xl overflow-hidden border border-white/[0.08] hover:border-[var(--accent-color)]/40 transition-colors group"
+                  className="text-left rounded-xl overflow-hidden border border-border hover:border-[var(--accent-color)]/40 transition-colors group"
                 >
                   <div className={`h-[120px] bg-gradient-to-br ${t.gradient} flex items-center justify-center`}>
                     <span className="text-[11px] font-mono-display text-white/40 group-hover:text-white/60 transition-colors uppercase tracking-wider">
                       Preview
                     </span>
                   </div>
-                  <div className="p-3 bg-white/[0.03]">
-                    <div className="text-[12px] font-mono-display text-[var(--text-primary)]">{t.name}</div>
-                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5" style={{ fontFamily: 'Inter, sans-serif' }}>{t.description}</div>
+                  <div className="p-3 bg-muted/40">
+                    <div className="text-[12px] font-mono-display text-foreground">{t.name}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5" style={{ fontFamily: 'Inter, sans-serif' }}>{t.description}</div>
                   </div>
                 </motion.button>
               ))}

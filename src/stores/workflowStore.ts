@@ -65,13 +65,29 @@ export interface WorkflowSettings {
   canvasPattern: 'dots' | 'grid' | 'lines' | 'none';
 }
 
-interface Snapshot {
+/** Command: execute = redo forward, undo = revert */
+export interface CanvasCommand {
+  execute: () => void;
+  undo: () => void;
+}
+
+interface GraphSnapshot {
   nodes: Node[];
   edges: Edge[];
   comments: Comment[];
 }
 
-interface WorkflowState {
+/** Payload from Supabase `spaces` row (hydrate without undo history) */
+export interface HydratableSpace {
+  id: string;
+  nodes: Node[];
+  edges: Edge[];
+  comments?: Comment[];
+  settings?: Partial<WorkflowSettings> | null;
+  node_grid_layouts?: Record<string, GridLayout>;
+}
+
+export interface WorkflowState {
   nodes: Node[];
   edges: Edge[];
   comments: Comment[];
@@ -79,80 +95,74 @@ interface WorkflowState {
   runningEdges: Set<string>;
   selectedTool: SelectedTool;
   settings: WorkflowSettings;
-  past: Snapshot[];
-  future: Snapshot[];
+  pastStack: CanvasCommand[];
+  futureStack: CanvasCommand[];
   isDragging: boolean;
 
-  // Hover / selection overlay state
   hoveredNodeId: string | null;
   hoveredImageCell: { nodeId: string; cellIndex: number } | null;
   nodeGridLayouts: Record<string, GridLayout>;
   contextMenu: ContextMenu | null;
   nodesClipboard: Node[] | null;
 
-  // Node CRUD
-  setNodes: (nodes: Node[]) => void;
-  setEdges: (edges: Edge[]) => void;
-  addNode: (type: NodeType, position: XYPosition, data?: Record<string, unknown>) => void;
+  focusedNodeContentId: string | null;
+  setFocusedNodeContentId: (id: string | null) => void;
+  currentSpaceId: string | null;
+  lastViewport: { x: number; y: number; zoom: number };
+  setLastViewport: (v: { x: number; y: number; zoom: number }) => void;
+  hydrateFromSpace: (space: HydratableSpace & { viewport?: { x: number; y: number; zoom: number } | null }) => void;
+
+  setNodesSilently: (nodes: Node[]) => void;
+  setEdgesSilently: (edges: Edge[]) => void;
+  commitNodesAfterDrag: (nodes: Node[], deltas: Record<string, { from: XYPosition; to: XYPosition }>) => void;
+  connectEdgeWithHistory: (nextEdges: Edge[], newEdge: Edge) => void;
+  applyEdgeRemoval: (nextEdges: Edge[], removed: Edge[]) => void;
+  removeEdgeById: (id: string) => void;
+
+  addNode: (type: NodeType, position: XYPosition, data?: Record<string, unknown>) => string;
   deleteNode: (id: string) => void;
   duplicateNode: (id: string) => void;
   lockNode: (id: string) => void;
   updateNodeData: (id: string, data: Partial<Record<string, unknown>>) => void;
+  updateNodeDataSilent: (id: string, data: Partial<Record<string, unknown>>) => void;
+  commitNodeLabelRename: (
+    id: string,
+    nextTrimmed: string,
+    before: { labelText?: unknown; title?: unknown }
+  ) => void;
+  restoreNodeLabelSnapshot: (id: string, before: { labelText?: unknown; title?: unknown }) => void;
 
-  // Execution
   runFromNode: (id: string) => void;
   runAll: () => void;
 
-  // Tools
   setSelectedTool: (tool: SelectedTool) => void;
   setIsDragging: (dragging: boolean) => void;
 
-  // Hover / overlay
   setHoveredNode: (id: string | null) => void;
   setHoveredImageCell: (cell: { nodeId: string; cellIndex: number } | null) => void;
   toggleGridLayout: (nodeId: string) => void;
   setContextMenu: (menu: ContextMenu | null) => void;
 
-  // Comments
   addComment: (x: number, y: number, author?: string) => void;
   updateComment: (id: string, text: string) => void;
   resolveComment: (id: string) => void;
   deleteComment: (id: string) => void;
 
-  // Settings
   updateSettings: (s: Partial<WorkflowSettings>) => void;
 
-  // Undo / Redo
   undo: () => void;
   redo: () => void;
 
-  // History
-  takeSnapshot: () => void;
-
-  // Templates
   loadTemplate: (nodes: Node[], edges: Edge[]) => void;
 
   copyNodesByIds: (ids: string[]) => void;
   pasteClipboard: (offset?: XYPosition) => void;
 }
 
-// ── Helpers ────────────────────────────────────────────
+const MAX_STACK = 50;
 
-const MAX_HISTORY = 50;
-
-function snapshot(state: WorkflowState): Snapshot {
-  return {
-    nodes: structuredClone(state.nodes),
-    edges: structuredClone(state.edges),
-    comments: structuredClone(state.comments),
-  };
-}
-
-function pushSnapshot(s: WorkflowState): { past: Snapshot[]; future: Snapshot[] } {
-  return {
-    past: [...s.past.slice(-(MAX_HISTORY - 1)), snapshot(s)],
-    future: [],
-  };
+function capStack<T>(arr: T[]): T[] {
+  return arr.length > MAX_STACK ? arr.slice(-MAX_STACK) : arr;
 }
 
 const GRID_CYCLE: GridLayout[] = ['1x1', '2x2', '3x3'];
@@ -189,8 +199,6 @@ function edgesBetweenLevels(levels: string[][], edges: Edge[]): string[] {
   return edges.filter((e) => allNodes.has(e.source) && allNodes.has(e.target)).map((e) => e.id);
 }
 
-// ── Initial data ───────────────────────────────────────
-
 const defaultNodes: Node[] = [
   {
     id: 'text-1',
@@ -202,7 +210,7 @@ const defaultNodes: Node[] = [
     id: 'upload-1',
     type: 'uploadNode',
     position: { x: 80, y: 280 },
-    data: { mediaUrl: MOCK.location1, label: 'Location reference' },
+    data: { mediaUrl: MOCK.location1, label: 'Location reference', labelText: 'Location reference' },
   },
   {
     id: 'placement-1',
@@ -220,7 +228,14 @@ const defaultNodes: Node[] = [
     id: 'assistant-1',
     type: 'assistantNode',
     position: { x: 400, y: 200 },
-    data: { refinedPrompt: '' },
+    data: {
+      refinedPrompt: '',
+      prompt: '',
+      view: 'prompt',
+      result: '',
+      assistantModel: 'GPT-5 Mini',
+      labelText: 'Assistant',
+    },
   },
   {
     id: 'generator-1',
@@ -228,11 +243,14 @@ const defaultNodes: Node[] = [
     position: { x: 720, y: 200 },
     data: {
       model: 'mystic',
+      mode: 'Auto',
       aspect: '16:9',
       images: 1,
+      prompt: '',
       negativePrompt: '',
       status: 'idle',
       generatedUrl: MOCK.setDressing,
+      labelText: 'Image Generator',
     },
   },
   {
@@ -305,231 +323,549 @@ const defaultEdges: Edge[] = [
   { id: 'e-list-shot', source: 'angle-list-1', target: 'selected-shot-1', type: 'custom' },
 ];
 
-/** Clone default Virtual Production Scout graph for templates / reset. */
 export function createVirtualProductionScoutTemplate(): { nodes: Node[]; edges: Edge[] } {
   return { nodes: structuredClone(defaultNodes), edges: structuredClone(defaultEdges) };
 }
 
-// ── Store ──────────────────────────────────────────────
+export const useWorkflowStore = create<WorkflowState>((set, get) => {
+  const pushCmd = (cmd: CanvasCommand) => {
+    set((s) => ({
+      pastStack: capStack([...s.pastStack, cmd]),
+      futureStack: [],
+    }));
+  };
 
-export const useWorkflowStore = create<WorkflowState>((set, get) => ({
-  nodes: defaultNodes,
-  edges: defaultEdges,
-  comments: [],
-  runningNodes: new Set(),
-  runningEdges: new Set(),
-  selectedTool: 'select',
-  isDragging: false,
-  hoveredNodeId: null,
-  hoveredImageCell: null,
-  nodeGridLayouts: {},
-  contextMenu: null,
-  settings: {
-    helperLines: true,
-    videoAutoplay: true,
-    performanceMode: false,
-    richTooltips: true,
-    experimentalTools: false,
-    edgePathType: 'bezier',
-    mouseWheelBehavior: 'zoom',
-    darkMode: true,
-    showMinimap: false,
-    edgeAnimation: true,
-    showNodeLabels: true,
-    canvasPattern: 'dots',
-  },
-  nodesClipboard: null,
-  past: [],
-  future: [],
+  return {
+    nodes: defaultNodes,
+    edges: defaultEdges,
+    comments: [],
+    runningNodes: new Set(),
+    runningEdges: new Set(),
+    selectedTool: 'select',
+    isDragging: false,
+    hoveredNodeId: null,
+    hoveredImageCell: null,
+    nodeGridLayouts: {},
+    contextMenu: null,
+    settings: {
+      helperLines: true,
+      videoAutoplay: true,
+      performanceMode: false,
+      richTooltips: true,
+      experimentalTools: false,
+      edgePathType: 'bezier',
+      mouseWheelBehavior: 'zoom',
+      darkMode: true,
+      showMinimap: false,
+      edgeAnimation: true,
+      showNodeLabels: true,
+      canvasPattern: 'dots',
+    },
+    nodesClipboard: null,
+    focusedNodeContentId: null,
+    currentSpaceId: null,
+    lastViewport: { x: 0, y: 0, zoom: 1 },
+    pastStack: [],
+    futureStack: [],
 
-  takeSnapshot: () => {
-    const s = get();
-    if (s.isDragging) return;
-    set(pushSnapshot(s));
-  },
+    setFocusedNodeContentId: (id) => set({ focusedNodeContentId: id }),
+    setLastViewport: (v) => set({ lastViewport: v }),
 
-  setNodes: (nodes) => {
-    const s = get();
-    if (s.isDragging) {
-      set({ nodes });
-    } else {
-      set({ ...pushSnapshot(s), nodes });
-    }
-  },
-
-  setEdges: (edges) => {
-    const s = get();
-    set({ ...pushSnapshot(s), edges });
-  },
-
-  setIsDragging: (dragging) => {
-    const s = get();
-    if (dragging) {
-      set({ isDragging: true, ...pushSnapshot(s) });
-    } else {
-      set({ isDragging: false });
-    }
-  },
-
-  // Hover / overlay
-  setHoveredNode: (id) => set({ hoveredNodeId: id }),
-  setHoveredImageCell: (cell) => set({ hoveredImageCell: cell }),
-  setContextMenu: (menu) => set({ contextMenu: menu }),
-
-  toggleGridLayout: (nodeId) => {
-    const s = get();
-    const current = s.nodeGridLayouts[nodeId] || '2x2';
-    const idx = GRID_CYCLE.indexOf(current);
-    const next = GRID_CYCLE[(idx + 1) % GRID_CYCLE.length];
-    set({ nodeGridLayouts: { ...s.nodeGridLayouts, [nodeId]: next } });
-  },
-
-  // Node CRUD
-  addNode: (type, position, data = {}) => {
-    const s = get();
-    const id = `${type.replace('Node', '')}-${Date.now()}`;
-    const newNode: Node = { id, type, position, data };
-    set({ ...pushSnapshot(s), nodes: [...s.nodes, newNode] });
-  },
-
-  deleteNode: (id) => {
-    const s = get();
-    set({
-      ...pushSnapshot(s),
-      nodes: s.nodes.filter((n) => n.id !== id),
-      edges: s.edges.filter((e) => e.source !== id && e.target !== id),
-    });
-  },
-
-  duplicateNode: (id) => {
-    const s = get();
-    const node = s.nodes.find((n) => n.id === id);
-    if (!node) return;
-    const dup: Node = {
-      ...structuredClone(node),
-      id: `${node.type}-${Date.now()}`,
-      position: { x: node.position.x + 40, y: node.position.y + 40 },
-    };
-    set({ ...pushSnapshot(s), nodes: [...s.nodes, dup] });
-  },
-
-  lockNode: (id) => {
-    const s = get();
-    set({
-      nodes: s.nodes.map((n) =>
-        n.id === id ? { ...n, draggable: n.draggable === false ? undefined : false } : n
-      ),
-    });
-  },
-
-  updateNodeData: (id, data) => {
-    const s = get();
-    set({
-      nodes: s.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...data } } : n)),
-    });
-  },
-
-  // Execution
-  runFromNode: (id) => {
-    const s = get();
-    const levels = bfsDownstream(id, s.edges);
-    const affectedEdgeIds = edgesBetweenLevels(levels, s.edges);
-    set({ runningEdges: new Set(affectedEdgeIds) });
-    levels.forEach((level, depth) => {
-      setTimeout(() => {
-        set((state) => ({
-          runningNodes: new Set([...state.runningNodes, ...level]),
-        }));
-        setTimeout(() => {
-          set((state) => {
-            const next = new Set(state.runningNodes);
-            level.forEach((nid) => next.delete(nid));
-            const isLast = depth === levels.length - 1;
-            return { runningNodes: next, runningEdges: isLast ? new Set() : state.runningEdges };
-          });
-        }, 1500);
-      }, depth * 600);
-    });
-  },
-
-  runAll: () => {
-    const s = get();
-    const targets = new Set(s.edges.map((e) => e.target));
-    const roots = s.nodes.filter((n) => !targets.has(n.id));
-    roots.forEach((r) => get().runFromNode(r.id));
-  },
-
-  setSelectedTool: (tool) => set({ selectedTool: tool }),
-
-  // Comments
-  addComment: (x, y, author = 'CD') => {
-    const s = get();
-    set({
-      ...pushSnapshot(s),
-      comments: [...s.comments, { id: `comment-${Date.now()}`, x, y, text: '', resolved: false, author }],
-    });
-  },
-  updateComment: (id, text) => set((s) => ({ comments: s.comments.map((c) => (c.id === id ? { ...c, text } : c)) })),
-  resolveComment: (id) => set((s) => ({ comments: s.comments.map((c) => (c.id === id ? { ...c, resolved: !c.resolved } : c)) })),
-  deleteComment: (id) => set((s) => ({ comments: s.comments.filter((c) => c.id !== id) })),
-
-  // Settings
-  updateSettings: (partial) => {
-    set((s) => {
-      const next = { ...s.settings, ...partial };
-      if (partial.performanceMode !== undefined) document.body.setAttribute('data-performance', String(next.performanceMode));
-      if (partial.darkMode !== undefined) document.body.setAttribute('data-theme', next.darkMode ? 'dark' : 'light');
-      return { settings: next };
-    });
-  },
-
-  // Undo / Redo
-  undo: () => {
-    const s = get();
-    if (s.past.length === 0) return;
-    const prev = s.past[s.past.length - 1];
-    set({ past: s.past.slice(0, -1), future: [snapshot(s), ...s.future].slice(0, MAX_HISTORY), nodes: prev.nodes, edges: prev.edges, comments: prev.comments });
-  },
-  redo: () => {
-    const s = get();
-    if (s.future.length === 0) return;
-    const next = s.future[0];
-    set({ past: [...s.past, snapshot(s)].slice(-MAX_HISTORY), future: s.future.slice(1), nodes: next.nodes, edges: next.edges, comments: next.comments });
-  },
-
-  loadTemplate: (nodes, edges) => {
-    const s = get();
-    set({ ...pushSnapshot(s), nodes, edges, runningNodes: new Set(), runningEdges: new Set(), comments: [] });
-  },
-
-  copyNodesByIds: (ids) => {
-    const s = get();
-    const picked = s.nodes.filter((n) => ids.includes(n.id));
-    if (picked.length === 0) return;
-    set({ nodesClipboard: structuredClone(picked.map((n) => ({ ...n, selected: false }))) });
-  },
-
-  pasteClipboard: (offset = { x: 48, y: 48 }) => {
-    const s = get();
-    if (!s.nodesClipboard?.length) return;
-    const dx = offset.x;
-    const dy = offset.y;
-    const t = Date.now();
-    const newNodes: Node[] = s.nodesClipboard.map((n, i) => {
-      const newId = `${n.type}-${t}-${i}`;
-      return {
-        ...structuredClone(n),
-        id: newId,
-        position: { x: n.position.x + dx, y: n.position.y + dy },
-        selected: true,
+    hydrateFromSpace: (space) => {
+      const baseSettings = get().settings;
+      const merged: WorkflowSettings = {
+        ...baseSettings,
+        ...(space.settings && typeof space.settings === 'object' ? space.settings : {}),
       };
-    });
-    set({
-      ...pushSnapshot(s),
-      nodes: [
-        ...s.nodes.map((n) => ({ ...n, selected: false })),
-        ...newNodes,
-      ],
-    });
-  },
-}));
+      const vp = space.viewport ?? { x: 0, y: 0, zoom: 1 };
+      set({
+        nodes: structuredClone(space.nodes),
+        edges: structuredClone(space.edges),
+        comments: structuredClone(space.comments || []),
+        nodeGridLayouts: structuredClone(space.node_grid_layouts || {}),
+        settings: merged,
+        currentSpaceId: space.id,
+        lastViewport: vp,
+        pastStack: [],
+        futureStack: [],
+        runningNodes: new Set(),
+        runningEdges: new Set(),
+        focusedNodeContentId: null,
+      });
+      document.body.setAttribute('data-theme', merged.darkMode ? 'dark' : 'light');
+      document.body.setAttribute('data-performance', String(merged.performanceMode));
+    },
+
+    setNodesSilently: (nodes) => set({ nodes }),
+    setEdgesSilently: (edges) => set({ edges }),
+
+    commitNodesAfterDrag: (nodes, deltas) => {
+      set({ nodes });
+      const ids = Object.keys(deltas);
+      if (ids.length === 0) return;
+      pushCmd({
+        undo: () =>
+          set((st) => ({
+            nodes: st.nodes.map((n) =>
+              deltas[n.id] ? { ...n, position: { ...deltas[n.id].from } } : n
+            ),
+          })),
+        execute: () =>
+          set((st) => ({
+            nodes: st.nodes.map((n) =>
+              deltas[n.id] ? { ...n, position: { ...deltas[n.id].to } } : n
+            ),
+          })),
+      });
+    },
+
+    connectEdgeWithHistory: (nextEdges, newEdge) => {
+      const edge = structuredClone(newEdge);
+      set({ edges: nextEdges });
+      pushCmd({
+        undo: () => set((st) => ({ edges: st.edges.filter((e) => e.id !== edge.id) })),
+        execute: () => set((st) => ({ edges: [...st.edges, structuredClone(edge)] })),
+      });
+    },
+
+    applyEdgeRemoval: (nextEdges, removed) => {
+      if (removed.length === 0) {
+        set({ edges: nextEdges });
+        return;
+      }
+      const clones = removed.map((e) => structuredClone(e));
+      set({ edges: nextEdges });
+      pushCmd({
+        undo: () => set((st) => ({ edges: [...st.edges, ...clones.map((c) => structuredClone(c))] })),
+        execute: () =>
+          set((st) => ({
+            edges: st.edges.filter((e) => !clones.some((r) => r.id === e.id)),
+          })),
+      });
+    },
+
+    removeEdgeById: (id) => {
+      const s = get();
+      const edge = s.edges.find((e) => e.id === id);
+      if (!edge) return;
+      const clone = structuredClone(edge);
+      set({ edges: s.edges.filter((e) => e.id !== id) });
+      pushCmd({
+        undo: () => set((st) => ({ edges: [...st.edges, structuredClone(clone)] })),
+        execute: () => set((st) => ({ edges: st.edges.filter((e) => e.id !== id) })),
+      });
+    },
+
+    setIsDragging: (dragging) => set({ isDragging: dragging }),
+
+    setHoveredNode: (id) => set({ hoveredNodeId: id }),
+    setHoveredImageCell: (cell) => set({ hoveredImageCell: cell }),
+    setContextMenu: (menu) => set({ contextMenu: menu }),
+
+    toggleGridLayout: (nodeId) => {
+      const s = get();
+      const current = s.nodeGridLayouts[nodeId] || '2x2';
+      const idx = GRID_CYCLE.indexOf(current);
+      const next = GRID_CYCLE[(idx + 1) % GRID_CYCLE.length];
+      set({ nodeGridLayouts: { ...s.nodeGridLayouts, [nodeId]: next } });
+      pushCmd({
+        undo: () =>
+          set((st) => ({
+            nodeGridLayouts: { ...st.nodeGridLayouts, [nodeId]: current },
+          })),
+        execute: () =>
+          set((st) => ({
+            nodeGridLayouts: { ...st.nodeGridLayouts, [nodeId]: next },
+          })),
+      });
+    },
+
+    addNode: (type, position, data = {}) => {
+      const s = get();
+      const id = `${type.replace('Node', '')}-${Date.now()}`;
+      const newNode: Node = { id, type, position, data };
+      set({ nodes: [...s.nodes, newNode] });
+      pushCmd({
+        undo: () => set((st) => ({ nodes: st.nodes.filter((n) => n.id !== id) })),
+        execute: () => set((st) => ({ nodes: [...st.nodes, structuredClone(newNode)] })),
+      });
+      return id;
+    },
+
+    deleteNode: (id) => {
+      const s = get();
+      const node = s.nodes.find((n) => n.id === id);
+      if (!node) return;
+      const nClone = structuredClone(node);
+      const removedEdges = s.edges.filter((e) => e.source === id || e.target === id).map(structuredClone);
+      set({
+        nodes: s.nodes.filter((n) => n.id !== id),
+        edges: s.edges.filter((e) => e.source !== id && e.target !== id),
+      });
+      pushCmd({
+        undo: () =>
+          set((st) => ({
+            nodes: [...st.nodes, structuredClone(nClone)],
+            edges: [...st.edges, ...removedEdges.map((e) => structuredClone(e))],
+          })),
+        execute: () =>
+          set((st) => ({
+            nodes: st.nodes.filter((n) => n.id !== id),
+            edges: st.edges.filter((e) => e.source !== id && e.target !== id),
+          })),
+      });
+    },
+
+    duplicateNode: (id) => {
+      const s = get();
+      const node = s.nodes.find((n) => n.id === id);
+      if (!node) return;
+      const dup: Node = {
+        ...structuredClone(node),
+        id: `${node.type}-${Date.now()}`,
+        position: { x: node.position.x + 40, y: node.position.y + 40 },
+      };
+      set({ nodes: [...s.nodes, dup] });
+      const dupId = dup.id;
+      const dupSnap = structuredClone(dup);
+      pushCmd({
+        undo: () => set((st) => ({ nodes: st.nodes.filter((n) => n.id !== dupId) })),
+        execute: () => set((st) => ({ nodes: [...st.nodes, structuredClone(dupSnap)] })),
+      });
+    },
+
+    lockNode: (id) => {
+      const s = get();
+      const n = s.nodes.find((x) => x.id === id);
+      if (!n) return;
+      const wasLocked = n.draggable === false;
+      const nextLocked = !wasLocked;
+      set({
+        nodes: s.nodes.map((x) =>
+          x.id === id ? { ...x, draggable: nextLocked ? false : undefined } : x
+        ),
+      });
+      pushCmd({
+        undo: () =>
+          set((st) => ({
+            nodes: st.nodes.map((x) =>
+              x.id === id ? { ...x, draggable: wasLocked ? false : undefined } : x
+            ),
+          })),
+        execute: () =>
+          set((st) => ({
+            nodes: st.nodes.map((x) =>
+              x.id === id ? { ...x, draggable: nextLocked ? false : undefined } : x
+            ),
+          })),
+      });
+    },
+
+    updateNodeData: (id, data) => {
+      const s = get();
+      const n = s.nodes.find((x) => x.id === id);
+      if (!n) return;
+      const keys = Object.keys(data) as string[];
+      const prevSubset: Record<string, unknown> = {};
+      keys.forEach((k) => {
+        prevSubset[k] = n.data[k];
+      });
+      set({
+        nodes: s.nodes.map((x) =>
+          x.id === id ? { ...x, data: { ...x.data, ...data } } : x
+        ),
+      });
+      pushCmd({
+        undo: () =>
+          set((st) => ({
+            nodes: st.nodes.map((x) => {
+              if (x.id !== id) return x;
+              const nextData = { ...x.data };
+              keys.forEach((k) => {
+                if (prevSubset[k] === undefined) delete nextData[k];
+                else nextData[k] = prevSubset[k];
+              });
+              return { ...x, data: nextData };
+            }),
+          })),
+        execute: () =>
+          set((st) => ({
+            nodes: st.nodes.map((x) =>
+              x.id === id ? { ...x, data: { ...x.data, ...data } } : x
+            ),
+          })),
+      });
+    },
+
+    updateNodeDataSilent: (id, data) => {
+      const s = get();
+      if (!s.nodes.some((x) => x.id === id)) return;
+      set({
+        nodes: s.nodes.map((x) =>
+          x.id === id ? { ...x, data: { ...x.data, ...data } } : x
+        ),
+      });
+    },
+
+    commitNodeLabelRename: (id, nextTrimmed, before) => {
+      const s = get();
+      const n = s.nodes.find((x) => x.id === id);
+      if (!n) return;
+      const prevDisplay = String(before.labelText ?? before.title ?? '').trim();
+
+      const snap = {
+        labelText: before.labelText,
+        title: before.title,
+      };
+
+      const applyFinal = (nodes: Node[]) =>
+        nodes.map((x) => {
+          if (x.id !== id) return x;
+          const d = { ...x.data };
+          if (nextTrimmed === '') delete d.labelText;
+          else d.labelText = nextTrimmed;
+          return { ...x, data: d };
+        });
+
+      const applyBefore = (nodes: Node[]) =>
+        nodes.map((x) => {
+          if (x.id !== id) return x;
+          const d = { ...x.data };
+          if (snap.labelText === undefined) delete d.labelText;
+          else d.labelText = snap.labelText;
+          if (snap.title === undefined) delete d.title;
+          else d.title = snap.title;
+          return { ...x, data: d };
+        });
+
+      if (prevDisplay === nextTrimmed) {
+        set({ nodes: applyFinal(s.nodes) });
+        return;
+      }
+
+      set({ nodes: applyFinal(s.nodes) });
+      pushCmd({
+        undo: () => set((st) => ({ nodes: applyBefore(st.nodes) })),
+        execute: () => set((st) => ({ nodes: applyFinal(st.nodes) })),
+      });
+    },
+
+    restoreNodeLabelSnapshot: (id, before) => {
+      set((st) => ({
+        nodes: st.nodes.map((x) => {
+          if (x.id !== id) return x;
+          const d = { ...x.data };
+          if (before.labelText === undefined) delete d.labelText;
+          else d.labelText = before.labelText;
+          if (before.title === undefined) delete d.title;
+          else d.title = before.title;
+          return { ...x, data: d };
+        }),
+      }));
+    },
+
+    runFromNode: (id) => {
+      const s = get();
+      const levels = bfsDownstream(id, s.edges);
+      const affectedEdgeIds = edgesBetweenLevels(levels, s.edges);
+      set({ runningEdges: new Set(affectedEdgeIds) });
+      levels.forEach((level, depth) => {
+        setTimeout(() => {
+          set((state) => ({
+            runningNodes: new Set([...state.runningNodes, ...level]),
+          }));
+          setTimeout(() => {
+            set((state) => {
+              const next = new Set(state.runningNodes);
+              level.forEach((nid) => next.delete(nid));
+              const isLast = depth === levels.length - 1;
+              return { runningNodes: next, runningEdges: isLast ? new Set() : state.runningEdges };
+            });
+          }, 1500);
+        }, depth * 600);
+      });
+    },
+
+    runAll: () => {
+      const s = get();
+      const targets = new Set(s.edges.map((e) => e.target));
+      const roots = s.nodes.filter((n) => !targets.has(n.id));
+      roots.forEach((r) => get().runFromNode(r.id));
+    },
+
+    setSelectedTool: (tool) => set({ selectedTool: tool }),
+
+    addComment: (x, y, author = 'CD') => {
+      const cid = `comment-${Date.now()}`;
+      const comment: Comment = { id: cid, x, y, text: '', resolved: false, author };
+      set((s) => ({ comments: [...s.comments, comment] }));
+      pushCmd({
+        undo: () => set((st) => ({ comments: st.comments.filter((c) => c.id !== cid) })),
+        execute: () => set((st) => ({ comments: [...st.comments, { ...comment }] })),
+      });
+    },
+
+    updateComment: (id, text) => {
+      const s = get();
+      const c = s.comments.find((x) => x.id === id);
+      if (!c) return;
+      const prev = c.text;
+      set((st) => ({
+        comments: st.comments.map((x) => (x.id === id ? { ...x, text } : x)),
+      }));
+      pushCmd({
+        undo: () =>
+          set((st) => ({
+            comments: st.comments.map((x) => (x.id === id ? { ...x, text: prev } : x)),
+          })),
+        execute: () =>
+          set((st) => ({
+            comments: st.comments.map((x) => (x.id === id ? { ...x, text } : x)),
+          })),
+      });
+    },
+
+    resolveComment: (id) => {
+      const s = get();
+      const c = s.comments.find((x) => x.id === id);
+      if (!c) return;
+      const prev = c.resolved;
+      set((st) => ({
+        comments: st.comments.map((x) => (x.id === id ? { ...x, resolved: !x.resolved } : x)),
+      }));
+      pushCmd({
+        undo: () =>
+          set((st) => ({
+            comments: st.comments.map((x) => (x.id === id ? { ...x, resolved: prev } : x)),
+          })),
+        execute: () =>
+          set((st) => ({
+            comments: st.comments.map((x) => (x.id === id ? { ...x, resolved: !prev } : x)),
+          })),
+      });
+    },
+
+    deleteComment: (id) => {
+      const s = get();
+      const c = s.comments.find((x) => x.id === id);
+      if (!c) return;
+      const clone = { ...c };
+      set((st) => ({ comments: st.comments.filter((x) => x.id !== id) }));
+      pushCmd({
+        undo: () => set((st) => ({ comments: [...st.comments, clone] })),
+        execute: () => set((st) => ({ comments: st.comments.filter((x) => x.id !== id) })),
+      });
+    },
+
+    updateSettings: (partial) => {
+      set((s) => {
+        const next = { ...s.settings, ...partial };
+        if (partial.performanceMode !== undefined)
+          document.body.setAttribute('data-performance', String(next.performanceMode));
+        if (partial.darkMode !== undefined)
+          document.body.setAttribute('data-theme', next.darkMode ? 'dark' : 'light');
+        return { settings: next };
+      });
+    },
+
+    undo: () => {
+      const s = get();
+      if (s.pastStack.length === 0) return;
+      const cmd = s.pastStack[s.pastStack.length - 1];
+      cmd.undo();
+      set({
+        pastStack: s.pastStack.slice(0, -1),
+        futureStack: capStack([...s.futureStack, cmd]),
+      });
+    },
+
+    redo: () => {
+      const s = get();
+      if (s.futureStack.length === 0) return;
+      const cmd = s.futureStack[s.futureStack.length - 1];
+      cmd.execute();
+      set({
+        futureStack: s.futureStack.slice(0, -1),
+        pastStack: capStack([...s.pastStack, cmd]),
+      });
+    },
+
+    loadTemplate: (nodes, edges) => {
+      const s = get();
+      const before: GraphSnapshot = {
+        nodes: structuredClone(s.nodes),
+        edges: structuredClone(s.edges),
+        comments: structuredClone(s.comments),
+      };
+      const afterNodes = structuredClone(nodes);
+      const afterEdges = structuredClone(edges);
+      set({
+        nodes: afterNodes,
+        edges: afterEdges,
+        comments: [],
+        runningNodes: new Set(),
+        runningEdges: new Set(),
+      });
+      pushCmd({
+        undo: () =>
+          set({
+            nodes: structuredClone(before.nodes),
+            edges: structuredClone(before.edges),
+            comments: structuredClone(before.comments),
+            runningNodes: new Set(),
+            runningEdges: new Set(),
+          }),
+        execute: () =>
+          set({
+            nodes: structuredClone(afterNodes),
+            edges: structuredClone(afterEdges),
+            comments: [],
+            runningNodes: new Set(),
+            runningEdges: new Set(),
+          }),
+      });
+    },
+
+    copyNodesByIds: (ids) => {
+      const s = get();
+      const picked = s.nodes.filter((n) => ids.includes(n.id));
+      if (picked.length === 0) return;
+      set({ nodesClipboard: structuredClone(picked.map((n) => ({ ...n, selected: false }))) });
+    },
+
+    pasteClipboard: (offset = { x: 48, y: 48 }) => {
+      const s = get();
+      if (!s.nodesClipboard?.length) return;
+      const dx = offset.x;
+      const dy = offset.y;
+      const t = Date.now();
+      const newNodes: Node[] = s.nodesClipboard.map((n, i) => {
+        const newId = `${n.type}-${t}-${i}`;
+        return {
+          ...structuredClone(n),
+          id: newId,
+          position: { x: n.position.x + dx, y: n.position.y + dy },
+          selected: true,
+        };
+      });
+      const ids = new Set(newNodes.map((n) => n.id));
+      const snapshots = newNodes.map((n) => structuredClone(n));
+      set({
+        nodes: [...s.nodes.map((n) => ({ ...n, selected: false })), ...newNodes],
+      });
+      pushCmd({
+        undo: () =>
+          set((st) => ({
+            nodes: st.nodes.filter((n) => !ids.has(n.id)),
+          })),
+        execute: () =>
+          set((st) => ({
+            nodes: [
+              ...st.nodes.map((n) => ({ ...n, selected: false })),
+              ...snapshots.map((n) => structuredClone(n)),
+            ],
+          })),
+      });
+    },
+  };
+});

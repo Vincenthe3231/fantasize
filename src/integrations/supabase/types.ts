@@ -72,6 +72,7 @@ export type Database = {
           owner_id: string
           settings: Json | null
           updated_at: string
+          viewport: Json | null
         }
         Insert: {
           comments?: Json
@@ -84,6 +85,7 @@ export type Database = {
           owner_id: string
           settings?: Json | null
           updated_at?: string
+          viewport?: Json | null
         }
         Update: {
           comments?: Json
@@ -96,6 +98,7 @@ export type Database = {
           owner_id?: string
           settings?: Json | null
           updated_at?: string
+          viewport?: Json | null
         }
         Relationships: []
       }

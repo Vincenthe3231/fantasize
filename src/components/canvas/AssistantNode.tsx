@@ -1,100 +1,328 @@
-import { memo, useState } from 'react';
-import { Handle, Position, type NodeProps, useEdges } from 'reactflow';
-import { Sparkles, Loader2 } from 'lucide-react';
-import { useWorkflowStore } from '@/stores/workflowStore';
-import NodeActionBar from './NodeActionBar';
+import { memo, useState, useMemo, useCallback } from 'react';
+import { Handle, Position, type NodeProps } from 'reactflow';
+import { Sparkles, Loader2, Type, Image as ImageIcon, Settings, Play } from 'lucide-react';
+import { NodeLabelRow } from './NodeLabelRow';
+import { useWorkflowStore, type NodeType } from '@/stores/workflowStore';
+import NodeActionBar, { type ConnectMenuItem } from './NodeActionBar';
+import { NodeContentFocus } from './NodeContentFocus';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
+const ASSISTANT_MODELS = [
+  'GPT-5 Mini',
+  'GPT-4.1 Mini',
+  'GPT-5.2',
+  'Gemini 3 Pro',
+  'Gemini 3 Flash',
+  'Claude Sonnet 4.5',
+];
+
+const PLACEHOLDER =
+  'Assistant is your creative sidekick—powered by a large language model. You can type a prompt, or even use images for context. It understands what you mean, builds on your ideas, and helps you move faster.';
+
+function makeEdge(
+  source: string,
+  target: string,
+  sourceHandle?: string | null,
+  targetHandle?: string | null
+) {
+  return {
+    id: `e-${source}-${target}-${Date.now()}`,
+    source,
+    target,
+    sourceHandle: sourceHandle ?? undefined,
+    targetHandle: targetHandle ?? undefined,
+    type: 'custom' as const,
+  };
+}
 
 const AssistantNode = memo(({ id, data }: NodeProps) => {
-  const [isRefining, setIsRefining] = useState(false);
-  const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
+  const [isRunning, setIsRunning] = useState(false);
+  const isStoreRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
-  const allNodes = useWorkflowStore((s) => s.nodes);
-  const edges = useEdges();
+  const addNode = useWorkflowStore((s) => s.addNode);
+  const connectEdgeWithHistory = useWorkflowStore((s) => s.connectEdgeWithHistory);
+  const nodes = useWorkflowStore((s) => s.nodes);
+  const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
 
-  const refinedPrompt = (data.refinedPrompt as string) || '';
+  const prompt = (data.prompt as string) || '';
+  const result = (data.result as string) || (data.refinedPrompt as string) || '';
+  const view = (data.view as 'prompt' | 'result') || 'prompt';
+  const model = (data.assistantModel as string) || ASSISTANT_MODELS[0];
 
-  // Find connected source node names
-  const textSource = edges.find((e) => e.target === id && e.targetHandle === 'text-in');
-  const imageSource = edges.find((e) => e.target === id && e.targetHandle === 'image-in');
-  const textNodeName = textSource ? allNodes.find((n) => n.id === textSource.source)?.type?.replace('Node', '') || 'Source' : null;
-  const imageNodeName = imageSource ? allNodes.find((n) => n.id === imageSource.source)?.type?.replace('Node', '') || 'Source' : null;
+  const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
 
-  const handleRefine = () => {
-    setIsRefining(true);
+  const wireEdge = useCallback(
+    (newEdge: ReturnType<typeof makeEdge>) => {
+      const s = useWorkflowStore.getState();
+      connectEdgeWithHistory([...s.edges, newEdge], newEdge);
+    },
+    [connectEdgeWithHistory]
+  );
+
+  const quickAddTextLeft = useCallback(() => {
+    const nid = addNode('textNode', { x: selfPos.x - 300, y: selfPos.y });
+    wireEdge(makeEdge(nid, id, undefined, 'text-in'));
+  }, [addNode, selfPos.x, selfPos.y, id, wireEdge]);
+
+  const quickAddImageLeft = useCallback(() => {
+    const nid = addNode('imageGeneratorNode', { x: selfPos.x - 320, y: selfPos.y + 24 });
+    wireEdge(makeEdge(nid, id, undefined, 'image-in'));
+  }, [addNode, selfPos, id, wireEdge]);
+
+  const quickAddTextRight = useCallback(() => {
+    const nid = addNode('textNode', { x: selfPos.x + 320, y: selfPos.y });
+    wireEdge(makeEdge(id, nid, undefined, 'text-in'));
+  }, [addNode, selfPos, id, wireEdge]);
+
+  const connectMenuItems: ConnectMenuItem[] = useMemo(
+    () => [
+      {
+        label: 'Image Generator',
+        onClick: () => {
+          const nid = addNode('imageGeneratorNode', { x: selfPos.x + 340, y: selfPos.y });
+          wireEdge(makeEdge(id, nid, undefined, 'text-in'));
+        },
+      },
+      {
+        label: 'Video Generator',
+        onClick: () => {
+          const nid = addNode('videoGeneratorNode', { x: selfPos.x + 340, y: selfPos.y });
+          wireEdge(makeEdge(id, nid, undefined, 'text-in'));
+        },
+      },
+      {
+        label: 'Image Upscaler',
+        onClick: () => {
+          const nid = addNode('imageUpscalerNode', { x: selfPos.x + 340, y: selfPos.y });
+          wireEdge(makeEdge(id, nid));
+        },
+      },
+      {
+        label: 'Assistant',
+        onClick: () => {
+          const nid = addNode('assistantNode', { x: selfPos.x + 340, y: selfPos.y });
+          wireEdge(makeEdge(id, nid, undefined, 'text-in'));
+        },
+      },
+    ],
+    [addNode, selfPos, id, wireEdge]
+  );
+
+  const handleRun = useCallback(() => {
+    setIsRunning(true);
     setTimeout(() => {
       updateNodeData(id, {
-        refinedPrompt:
-          'A cinematic hotel suite interior — king bed centered with an LED-backlit headboard niche, bento-style floating shelves with curated ceramic props, warm diffused ambient lighting from recessed ceiling strips, wall-mounted AC unit recessed into millwork, editorial mood, 35mm lens, golden hour fill light',
+        result:
+          prompt.trim() ||
+          'Refined output: expanded creative direction based on your prompt and any connected context.',
+        view: 'result',
       });
-      setIsRefining(false);
-    }, 1500);
-  };
+      setIsRunning(false);
+    }, 1200);
+  }, [id, prompt, updateNodeData]);
+
+  const FloatBtn = ({
+    children,
+    onClick,
+    className = '',
+  }: {
+    children: React.ReactNode;
+    onClick: () => void;
+    className?: string;
+  }) => (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={`w-8 h-8 rounded-full bg-[#2a2a2e] border border-white/10 flex items-center justify-center text-white/80 hover:bg-white/10 hover:text-white transition-colors shadow-lg ${className}`}
+    >
+      {children}
+    </button>
+  );
 
   return (
-    <div className={`glass-node w-[300px] relative ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}>
+    <div className="w-[300px] relative">
+      <NodeLabelRow nodeId={id} nodeType="assistantNode" labelPrefix="Assistant" icon={<Sparkles size={12} />} />
+      <div
+        className={`glass-node w-full relative ${isStoreRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        data-content-focused={contentFocused || undefined}
+      >
       <NodeActionBar
+        variant="assistant"
         onRun={() => runFromNode(id)}
         onDuplicate={() => duplicateNode(id)}
         onDelete={() => deleteNode(id)}
+        onExpand={() => {}}
+        connectMenuItems={connectMenuItems}
       />
 
-      <div className="glass-node-header px-3 py-2.5 flex items-center gap-2 text-[var(--text-primary)]">
-        <Sparkles size={13} />
-        <span>Assistant</span>
-      </div>
+      <NodeContentFocus nodeId={id}>
+        <div
+          className={`rounded-xl border-2 transition-colors ${
+            contentFocused
+              ? 'border-[hsl(217_91%_60%)] shadow-[0_0_0_3px_hsla(217,91%,60%,0.15)]'
+              : 'border-transparent'
+          }`}
+        >
+          <div className="rounded-[10px] overflow-hidden bg-[#1a1a1c]">
+            <div className="flex items-center gap-1 p-2 border-b border-white/5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateNodeData(id, { view: 'prompt' });
+                }}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-mono-display uppercase tracking-wider transition-colors ${
+                  view === 'prompt' ? 'bg-white/15 text-white' : 'text-white/45 hover:text-white/70'
+                }`}
+              >
+                <span className="opacity-80">Prompt</span>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateNodeData(id, { view: 'result' });
+                }}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-mono-display uppercase tracking-wider transition-colors ${
+                  view === 'result' ? 'bg-white/15 text-white' : 'text-white/45 hover:text-white/70'
+                }`}
+              >
+                <Sparkles size={12} />
+                Result
+              </button>
+            </div>
 
-      <div className="p-3 space-y-3">
-        {/* Input slot pills */}
-        <div className="flex gap-2">
-          <div
-            className={`px-2.5 py-1 rounded-md text-[10px] font-mono-display uppercase tracking-wider border ${
-              textNodeName ? 'border-[var(--port-input)]/40 text-[var(--port-input)]' : 'border-white/10 text-[var(--text-muted)]'
-            }`}
-          >
-            Text ↗ {textNodeName && <span className="normal-case ml-1 opacity-70">{textNodeName}</span>}
-          </div>
-          <div
-            className={`px-2.5 py-1 rounded-md text-[10px] font-mono-display uppercase tracking-wider border ${
-              imageNodeName ? 'border-[var(--port-input)]/40 text-[var(--port-input)]' : 'border-white/10 text-[var(--text-muted)]'
-            }`}
-          >
-            Image ↗ {imageNodeName && <span className="normal-case ml-1 opacity-70">{imageNodeName}</span>}
+            <div className="p-3 min-h-[140px]">
+              {view === 'prompt' ? (
+                <textarea
+                  value={prompt}
+                  onChange={(e) => updateNodeData(id, { prompt: e.target.value })}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  placeholder={PLACEHOLDER}
+                  className="w-full min-h-[120px] bg-transparent text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] resize-none outline-none leading-relaxed"
+                  style={{ fontFamily: 'Inter, sans-serif' }}
+                />
+              ) : (
+                <div className="min-h-[120px] text-[12px] text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap">
+                  {result || <span className="text-[var(--text-muted)]">Run the assistant to see results here.</span>}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 px-3 py-2.5 border-t border-white/5 bg-black/20">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] text-white/90 hover:bg-white/10 max-w-[120px] truncate"
+                  >
+                    {model}
+                    <span className="text-white/40 text-[9px]">▼</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="bg-[#1a1a1e] border-white/10 text-white/90 text-xs max-h-56 overflow-y-auto">
+                  {ASSISTANT_MODELS.map((m) => (
+                    <DropdownMenuItem key={m} onClick={() => updateNodeData(id, { assistantModel: m })}>
+                      {m}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <button
+                type="button"
+                className="p-2 rounded-lg text-white/50 hover:text-white/90 hover:bg-white/10"
+                title="Settings"
+              >
+                <Settings size={14} />
+              </button>
+              <div className="flex-1" />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] text-white/90 hover:bg-white/10"
+                  >
+                    Export as text
+                    <span className="text-white/40 text-[9px]">▼</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="bg-[#1a1a1e] border-white/10 text-white/90 text-xs w-52">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      const nid = addNode('listNode', { x: selfPos.x + 40, y: selfPos.y + 200 });
+                      const text = (result || prompt).trim() || 'Item';
+                      updateNodeData(nid, { items: [{ id: `item-${Date.now()}`, text }] });
+                    }}
+                  >
+                    <div>
+                      <div>Export as list</div>
+                      <div className="text-[10px] text-white/50">Export results as a list node</div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      const nid = addNode('textNode', { x: selfPos.x + 40, y: selfPos.y + 200 });
+                      updateNodeData(nid, { content: `<p>${(result || prompt).replace(/</g, '')}</p>` });
+                    }}
+                  >
+                    <div>
+                      <div>Export as text</div>
+                      <div className="text-[10px] text-white/50">Export results as text</div>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <button
+                type="button"
+                disabled={isRunning}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRun();
+                }}
+                className="w-10 h-10 rounded-full bg-[var(--accent-color)] text-white flex items-center justify-center hover:bg-[var(--accent-hover)] disabled:opacity-50 shadow-lg shrink-0"
+              >
+                {isRunning ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} className="ml-0.5" />}
+              </button>
+            </div>
           </div>
         </div>
+      </NodeContentFocus>
 
-        {/* Refine button */}
-        <button
-          onClick={handleRefine}
-          disabled={isRefining}
-          className="w-full py-2 rounded-lg border border-[var(--accent-color)] text-[var(--accent-color)] text-[12px] font-mono-display uppercase tracking-wider hover:bg-[var(--accent-color)]/10 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-        >
-          {isRefining ? (
-            <>
-              <Loader2 size={13} className="animate-spin" />
-              Refining...
-            </>
-          ) : (
-            'Refine Prompt'
-          )}
-        </button>
-
-        {/* Output */}
-        {refinedPrompt && (
-          <textarea
-            readOnly
-            value={refinedPrompt}
-            className="w-full bg-white/5 rounded-lg p-2 text-[12px] text-[var(--text-primary)] resize-none outline-none min-h-[60px] leading-relaxed border border-white/5"
-            style={{ fontFamily: 'Inter, sans-serif' }}
-          />
-        )}
-      </div>
+      {contentFocused && (
+        <>
+          <div className="absolute -left-11 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-40">
+            <FloatBtn onClick={quickAddTextLeft}>
+              <Type size={14} />
+            </FloatBtn>
+            <FloatBtn onClick={quickAddImageLeft}>
+              <ImageIcon size={14} />
+            </FloatBtn>
+          </div>
+          <div className="absolute -right-11 top-1/2 -translate-y-1/2 z-40">
+            <FloatBtn onClick={quickAddTextRight}>
+              <Type size={14} />
+            </FloatBtn>
+          </div>
+        </>
+      )}
 
       <Handle type="target" position={Position.Left} id="text-in" className="port-input" style={{ top: '35%' }} />
       <Handle type="target" position={Position.Left} id="image-in" className="port-input" style={{ top: '65%' }} />
       <Handle type="source" position={Position.Right} className="port-output" />
+      </div>
     </div>
   );
 });

@@ -7,6 +7,8 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
+import { NodeContentFocus } from './NodeContentFocus';
+import { NodeLabelRow } from './NodeLabelRow';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +23,7 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
   const lockNode = useWorkflowStore((s) => s.lockNode);
+  const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
 
   const content = (data.content as string) || '';
 
@@ -60,7 +63,12 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
   }, [editor]);
 
   return (
-    <div className={`glass-node glass-node-input w-[280px] relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-amber-500/40' : ''}`}>
+    <div className="w-[280px] relative">
+      <NodeLabelRow nodeId={id} nodeType="textNode" labelPrefix="Text" icon={<Type size={12} />} />
+      <div
+        className={`glass-node glass-node-input w-full relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-amber-500/40' : ''}`}
+        data-content-focused={contentFocused || undefined}
+      >
       <NodeActionBar
         variant="text"
         onRun={() => runFromNode(id)}
@@ -130,16 +138,15 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
         )}
       </AnimatePresence>
 
-      <div className="glass-node-header px-3 py-2.5 flex items-center gap-2 text-[var(--text-primary)]">
-        <Type size={13} />
-        <span>Text</span>
-      </div>
+      <NodeContentFocus nodeId={id}>
+        <div className="p-3 pt-2" onMouseDown={(e) => e.stopPropagation()}>
+          <EditorContent editor={editor} />
+        </div>
+      </NodeContentFocus>
 
-      <div className="p-3" onMouseDown={(e) => e.stopPropagation()}>
-        <EditorContent editor={editor} />
-      </div>
-
+      <Handle type="target" position={Position.Left} id="text-in" className="port-input" />
       <Handle type="source" position={Position.Right} className="port-output" />
+      </div>
     </div>
   );
 });

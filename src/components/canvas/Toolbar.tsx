@@ -2,9 +2,10 @@ import { useState, useCallback, useEffect } from 'react';
 import {
   Plus, Play, MousePointer2, Hand, Scissors, Link2,
   Pen, Smile, StickyNote, MessageCircle, Square,
-  Undo2, Redo2, Settings, ChevronRight,
+  Undo2, Redo2, Settings,
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { useWorkflowStore, type SelectedTool } from '@/stores/workflowStore';
 import AddNodePanel from './AddNodePanel';
 
@@ -14,8 +15,6 @@ interface ToolbarProps {
   addPanelOpen?: boolean;
   onAddPanelOpenChange?: (open: boolean) => void;
 }
-
-/* ── Tool group definitions ─────────────────────────── */
 
 interface SubTool {
   tool: SelectedTool;
@@ -58,21 +57,17 @@ const singleTools: SubTool[] = [
   { tool: 'comment', icon: MessageCircle, label: 'Comment', shortcut: 'C' },
 ];
 
-/* ── Toolbar Component ──────────────────────────────── */
-
 const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange }: ToolbarProps) => {
   const [localAddOpen, setLocalAddOpen] = useState(false);
   const isControlled = addPanelOpen !== undefined && onAddPanelOpenChange !== undefined;
   const addOpen = isControlled ? addPanelOpen! : localAddOpen;
   const setAddOpen = isControlled ? onAddPanelOpenChange! : setLocalAddOpen;
-  const [openGroupId, setOpenGroupId] = useState<string | null>(null);
   const selectedTool = useWorkflowStore((s) => s.selectedTool);
   const setSelectedTool = useWorkflowStore((s) => s.setSelectedTool);
   const runAll = useWorkflowStore((s) => s.runAll);
   const undo = useWorkflowStore((s) => s.undo);
   const redo = useWorkflowStore((s) => s.redo);
 
-  // Track which sub-tool was last selected per group
   const [activeSubIndex, setActiveSubIndex] = useState<Record<string, number>>({
     pointer: 0,
     edge: 0,
@@ -82,7 +77,7 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
   const isToolInGroup = useCallback(
     (groupId: string) => {
       const group = toolGroups.find((g) => g.id === groupId);
-      return group?.subTools.some((s) => s.tool === selectedTool) ?? false;
+      return group?.subTools.some((st) => st.tool === selectedTool) ?? false;
     },
     [selectedTool]
   );
@@ -93,12 +88,10 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
       if (!group) return;
       setActiveSubIndex((prev) => ({ ...prev, [groupId]: index }));
       setSelectedTool(group.subTools[index].tool);
-      setOpenGroupId(null);
     },
     [setSelectedTool]
   );
 
-  // Keyboard shortcuts
   useEffect(() => {
     const shortcutMap: Record<string, () => void> = {
       v: () => selectSubTool('pointer', 0),
@@ -114,11 +107,17 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-      // Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z redo
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      // Use code === 'KeyZ' so Ctrl+Shift+Z works (key is often "Z" not "z" when Shift is held)
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
+        return;
+      }
+      // Windows-style redo
+      if (e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo();
         return;
       }
 
@@ -133,19 +132,22 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
     return () => window.removeEventListener('keydown', handler);
   }, [selectSubTool, setSelectedTool, undo, redo]);
 
+  const panelClass =
+    'w-auto p-1 border rounded-lg shadow-xl bg-[hsl(var(--popover))] text-[hsl(var(--popover-foreground))] border-[hsl(var(--border))]';
+
   return (
     <div className="fixed left-4 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-0.5 p-1.5 rounded-xl glass-toolbar">
-      {/* Add Node */}
       <Popover open={addOpen} onOpenChange={setAddOpen}>
         <PopoverTrigger asChild>
           <button
-            className="p-2.5 rounded-lg hover:bg-white/10 transition-colors text-[var(--text-primary)] hover:text-white"
+            type="button"
+            className="p-2.5 rounded-lg hover:bg-muted transition-colors text-foreground hover:text-foreground"
             title="Add Node"
           >
             <Plus size={18} />
           </button>
         </PopoverTrigger>
-        <PopoverContent side="right" sideOffset={12} className="w-72 p-0 bg-[#1a1a1e] border-white/10">
+        <PopoverContent side="right" sideOffset={12} className="w-72 p-0 bg-[hsl(var(--popover))] border-[hsl(var(--border))]">
           <AddNodePanel
             onAddNode={(type) => {
               onAddNode(type);
@@ -155,18 +157,17 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
         </PopoverContent>
       </Popover>
 
-      {/* Run All */}
       <button
+        type="button"
         onClick={runAll}
-        className="p-2.5 rounded-lg hover:bg-white/10 transition-colors text-[var(--text-muted)] hover:text-[var(--port-input)]"
+        className="p-2.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-[var(--port-input)]"
         title="Run All"
       >
         <Play size={18} />
       </button>
 
-      <div className="w-full h-px bg-white/[0.08] my-0.5" />
+      <div className="w-full h-px bg-border my-0.5" />
 
-      {/* Tool Groups with carats */}
       {toolGroups.map((group) => {
         const idx = activeSubIndex[group.id] ?? 0;
         const activeSub = group.subTools[idx];
@@ -174,76 +175,71 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
         const isActive = isToolInGroup(group.id);
 
         return (
-          <div key={group.id} className="relative flex items-center">
-            {/* Main button — activates the currently selected sub-tool */}
-            <button
-              onClick={() => setSelectedTool(activeSub.tool)}
-              className={`p-2.5 rounded-lg transition-colors relative ${
-                isActive
-                  ? 'text-[var(--text-primary)] bg-white/10'
-                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/[0.06]'
-              }`}
-              title={`${activeSub.label} (${activeSub.shortcut})`}
-            >
-              <Icon size={18} />
-              {isActive && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r bg-[var(--accent-color)]" />
-              )}
-            </button>
-
-            {/* Carat for sub-menu */}
-            <Popover
-              open={openGroupId === group.id}
-              onOpenChange={(open) => setOpenGroupId(open ? group.id : null)}
-            >
-              <PopoverTrigger asChild>
-                <button
-                  className="absolute -right-1 top-1/2 -translate-y-1/2 w-3 h-3 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ opacity: 1 }}
-                >
-                  <ChevronRight size={8} />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent
-                side="right"
-                sideOffset={8}
-                className="w-auto p-1 bg-[#1a1a1e] border-white/10 rounded-lg"
+          <HoverCard key={group.id} openDelay={0} closeDelay={220}>
+            <HoverCardTrigger asChild>
+              <div
+                className="flex items-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--canvas-bg)]"
+                tabIndex={0}
               >
-                <div className="flex flex-col gap-0.5">
-                  {group.subTools.map((sub, i) => (
-                    <button
-                      key={sub.tool}
-                      onClick={() => selectSubTool(group.id, i)}
-                      className={`flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[12px] transition-colors whitespace-nowrap ${
-                        selectedTool === sub.tool
-                          ? 'text-[var(--text-primary)] bg-white/10'
-                          : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/[0.06]'
-                      }`}
-                      style={{ fontFamily: 'Inter, sans-serif' }}
-                    >
-                      <sub.icon size={14} />
-                      {sub.label}
-                      <span className="ml-auto text-[10px] text-[var(--text-muted)] font-mono-display">
-                        {sub.shortcut}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTool(activeSub.tool)}
+                  className={`p-2.5 rounded-lg transition-colors relative ${
+                    isActive
+                      ? 'text-foreground bg-muted'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
+                  }`}
+                  title={`${activeSub.label} (${activeSub.shortcut}) — hover for all tools`}
+                >
+                  <Icon size={18} />
+                  {isActive && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r bg-[var(--accent-color)]" />
+                  )}
+                </button>
+              </div>
+            </HoverCardTrigger>
+            <HoverCardContent
+              side="right"
+              align="start"
+              sideOffset={10}
+              className={`${panelClass} w-auto`}
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              <div className="flex flex-col gap-0.5">
+                {group.subTools.map((sub, i) => (
+                  <button
+                    key={sub.tool}
+                    type="button"
+                    onClick={() => selectSubTool(group.id, i)}
+                    className={`flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[12px] transition-colors whitespace-nowrap ${
+                      selectedTool === sub.tool
+                        ? 'text-foreground bg-muted'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/70'
+                    }`}
+                    style={{ fontFamily: 'Inter, sans-serif' }}
+                  >
+                    <sub.icon size={14} />
+                    {sub.label}
+                    <span className="ml-auto text-[10px] text-muted-foreground font-mono-display">
+                      {sub.shortcut}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </HoverCardContent>
+          </HoverCard>
         );
       })}
 
-      {/* Single tools */}
       {singleTools.map(({ tool, icon: Icon, label, shortcut }) => (
         <button
           key={tool}
+          type="button"
           onClick={() => setSelectedTool(tool)}
           className={`p-2.5 rounded-lg transition-colors relative ${
             selectedTool === tool
-              ? 'text-[var(--text-primary)] bg-white/10'
-              : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/[0.06]'
+              ? 'text-foreground bg-muted'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
           }`}
           title={`${label} (${shortcut})`}
         >
@@ -254,38 +250,39 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
         </button>
       ))}
 
-      {/* Group/Panel */}
       <button
-        className="p-2.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/[0.06] transition-colors"
+        type="button"
+        className="p-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
         title="Group / Panel"
       >
         <Square size={18} />
       </button>
 
-      <div className="w-full h-px bg-white/[0.08] my-0.5" />
+      <div className="w-full h-px bg-border my-0.5" />
 
-      {/* Undo / Redo */}
       <button
+        type="button"
         onClick={undo}
-        className="p-2.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+        className="p-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
         title="Undo (Ctrl+Z)"
       >
         <Undo2 size={16} />
       </button>
       <button
+        type="button"
         onClick={redo}
-        className="p-2.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-        title="Redo (Ctrl+Shift+Z)"
+        className="p-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+        title="Redo (Ctrl+Shift+Z or Ctrl+Y)"
       >
         <Redo2 size={16} />
       </button>
 
-      <div className="w-full h-px bg-white/[0.08] my-0.5" />
+      <div className="w-full h-px bg-border my-0.5" />
 
-      {/* Settings */}
       <button
+        type="button"
         onClick={onOpenSettings}
-        className="p-2.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+        className="p-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
         title="Settings"
       >
         <Settings size={16} />

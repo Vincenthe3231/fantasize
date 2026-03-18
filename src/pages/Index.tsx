@@ -1,12 +1,18 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { fetchOrCreateSpace, type SpaceRow } from '@/lib/spaceApi';
+import { shouldRestoreDraftFromLocal, type StoredSpaceDraft } from '@/lib/spaceDraftStorage';
+import { SpacePersistenceContext } from '@/contexts/SpacePersistenceContext';
+import { useSpaceLocalPersistence } from '@/hooks/useSpaceLocalPersistence';
+import { useAuth } from '@/hooks/useAuth';
 import ReactFlow, {
   Background,
   MiniMap,
   type Node,
-  type Edge,
   useNodesState,
   useEdgesState,
   addEdge,
+  applyEdgeChanges,
   type Connection,
   useReactFlow,
   ReactFlowProvider,
@@ -72,7 +78,17 @@ function canvasClass(pattern: string) {
   }
 }
 
-const CanvasInner = () => {
+const CanvasInner = ({
+  space,
+  resolvedDraft,
+  initialLastWriteAt,
+  restoredFromLocalDraft,
+}: {
+  space: SpaceRow;
+  resolvedDraft: StoredSpaceDraft | null;
+  initialLastWriteAt: number;
+  restoredFromLocalDraft: boolean;
+}) => {
   const storeNodes = useWorkflowStore((s) => s.nodes);
   const storeEdges = useWorkflowStore((s) => s.edges);
   const comments = useWorkflowStore((s) => s.comments);
@@ -80,8 +96,11 @@ const CanvasInner = () => {
   const settings = useWorkflowStore((s) => s.settings);
   const addComment = useWorkflowStore((s) => s.addComment);
   const addNodeAction = useWorkflowStore((s) => s.addNode);
-  const storeSetNodes = useWorkflowStore((s) => s.setNodes);
-  const storeSetEdges = useWorkflowStore((s) => s.setEdges);
+  const setNodesSilently = useWorkflowStore((s) => s.setNodesSilently);
+  const connectEdgeWithHistory = useWorkflowStore((s) => s.connectEdgeWithHistory);
+  const applyEdgeRemoval = useWorkflowStore((s) => s.applyEdgeRemoval);
+  const setEdgesSilently = useWorkflowStore((s) => s.setEdgesSilently);
+  const commitNodesAfterDrag = useWorkflowStore((s) => s.commitNodesAfterDrag);
   const setIsDragging = useWorkflowStore((s) => s.setIsDragging);
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
@@ -96,13 +115,85 @@ const CanvasInner = () => {
   const copyNodesByIds = useWorkflowStore((s) => s.copyNodesByIds);
   const pasteClipboard = useWorkflowStore((s) => s.pasteClipboard);
   const setSelectedTool = useWorkflowStore((s) => s.setSelectedTool);
+  const setFocusedNodeContentId = useWorkflowStore((s) => s.setFocusedNodeContentId);
+  const hydrateFromSpace = useWorkflowStore((s) => s.hydrateFromSpace);
+  const setLastViewport = useWorkflowStore((s) => s.setLastViewport);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(storeNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(storeEdges);
+  const [edges, setEdges] = useEdgesState(storeEdges);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addPanelOpen, setAddPanelOpen] = useState(false);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const { screenToFlowPosition, fitView, getNodes } = useReactFlow();
+  const dragStartPositions = useRef<Record<string, { x: number; y: number }>>({});
+  const { screenToFlowPosition, fitView, getNodes, setViewport } = useReactFlow();
+  const hydratedSpaceId = useRef<string | null>(null);
+
+  const onApplyExternalDraft = useCallback(
+    (draft: StoredSpaceDraft) => {
+      hydrateFromSpace({
+        id: space.id,
+        nodes: draft.payload.nodes,
+        edges: draft.payload.edges,
+        comments: draft.payload.comments,
+        settings: draft.payload.settings,
+        node_grid_layouts: draft.payload.node_grid_layouts,
+        viewport: draft.payload.viewport,
+      });
+      const v = draft.payload.viewport;
+      requestAnimationFrame(() => {
+        if (
+          v &&
+          (Math.abs(v.zoom - 1) > 0.02 || Math.abs(v.x) > 2 || Math.abs(v.y) > 2)
+        ) {
+          setViewport({ x: v.x, y: v.y, zoom: v.zoom }, { duration: 0 });
+        } else {
+          fitView({ padding: 0.2, duration: 0 });
+        }
+      });
+    },
+    [space.id, hydrateFromSpace, setViewport, fitView]
+  );
+
+  const persistence = useSpaceLocalPersistence(space, {
+    seedDirty: restoredFromLocalDraft,
+    initialLastWriteAt,
+    onApplyExternalDraft,
+  });
+
+  useEffect(() => {
+    if (hydratedSpaceId.current === space.id) return;
+    hydratedSpaceId.current = space.id;
+    if (resolvedDraft) {
+      hydrateFromSpace({
+        id: space.id,
+        nodes: resolvedDraft.payload.nodes,
+        edges: resolvedDraft.payload.edges,
+        comments: resolvedDraft.payload.comments,
+        settings: resolvedDraft.payload.settings,
+        node_grid_layouts: resolvedDraft.payload.node_grid_layouts,
+        viewport: resolvedDraft.payload.viewport,
+      });
+    } else {
+      hydrateFromSpace(space);
+    }
+    const v = resolvedDraft?.payload.viewport ?? space.viewport;
+    requestAnimationFrame(() => {
+      if (
+        v &&
+        (Math.abs(v.zoom - 1) > 0.02 || Math.abs(v.x) > 2 || Math.abs(v.y) > 2)
+      ) {
+        setViewport({ x: v.x, y: v.y, zoom: v.zoom }, { duration: 0 });
+      } else {
+        fitView({ padding: 0.2, duration: 0 });
+      }
+    });
+  }, [space, resolvedDraft, hydrateFromSpace, setViewport, fitView]);
+
+  useEffect(() => {
+    const st = useWorkflowStore.getState().settings;
+    document.body.setAttribute('data-theme', st.darkMode ? 'dark' : 'light');
+    document.body.setAttribute('data-performance', String(st.performanceMode));
+  }, []);
 
   useEffect(() => {
     setNodes(storeNodes);
@@ -115,11 +206,28 @@ const CanvasInner = () => {
     (connection: Connection) => {
       setEdges((eds) => {
         const next = addEdge({ ...connection, type: 'custom' }, eds);
-        storeSetEdges(next);
+        const added = next.find((e) => !eds.some((oe) => oe.id === e.id));
+        if (added) connectEdgeWithHistory(next, added);
         return next;
       });
     },
-    [setEdges, storeSetEdges]
+    [setEdges, connectEdgeWithHistory]
+  );
+
+  const onEdgesChangeTracked = useCallback(
+    (changes: Parameters<typeof applyEdgeChanges>[0]) => {
+      setEdges((eds) => {
+        const next = applyEdgeChanges(changes, eds);
+        const removed = eds.filter((e) => !next.some((ne) => ne.id === e.id));
+        if (removed.length > 0) {
+          applyEdgeRemoval(next, removed);
+        } else {
+          setEdgesSilently(next);
+        }
+        return next;
+      });
+    },
+    [setEdges, applyEdgeRemoval, setEdgesSilently]
   );
 
   const handleAddNode = useCallback(
@@ -133,6 +241,7 @@ const CanvasInner = () => {
   const handleCanvasClick = useCallback(
     (event: React.MouseEvent) => {
       if ((event.target as HTMLElement).closest('.react-flow__node')) return;
+      setFocusedNodeContentId(null);
       setContextMenu(null);
       if (selectedTool === 'comment') {
         const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
@@ -141,7 +250,7 @@ const CanvasInner = () => {
         addComment(x, y);
       }
     },
-    [selectedTool, addComment, setContextMenu]
+    [selectedTool, addComment, setContextMenu, setFocusedNodeContentId]
   );
 
   const handleContextMenu = useCallback(
@@ -164,9 +273,9 @@ const CanvasInner = () => {
   const selectAllNodes = useCallback(() => {
     const next = nodes.map((n) => ({ ...n, selected: true }));
     setNodes(next);
-    storeSetNodes(next);
+    setNodesSilently(next);
     setContextMenu(null);
-  }, [nodes, setNodes, storeSetNodes, setContextMenu]);
+  }, [nodes, setNodes, setNodesSilently, setContextMenu]);
 
   const zoomToFit = useCallback(() => {
     fitView({ padding: 0.25, duration: 300 });
@@ -245,6 +354,14 @@ const CanvasInner = () => {
   const targetId = contextMenu?.targetId;
 
   return (
+    <SpacePersistenceContext.Provider
+      value={{
+        remoteSaveCountdownSec: persistence.remoteSaveCountdownSec,
+        isRemoteDirtyPending: persistence.isRemoteDirtyPending,
+        saveToRemoteNow: persistence.saveToRemoteNow,
+        isSavingToRemote: persistence.isSavingToRemote,
+      }}
+    >
     <div
       className={`w-screen h-screen ${canvasClass(settings.canvasPattern)} ${cursorClass} ${settings.showNodeLabels ? '' : 'workflow-hide-labels'}`}
       onClick={handleCanvasClick}
@@ -267,13 +384,10 @@ const CanvasInner = () => {
       <AnimatePresence>
         {contextMenu && (
           <motion.div
-            className="fixed z-[100] py-1 shadow-xl"
+            className="fixed z-[100] py-1 shadow-xl context-menu-surface backdrop-blur-xl"
             style={{
               left: Math.min(contextMenu.x, window.innerWidth - 200),
               top: Math.min(contextMenu.y, window.innerHeight - 320),
-              background: 'rgba(26,26,30,0.95)',
-              backdropFilter: 'blur(12px)',
-              border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: '10px',
             }}
             initial={{ opacity: 0, scale: 0.95 }}
@@ -303,7 +417,7 @@ const CanvasInner = () => {
                   { label: 'Canvas settings', action: () => setSettingsOpen(true) },
                 ].map((item, i) =>
                   'divider' in item ? (
-                    <div key={i} className="h-px bg-white/[0.06] my-1" />
+                    <div key={i} className="h-px bg-black/[0.06] dark:bg-white/[0.06] my-1" />
                   ) : (
                     <button
                       key={i}
@@ -312,11 +426,11 @@ const CanvasInner = () => {
                         item.action?.();
                         setContextMenu(null);
                       }}
-                      className="w-full text-left px-3 py-1.5 text-[12px] text-white/80 hover:bg-white/[0.08] transition-colors flex items-center justify-between gap-6 min-w-[180px]"
+                      className="context-menu-item w-full text-left px-3 py-1.5 text-[12px] transition-colors flex items-center justify-between gap-6 min-w-[180px]"
                     >
                       <span>{item.label}</span>
                       {'shortcut' in item && item.shortcut && (
-                        <span className="text-[10px] text-white/30">{item.shortcut}</span>
+                        <span className="context-menu-kbd text-[10px]">{item.shortcut}</span>
                       )}
                     </button>
                   )
@@ -368,7 +482,7 @@ const CanvasInner = () => {
                   },
                 ].map((item, i) =>
                   'divider' in item && !('label' in item) ? (
-                    <div key={i} className="h-px bg-white/[0.06] my-1" />
+                    <div key={i} className="h-px bg-black/[0.06] dark:bg-white/[0.06] my-1" />
                   ) : (
                     <button
                       key={i}
@@ -377,11 +491,11 @@ const CanvasInner = () => {
                         (item as { action?: () => void }).action?.();
                         setContextMenu(null);
                       }}
-                      className="w-full text-left px-3 py-1.5 text-[12px] text-white/80 hover:bg-white/[0.08] transition-colors flex items-center justify-between gap-6 min-w-[180px]"
+                      className="context-menu-item w-full text-left px-3 py-1.5 text-[12px] transition-colors flex items-center justify-between gap-6 min-w-[180px]"
                     >
                       <span>{(item as { label: string }).label}</span>
                       {'shortcut' in item && (item as { shortcut?: string }).shortcut && (
-                        <span className="text-[10px] text-white/30">
+                        <span className="context-menu-kbd text-[10px]">
                           {(item as { shortcut: string }).shortcut}
                         </span>
                       )}
@@ -398,25 +512,49 @@ const CanvasInner = () => {
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
+        onEdgesChange={onEdgesChangeTracked}
         onConnect={onConnect}
-        onNodeDragStart={() => setIsDragging(true)}
+        onNodeDragStart={(_, node) => {
+          setIsDragging(true);
+          const ns = getNodes();
+          const targets = ns.filter((n) => n.selected || n.id === node.id);
+          dragStartPositions.current = Object.fromEntries(
+            targets.map((n) => [n.id, { x: n.position.x, y: n.position.y }])
+          );
+        }}
         onNodeDragStop={() => {
           setIsDragging(false);
-          storeSetNodes(getNodes());
+          const end = getNodes();
+          const start = dragStartPositions.current;
+          const deltas: Record<string, { from: { x: number; y: number }; to: { x: number; y: number } }> =
+            {};
+          for (const id of Object.keys(start)) {
+            const en = end.find((n) => n.id === id);
+            if (
+              en &&
+              (en.position.x !== start[id].x || en.position.y !== start[id].y)
+            ) {
+              deltas[id] = { from: start[id], to: { x: en.position.x, y: en.position.y } };
+            }
+          }
+          commitNodesAfterDrag(end, deltas);
+          dragStartPositions.current = {};
         }}
         onNodeMouseEnter={(_, node) => setHoveredNode(node.id)}
         onNodeMouseLeave={() => setHoveredNode(null)}
         onNodeContextMenu={onNodeContextMenu}
         onMoveStart={() => setContextMenu(null)}
+        onMoveEnd={(_, vp) =>
+          setLastViewport({ x: vp.x, y: vp.y, zoom: vp.zoom })
+        }
+        onPaneClick={() => setFocusedNodeContentId(null)}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         panOnDrag={selectedTool === 'hand'}
         panOnScroll={settings.mouseWheelBehavior === 'pan'}
         zoomOnScroll={settings.mouseWheelBehavior === 'zoom'}
         selectionOnDrag={selectedTool === 'select'}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
+        fitView={false}
         defaultEdgeOptions={{ type: 'custom' }}
         proOptions={{ hideAttribution: true }}
         minZoom={0.02}
@@ -425,12 +563,18 @@ const CanvasInner = () => {
         <Background
           gap={28}
           size={1}
-          color={settings.canvasPattern === 'none' ? 'transparent' : 'rgba(255,255,255,0.03)'}
+          color={
+            settings.canvasPattern === 'none'
+              ? 'transparent'
+              : settings.darkMode
+                ? 'rgba(255,255,255,0.03)'
+                : 'rgba(0,0,0,0.08)'
+          }
         />
         {settings.showMinimap && (
           <MiniMap
-            className="!bg-[#1a1a1e]/95 !border !border-white/10 rounded-lg overflow-hidden"
-            maskColor="rgba(0,0,0,0.5)"
+            className="minimap-light !border rounded-lg overflow-hidden !bg-[#1a1a1e]/95 dark:!bg-[#1a1a1e]/95 !border-white/10 dark:!border-white/10"
+            maskColor={settings.darkMode ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.12)'}
             nodeColor={() => 'var(--accent-color)'}
             style={{ position: 'absolute', bottom: 72, right: 16, width: 160, height: 100, zIndex: 40 }}
           />
@@ -438,12 +582,95 @@ const CanvasInner = () => {
       </ReactFlow>
       <BottomBar />
     </div>
+    </SpacePersistenceContext.Provider>
   );
 };
 
+function CanvasRoot() {
+  const { userId, isLoading: authLoading } = useAuth();
+  const {
+    data: space,
+    isLoading: spaceLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ['canvas-space', userId],
+    queryFn: () => fetchOrCreateSpace(userId!),
+    enabled: Boolean(userId),
+    staleTime: Infinity,
+  });
+
+  if (authLoading || !userId) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[var(--canvas-bg)] text-muted-foreground">
+        Connecting…
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center gap-2 bg-[var(--canvas-bg)] px-6 text-center text-muted-foreground">
+        <p className="text-foreground">Could not load workspace.</p>
+        <p className="max-w-md text-sm">
+          Enable <strong>Anonymous sign-ins</strong> in Supabase Dashboard → Authentication → Providers.
+        </p>
+        <p className="text-xs opacity-70">{String((error as Error)?.message ?? error)}</p>
+      </div>
+    );
+  }
+  if (spaceLoading || !space) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[var(--canvas-bg)] text-muted-foreground">
+        Loading workspace…
+      </div>
+    );
+  }
+
+  return <CanvasRootWithDraft space={space} />;
+}
+
+function CanvasRootWithDraft({ space }: { space: SpaceRow }) {
+  const [draftBoot, setDraftBoot] = useState<{
+    draft: StoredSpaceDraft | null;
+    ready: boolean;
+  }>({ draft: null, ready: false });
+
+  useEffect(() => {
+    setDraftBoot({ draft: null, ready: false });
+    let cancelled = false;
+    void shouldRestoreDraftFromLocal(space.id, space.updated_at).then((d) => {
+      if (!cancelled) setDraftBoot({ draft: d, ready: true });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [space.id, space.updated_at]);
+
+  if (!draftBoot.ready) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[var(--canvas-bg)] text-muted-foreground">
+        Loading workspace…
+      </div>
+    );
+  }
+
+  const serverMs = Date.parse(space.updated_at);
+  const initialLastWriteAt =
+    draftBoot.draft?.clientUpdatedAt ?? (Number.isNaN(serverMs) ? Date.now() : serverMs);
+
+  return (
+    <CanvasInner
+      space={space}
+      resolvedDraft={draftBoot.draft}
+      initialLastWriteAt={initialLastWriteAt}
+      restoredFromLocalDraft={draftBoot.draft !== null}
+    />
+  );
+}
+
 const Index = () => (
   <ReactFlowProvider>
-    <CanvasInner />
+    <CanvasRoot />
   </ReactFlowProvider>
 );
 

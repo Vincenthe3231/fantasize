@@ -4,6 +4,8 @@ import { ArrowUpCircle, Loader2, Play, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
+import { NodeContentFocus } from './NodeContentFocus';
+import { NodeLabelRow } from './NodeLabelRow';
 
 const ImageUpscalerNode = memo(({ id, data }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
@@ -11,6 +13,7 @@ const ImageUpscalerNode = memo(({ id, data }: NodeProps) => {
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
+  const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
 
   const mode = (data.mode as string) || 'creative';
   const scale = (data.scale as string) || '2x';
@@ -32,19 +35,20 @@ const ImageUpscalerNode = memo(({ id, data }: NodeProps) => {
   };
 
   return (
-    <div className={`glass-node w-[280px] relative ${isRunning || status === 'processing' ? 'ring-1 ring-[var(--accent-color)]' : ''}`}>
+    <div className="w-[280px] relative">
+      <NodeLabelRow nodeId={id} nodeType="imageUpscalerNode" labelPrefix="Image Upscaler" icon={<ArrowUpCircle size={12} />} />
+      <div
+        className={`glass-node w-full relative ${isRunning || status === 'processing' ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        data-content-focused={contentFocused || undefined}
+      >
       <NodeActionBar
         onRun={() => runFromNode(id)}
         onDuplicate={() => duplicateNode(id)}
         onDelete={() => deleteNode(id)}
       />
 
-      <div className="glass-node-header px-3 py-2.5 flex items-center gap-2 text-[var(--text-primary)]">
-        <ArrowUpCircle size={13} />
-        <span>Image Upscaler</span>
-      </div>
-
-      <div className="p-3 space-y-3">
+      <NodeContentFocus nodeId={id}>
+        <div className="p-3 space-y-3">
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-[10px] font-mono-display text-[var(--text-muted)] uppercase tracking-wider mb-1 block">Mode</label>
@@ -102,10 +106,12 @@ const ImageUpscalerNode = memo(({ id, data }: NodeProps) => {
             <><Play size={13} /> {status === 'success' ? 'Re-upscale' : 'Run'}</>
           )}
         </button>
-      </div>
+        </div>
+      </NodeContentFocus>
 
       <Handle type="target" position={Position.Left} className="port-input" />
       <Handle type="source" position={Position.Right} className="port-output" />
+      </div>
     </div>
   );
 });
