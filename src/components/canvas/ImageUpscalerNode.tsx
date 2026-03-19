@@ -1,11 +1,13 @@
-import { memo } from 'react';
-import { Handle, Position, type NodeProps } from 'reactflow';
+import { memo, useMemo } from 'react';
+import { Position, type NodeProps } from 'reactflow';
 import { ArrowUpCircle, Loader2, Play, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
+import { EnhancedHandle } from './EnhancedHandle';
+import { useQuickConnect } from '@/hooks/useQuickConnect';
 
 const ImageUpscalerNode = memo(({ id, data }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
@@ -14,6 +16,9 @@ const ImageUpscalerNode = memo(({ id, data }: NodeProps) => {
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
+  const nodes = useWorkflowStore((s) => s.nodes);
+  const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
+  const { connectMenuItems } = useQuickConnect(id, selfPos);
 
   const mode = (data.mode as string) || 'creative';
   const scale = (data.scale as string) || '2x';
@@ -45,6 +50,7 @@ const ImageUpscalerNode = memo(({ id, data }: NodeProps) => {
         onRun={() => runFromNode(id)}
         onDuplicate={() => duplicateNode(id)}
         onDelete={() => deleteNode(id)}
+        connectMenuItems={connectMenuItems}
       />
 
       <NodeContentFocus nodeId={id}>
@@ -88,7 +94,7 @@ const ImageUpscalerNode = memo(({ id, data }: NodeProps) => {
               </div>
               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors">
-                  <Download size={13} className="text-white" />
+                  <Download size={13} className="text-[var(--node-on-accent)]" />
                 </button>
               </div>
             </motion.div>
@@ -98,7 +104,7 @@ const ImageUpscalerNode = memo(({ id, data }: NodeProps) => {
         <button
           onClick={handleRun}
           disabled={status === 'processing'}
-          className="w-full py-2.5 rounded-lg bg-[var(--accent-color)] text-white text-[12px] font-mono-display uppercase tracking-wider hover:bg-[var(--accent-hover)] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full py-2.5 rounded-lg bg-[var(--accent-color)] text-[var(--node-on-accent)] text-[12px] font-mono-display uppercase tracking-wider hover:bg-[var(--accent-hover)] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {status === 'processing' ? (
             <><Loader2 size={13} className="animate-spin" /> Upscaling…</>
@@ -109,8 +115,8 @@ const ImageUpscalerNode = memo(({ id, data }: NodeProps) => {
         </div>
       </NodeContentFocus>
 
-      <Handle type="target" position={Position.Left} className="port-input" />
-      <Handle type="source" position={Position.Right} className="port-output" />
+      <EnhancedHandle type="target" position={Position.Left} className="port-input" dataType="image" />
+      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
     </div>
   );

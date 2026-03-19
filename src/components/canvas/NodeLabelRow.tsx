@@ -116,7 +116,7 @@ export const NodeLabelRow = memo(function NodeLabelRow({
       <button
         type="button"
         onClick={beginEdit}
-        className="p-0.5 rounded text-white/45 hover:text-white/90 hover:bg-white/10 shrink-0"
+        className="p-0.5 rounded shrink-0 text-[var(--node-control-muted)] hover:text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
         title="Rename"
       >
         <Pencil size={11} />
@@ -124,7 +124,7 @@ export const NodeLabelRow = memo(function NodeLabelRow({
       {editing ? (
         <input
           autoFocus
-          className="flex-1 min-w-0 bg-white/10 border border-white/15 rounded px-2 py-0.5 text-[13px] text-[var(--text-primary)] outline-none focus:ring-1 focus:ring-[hsl(217_91%_60%)]"
+          className="flex-1 min-w-0 rounded px-2 py-0.5 text-[13px] text-[var(--text-primary)] outline-none focus:ring-1 focus:ring-[hsl(217_91%_60%)] bg-[var(--node-control-bg)] border border-[var(--node-control-border)]"
           value={draft}
           onChange={(e) => {
             const v = e.target.value;

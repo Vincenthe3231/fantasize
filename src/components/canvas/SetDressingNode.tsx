@@ -1,10 +1,12 @@
-import { memo } from 'react';
-import { Handle, Position, type NodeProps } from 'reactflow';
+import { memo, useMemo } from 'react';
+import { Position, type NodeProps } from 'reactflow';
 import { Sofa } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
+import { EnhancedHandle } from './EnhancedHandle';
+import { useQuickConnect } from '@/hooks/useQuickConnect';
 import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
 
@@ -16,6 +18,9 @@ const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
   const previewUrl = (data?.previewUrl as string) || MOCK.setDressing;
+  const nodes = useWorkflowStore((s) => s.nodes);
+  const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
+  const { connectMenuItems } = useQuickConnect(id, selfPos);
 
   return (
     <div className="w-[420px] relative">
@@ -32,6 +37,7 @@ const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
         onLock={() => lockNode(id)}
         showDownload
         onDownload={() => window.open(previewUrl, '_blank')}
+        connectMenuItems={connectMenuItems}
       />
 
       <NodeContentFocus nodeId={id}>
@@ -60,11 +66,39 @@ const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
       </div>
       </NodeContentFocus>
 
-      <Handle type="target" position={Position.Left} id="location-in" className="port-input" style={{ top: '22%' }} />
-      <Handle type="target" position={Position.Left} id="placement-in" className="port-input" style={{ top: '38%' }} />
-      <Handle type="target" position={Position.Left} id="props-in" className="port-input" style={{ top: '54%' }} />
-      <Handle type="target" position={Position.Left} id="scene-in" className="port-input" style={{ top: '70%' }} />
-      <Handle type="source" position={Position.Right} className="port-output" />
+      <EnhancedHandle
+        type="target"
+        position={Position.Left}
+        id="location-in"
+        className="port-input"
+        style={{ top: '22%' }}
+        dataType="image"
+      />
+      <EnhancedHandle
+        type="target"
+        position={Position.Left}
+        id="placement-in"
+        className="port-input"
+        style={{ top: '38%' }}
+        dataType="image"
+      />
+      <EnhancedHandle
+        type="target"
+        position={Position.Left}
+        id="props-in"
+        className="port-input"
+        style={{ top: '54%' }}
+        dataType="image"
+      />
+      <EnhancedHandle
+        type="target"
+        position={Position.Left}
+        id="scene-in"
+        className="port-input"
+        style={{ top: '70%' }}
+        dataType="generic"
+      />
+      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
     </div>
   );

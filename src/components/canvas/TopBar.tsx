@@ -62,17 +62,23 @@ const TopBar = () => {
           {/* Avatar stack */}
           <div className="flex -space-x-2">
             <Avatar className="h-7 w-7 border-2 border-[var(--canvas-bg)]">
-              <AvatarFallback className="bg-[var(--accent-color)] text-[10px] font-mono-display text-white">CD</AvatarFallback>
+              <AvatarFallback className="bg-[var(--accent-color)] text-[10px] font-mono-display text-[var(--node-on-accent)]">
+                CD
+              </AvatarFallback>
             </Avatar>
             <Avatar className="h-7 w-7 border-2 border-[var(--canvas-bg)]">
-              <AvatarFallback className="bg-emerald-600 text-[10px] font-mono-display text-white">PD</AvatarFallback>
+              <AvatarFallback className="bg-emerald-600 text-[10px] font-mono-display text-[var(--node-on-accent)]">
+                PD
+              </AvatarFallback>
             </Avatar>
             <Avatar className="h-7 w-7 border-2 border-[var(--canvas-bg)]">
-              <AvatarFallback className="bg-amber-600 text-[10px] font-mono-display text-white">DP</AvatarFallback>
+              <AvatarFallback className="bg-amber-600 text-[10px] font-mono-display text-[var(--node-on-accent)]">
+                DP
+              </AvatarFallback>
             </Avatar>
           </div>
 
-          <button className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[var(--accent-color)] text-white text-[12px] font-mono-display hover:bg-[var(--accent-hover)] transition-colors">
+          <button className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[var(--accent-color)] text-[var(--node-on-accent)] text-[12px] font-mono-display hover:bg-[var(--accent-hover)] transition-colors">
             <Share2 size={13} />
             Share
           </button>

@@ -2,6 +2,13 @@ import { create } from 'zustand';
 import { type Node, type Edge, type XYPosition } from 'reactflow';
 import { MOCK, SCENE_DESCRIPTION } from '@/lib/mockPipelineAssets';
 
+/** Pending updateNodeData batches: flush after 1s idle per node */
+const UPDATE_NODE_DATA_DEBOUNCE_MS = 1000;
+const pendingNodeDataUpdates = new Map<
+  string,
+  { timeoutId: number; before: Record<string, unknown>; keys: string[] }
+>();
+
 // ── Types ──────────────────────────────────────────────
 
 export type NodeType =
@@ -562,7 +569,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         id: groupId,
         type: 'group',
         position: { x: groupX, y: groupY },
-        data: color != null ? { color } : {},
+        data: { labelText: 'Group', ...(color != null ? { color } : {}) },
         style: { width: groupW, height: groupH } as any,
         selected: true,
         draggable: true,
@@ -712,35 +719,75 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       const n = s.nodes.find((x) => x.id === id);
       if (!n) return;
       const keys = Object.keys(data) as string[];
-      const prevSubset: Record<string, unknown> = {};
-      keys.forEach((k) => {
-        prevSubset[k] = n.data[k];
-      });
+
+      // Apply immediately so UI stays responsive
       set({
         nodes: s.nodes.map((x) =>
           x.id === id ? { ...x, data: { ...x.data, ...data } } : x
         ),
       });
-      pushCmd({
-        undo: () =>
-          set((st) => ({
-            nodes: st.nodes.map((x) => {
-              if (x.id !== id) return x;
-              const nextData = { ...x.data };
-              keys.forEach((k) => {
-                if (prevSubset[k] === undefined) delete nextData[k];
-                else nextData[k] = prevSubset[k];
-              });
-              return { ...x, data: nextData };
-            }),
-          })),
-        execute: () =>
-          set((st) => ({
-            nodes: st.nodes.map((x) =>
-              x.id === id ? { ...x, data: { ...x.data, ...data } } : x
-            ),
-          })),
-      });
+
+      const existing = pendingNodeDataUpdates.get(id);
+      if (existing) {
+        clearTimeout(existing.timeoutId);
+        const current = get().nodes.find((x) => x.id === id);
+        if (current) {
+          keys.forEach((k) => {
+            if (!(k in existing.before)) {
+              existing.before[k] = current.data[k];
+              existing.keys.push(k);
+            }
+          });
+        }
+      } else {
+        const before: Record<string, unknown> = {};
+        keys.forEach((k) => {
+          before[k] = n.data[k];
+        });
+        pendingNodeDataUpdates.set(id, { timeoutId: 0, before, keys: [...keys] });
+      }
+
+      const timeoutId = window.setTimeout(() => {
+        const entry = pendingNodeDataUpdates.get(id);
+        if (!entry) return;
+        pendingNodeDataUpdates.delete(id);
+
+        const current = get().nodes.find((x) => x.id === id);
+        if (!current) return;
+        const after: Record<string, unknown> = {};
+        entry.keys.forEach((k) => {
+          after[k] = current.data[k];
+        });
+
+        pushCmd({
+          undo: () =>
+            set((st) => ({
+              nodes: st.nodes.map((x) => {
+                if (x.id !== id) return x;
+                const nextData = { ...x.data };
+                entry.keys.forEach((k) => {
+                  if (entry.before[k] === undefined) delete nextData[k];
+                  else nextData[k] = entry.before[k];
+                });
+                return { ...x, data: nextData };
+              }),
+            })),
+          execute: () =>
+            set((st) => ({
+              nodes: st.nodes.map((x) => {
+                if (x.id !== id) return x;
+                const nextData = { ...x.data };
+                entry.keys.forEach((k) => {
+                  if (after[k] === undefined) delete nextData[k];
+                  else nextData[k] = after[k];
+                });
+                return { ...x, data: nextData };
+              }),
+            })),
+        });
+      }, UPDATE_NODE_DATA_DEBOUNCE_MS);
+
+      pendingNodeDataUpdates.get(id)!.timeoutId = timeoutId;
     },
 
     updateNodeDataSilent: (id, data) => {

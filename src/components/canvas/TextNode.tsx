@@ -1,5 +1,5 @@
-import { memo, useCallback } from 'react';
-import { Handle, Position, type NodeProps } from 'reactflow';
+import { memo, useCallback, useMemo } from 'react';
+import { Position, type NodeProps } from 'reactflow';
 import { Type, Bold, Italic, List, ListOrdered } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -7,6 +7,8 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
+import { EnhancedHandle } from './EnhancedHandle';
+import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
 import {
@@ -24,6 +26,9 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
   const lockNode = useWorkflowStore((s) => s.lockNode);
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
+  const nodes = useWorkflowStore((s) => s.nodes);
+  const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
+  const { connectMenuItems } = useQuickConnect(id, selfPos);
 
   const content = (data.content as string) || '';
 
@@ -75,19 +80,15 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
         onDuplicate={() => duplicateNode(id)}
         onDelete={() => deleteNode(id)}
         onLock={() => lockNode(id)}
+        connectMenuItems={connectMenuItems}
       />
 
       {/* Inline formatting toolbar — visible when editor focused */}
       <AnimatePresence>
         {isFocused && editor && (
           <motion.div
-            className="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-2 py-1 rounded-lg z-50"
-            style={{
-              transform: 'translate(-50%, calc(-100% - 48px))',
-              background: 'rgba(26,26,26,0.9)',
-              backdropFilter: 'blur(12px)',
-              border: '1px solid rgba(255,255,255,0.1)',
-            }}
+            className="node-inline-toolbar absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-2 py-1 rounded-lg z-50"
+            style={{ transform: 'translate(-50%, calc(-100% - 48px))' }}
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 4 }}
@@ -95,11 +96,14 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
           >
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="px-2 py-1 rounded text-[11px] text-white/70 hover:bg-white/10 transition-colors">
+                <button
+                  type="button"
+                  className="node-inline-toolbar-btn px-2 py-1 rounded text-[11px] transition-colors"
+                >
                   Paragraph ▾
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="bg-[#1a1a1e] border-white/10 text-white/90 text-xs">
+              <DropdownMenuContent className="node-canvas-dropdown text-xs">
                 <DropdownMenuItem onClick={() => setBlockType('paragraph')}>Paragraph</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setBlockType('h1')}>Heading 1</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setBlockType('h2')}>Heading 2</DropdownMenuItem>
@@ -108,29 +112,33 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
                 <DropdownMenuItem onClick={() => setBlockType('ordered')}>Numbered List</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <div className="w-px h-4 bg-white/10" />
+            <div className="w-px h-4 node-inline-toolbar-divider" />
             <button
+              type="button"
               onClick={() => editor.chain().focus().toggleBold().run()}
-              className={`p-1.5 rounded text-white/60 hover:text-white/90 transition-colors ${editor.isActive('bold') ? 'bg-white/20' : ''}`}
+              className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${editor.isActive('bold') ? 'is-active' : ''}`}
             >
               <Bold size={12} />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().toggleItalic().run()}
-              className={`p-1.5 rounded text-white/60 hover:text-white/90 transition-colors ${editor.isActive('italic') ? 'bg-white/20' : ''}`}
+              className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${editor.isActive('italic') ? 'is-active' : ''}`}
             >
               <Italic size={12} />
             </button>
-            <div className="w-px h-4 bg-white/10" />
+            <div className="w-px h-4 node-inline-toolbar-divider" />
             <button
+              type="button"
               onClick={() => editor.chain().focus().toggleBulletList().run()}
-              className={`p-1.5 rounded text-white/60 hover:text-white/90 transition-colors ${editor.isActive('bulletList') ? 'bg-white/20' : ''}`}
+              className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${editor.isActive('bulletList') ? 'is-active' : ''}`}
             >
               <List size={12} />
             </button>
             <button
+              type="button"
               onClick={() => editor.chain().focus().toggleOrderedList().run()}
-              className={`p-1.5 rounded text-white/60 hover:text-white/90 transition-colors ${editor.isActive('orderedList') ? 'bg-white/20' : ''}`}
+              className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${editor.isActive('orderedList') ? 'is-active' : ''}`}
             >
               <ListOrdered size={12} />
             </button>
@@ -144,8 +152,8 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
         </div>
       </NodeContentFocus>
 
-      <Handle type="target" position={Position.Left} id="text-in" className="port-input" />
-      <Handle type="source" position={Position.Right} className="port-output" />
+      <EnhancedHandle type="target" position={Position.Left} id="text-in" className="port-input" dataType="text" />
+      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="text" />
       </div>
     </div>
   );

@@ -1,10 +1,12 @@
-import { memo, useState } from 'react';
-import { Handle, Position, type NodeProps } from 'reactflow';
+import { memo, useState, useMemo } from 'react';
+import { Position, type NodeProps } from 'reactflow';
 import { Sun } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
+import { EnhancedHandle } from './EnhancedHandle';
+import { useQuickConnect } from '@/hooks/useQuickConnect';
 import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
 
@@ -23,6 +25,9 @@ const LightingScenarioNode = memo(({ id, selected }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
   const [active, setActive] = useState<string>('golden');
+  const nodes = useWorkflowStore((s) => s.nodes);
+  const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
+  const { connectMenuItems } = useQuickConnect(id, selfPos);
 
   return (
     <div className="w-[400px] relative">
@@ -39,6 +44,7 @@ const LightingScenarioNode = memo(({ id, selected }: NodeProps) => {
         onLock={() => lockNode(id)}
         showDownload
         onDownload={() => window.open(PRESETS.find((p) => p.id === active)?.src || MOCK.lightWarm, '_blank')}
+        connectMenuItems={connectMenuItems}
       />
 
       <NodeContentFocus nodeId={id}>
@@ -59,7 +65,7 @@ const LightingScenarioNode = memo(({ id, selected }: NodeProps) => {
               }
             }}
             className={`text-left rounded-lg overflow-hidden border transition-colors cursor-pointer ${
-              active === p.id ? 'border-amber-500/70 ring-1 ring-amber-500/30' : 'border-white/10'
+              active === p.id ? 'border-amber-500/70 ring-1 ring-amber-500/30' : 'border-[var(--node-control-border)]'
             }`}
           >
             <ImageCellOverlay src={p.src} label={p.label} resolution="4K" index={i} nodeId={id} />
@@ -86,8 +92,8 @@ const LightingScenarioNode = memo(({ id, selected }: NodeProps) => {
       </div>
       </NodeContentFocus>
 
-      <Handle type="target" position={Position.Left} className="port-input" />
-      <Handle type="source" position={Position.Right} className="port-output" />
+      <EnhancedHandle type="target" position={Position.Left} className="port-input" dataType="image" />
+      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
     </div>
   );

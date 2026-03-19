@@ -46,11 +46,57 @@
     --accent-hover: #9d98f9;
     --port-input: #6ee7b7;
     --port-output: #a78bfa;
+    /* Handle type glyphs: shared chip chrome + distinct icon ink */
+    --handle-icon-chip-bg: rgba(14, 14, 17, 0.96);
+    --handle-icon-chip-border: rgba(255, 255, 255, 0.32);
+    --handle-icon-chip-shadow: 0 1px 3px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    --handle-icon-text: #a5e0ff;
+    --handle-icon-image: #ffe066;
+    --handle-icon-video: #fbcfe8;
     --text-primary: rgba(255, 255, 255, 0.92);
     --text-muted: rgba(255, 255, 255, 0.38);
     --shadow-node: 0 8px 32px rgba(0, 0, 0, 0.45);
     --radius-node: 14px;
     --edge-stroke: #7c6ff7;
+
+    /* Node UI chrome (canvas nodes — toggles with data-theme) */
+    --port-handle-border: rgba(255, 255, 255, 0.28);
+    --port-handle-shadow: rgba(0, 0, 0, 0.45);
+    --node-action-bar-bg: rgba(22, 22, 24, 0.94);
+    --node-action-bar-border: rgba(255, 255, 255, 0.12);
+    --node-action-bar-icon: rgba(255, 255, 255, 0.55);
+    --node-action-bar-icon-hover: rgba(255, 255, 255, 0.95);
+    --node-action-bar-hover-bg: rgba(255, 255, 255, 0.1);
+    --node-dropdown-bg: #1e1e22;
+    --node-dropdown-border: rgba(255, 255, 255, 0.12);
+    --node-dropdown-text: rgba(255, 255, 255, 0.92);
+    --node-tooltip-bg: rgba(0, 0, 0, 0.92);
+    --node-tooltip-text: #ffffff;
+    --node-inner-deep: #141416;
+    --node-inner-mid: #1a1a1c;
+    --node-panel-border: rgba(255, 255, 255, 0.08);
+    --node-control-bg: rgba(255, 255, 255, 0.06);
+    --node-control-border: rgba(255, 255, 255, 0.12);
+    --node-control-text: rgba(255, 255, 255, 0.88);
+    --node-control-muted: rgba(255, 255, 255, 0.42);
+    --node-float-btn-bg: #2c2c30;
+    --node-float-btn-border: rgba(255, 255, 255, 0.12);
+    --node-overlay-dark: rgba(0, 0, 0, 0.55);
+    --node-overlay-text: rgba(255, 255, 255, 0.85);
+    --node-badge-bg: rgba(0, 0, 0, 0.65);
+    --node-on-accent: #ffffff;
+    --node-popover-surface: #1e1e22;
+    --node-popover-text: rgba(255, 255, 255, 0.92);
+    --node-popover-muted: rgba(255, 255, 255, 0.5);
+    --node-scrollbar-thumb: rgba(255, 255, 255, 0.15);
+    --node-scrollbar-thumb-hover: rgba(255, 255, 255, 0.28);
+    --node-divider: rgba(255, 255, 255, 0.1);
+    --node-tab-active-bg: rgba(255, 255, 255, 0.15);
+    --node-tab-inactive: rgba(255, 255, 255, 0.45);
+    /* Props input node tinted shell */
+    --node-props-chrome-bg: rgba(42, 38, 28, 0.92);
+    --node-props-hint: rgba(253, 230, 168, 0.88);
+    --canvas-modal-scrim: rgba(0, 0, 0, 0.55);
 
     /* Legacy compat aliases */
     --glass-bg: var(--bg-node);
@@ -165,7 +211,7 @@
   width: 11px !important;
   height: 11px !important;
   background: var(--port-input) !important;
-  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  border: 1px solid var(--port-handle-border) !important;
   transition: box-shadow 0.2s, transform 0.15s;
 }
 .port-input:hover {
@@ -176,12 +222,70 @@
   width: 11px !important;
   height: 11px !important;
   background: var(--port-output) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border: 1px solid var(--port-handle-border) !important;
   transition: box-shadow 0.2s, transform 0.15s;
 }
 .port-output:hover {
   box-shadow: 0 0 10px 3px var(--port-output);
   transform: scale(1.08);
+}
+
+/* Secondary source port (e.g. text bundle on props node) */
+.port-output-accent {
+  background: var(--accent-color) !important;
+}
+.port-output-accent:hover {
+  box-shadow: 0 0 10px 3px color-mix(in srgb, var(--accent-color) 70%, transparent);
+}
+
+/* Typed handles: outer ring = port role, inner chip = shared bg + colored glyph (EnhancedHandle) */
+.react-flow__handle.port-with-type-glyph {
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
+  min-height: 20px !important;
+  background: transparent !important;
+  border: none !important;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+.react-flow__handle.port-with-type-glyph.port-input {
+  box-shadow:
+    0 0 0 2px var(--port-input),
+    0 2px 8px var(--port-handle-shadow) !important;
+}
+.react-flow__handle.port-with-type-glyph.port-input:hover {
+  box-shadow:
+    0 0 0 2px var(--port-input),
+    0 0 14px 5px color-mix(in srgb, var(--port-input) 55%, transparent) !important;
+  transform: scale(1.06);
+}
+.react-flow__handle.port-with-type-glyph.port-output {
+  box-shadow:
+    0 0 0 2px var(--port-output),
+    0 2px 8px var(--port-handle-shadow) !important;
+}
+.react-flow__handle.port-with-type-glyph.port-output:hover {
+  box-shadow:
+    0 0 0 2px var(--port-output),
+    0 0 14px 5px color-mix(in srgb, var(--port-output) 55%, transparent) !important;
+  transform: scale(1.06);
+}
+.react-flow__handle.port-with-type-glyph.port-output.port-output-accent {
+  box-shadow:
+    0 0 0 2px var(--accent-color),
+    0 2px 8px var(--port-handle-shadow) !important;
+}
+.react-flow__handle.port-with-type-glyph.port-output.port-output-accent:hover {
+  box-shadow:
+    0 0 0 2px var(--accent-color),
+    0 0 14px 5px color-mix(in srgb, var(--accent-color) 55%, transparent) !important;
+  transform: scale(1.06);
+}
+
+.port-type-glyph-inner {
+  background: var(--handle-icon-chip-bg);
+  border: 1px solid var(--handle-icon-chip-border);
+  box-shadow: var(--handle-icon-chip-shadow);
 }
 
 /* Animated edge */
@@ -223,6 +327,65 @@
   border-radius: 9999px;
   transition: box-shadow 0.3s ease-in-out;
 }
+.node-action-bar-pill {
+  /* Extra offset keeps the pill farther from multiselect / focus UI above the card */
+  transform: translate(-50%, calc(-100% - 14px));
+  background: var(--node-action-bar-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--node-action-bar-border) !important;
+  box-shadow: var(--shadow-node);
+}
+.node-action-bar-btn {
+  color: var(--node-action-bar-icon);
+}
+.node-action-bar-btn:hover {
+  color: var(--node-action-bar-icon-hover);
+  background-color: var(--node-action-bar-hover-bg);
+}
+.node-action-bar-divider {
+  background-color: var(--node-divider);
+}
+.node-action-bar .node-action-bar-btn {
+  color: var(--node-action-bar-icon);
+}
+.node-action-bar .node-action-bar-btn:hover {
+  color: var(--node-action-bar-icon-hover);
+  background-color: var(--node-action-bar-hover-bg);
+}
+.node-canvas-dropdown {
+  background-color: var(--node-dropdown-bg) !important;
+  border-color: var(--node-dropdown-border) !important;
+  color: var(--node-dropdown-text) !important;
+}
+.node-canvas-popover {
+  background-color: var(--node-popover-surface) !important;
+  border-color: var(--node-dropdown-border) !important;
+  color: var(--node-popover-text) !important;
+}
+
+/* Tiptap / inline toolbars on nodes */
+.node-inline-toolbar {
+  background: var(--node-action-bar-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--node-action-bar-border);
+  box-shadow: var(--shadow-node);
+}
+.node-inline-toolbar-btn {
+  color: var(--node-action-bar-icon);
+}
+.node-inline-toolbar-btn:hover {
+  color: var(--node-action-bar-icon-hover);
+  background-color: var(--node-action-bar-hover-bg);
+}
+.node-inline-toolbar-btn.is-active {
+  background-color: var(--node-tab-active-bg);
+  color: var(--node-action-bar-icon-hover);
+}
+.node-inline-toolbar-divider {
+  background-color: var(--node-divider);
+}
 .node-action-bar .node-action-bar-icon {
   position: relative;
   margin: 0 2px;
@@ -237,8 +400,8 @@
   border-radius: 6px;
   font-size: 12px;
   white-space: nowrap;
-  background: rgba(0, 0, 0, 0.9);
-  color: #fff;
+  background: var(--node-tooltip-bg);
+  color: var(--node-tooltip-text);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -281,8 +444,8 @@
 /* Custom scrollbar for node content */
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: var(--node-scrollbar-thumb); border-radius: 2px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--node-scrollbar-thumb-hover); }
 
 /* React Flow overrides */
 .react-flow__background {
@@ -372,6 +535,53 @@
   --text-primary: rgba(0, 0, 0, 0.88);
   --text-muted: rgba(0, 0, 0, 0.4);
   --shadow-node: 0 4px 20px rgba(0, 0, 0, 0.12);
+  --accent-color: #5b4cdb;
+  --accent-hover: #6f62e8;
+  --edge-stroke: #5b4cdb;
+  --port-input: #059669;
+  --port-output: #6d28d9;
+  --port-handle-border: rgba(0, 0, 0, 0.22);
+  --port-handle-shadow: rgba(0, 0, 0, 0.12);
+  --handle-icon-chip-bg: rgba(255, 255, 255, 0.98);
+  --handle-icon-chip-border: rgba(0, 0, 0, 0.14);
+  --handle-icon-chip-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --handle-icon-text: #0369a1;
+  --handle-icon-image: #b45309;
+  --handle-icon-video: #a21caf;
+  --node-action-bar-bg: rgba(255, 255, 255, 0.96);
+  --node-action-bar-border: rgba(0, 0, 0, 0.1);
+  --node-action-bar-icon: rgba(0, 0, 0, 0.52);
+  --node-action-bar-icon-hover: rgba(0, 0, 0, 0.9);
+  --node-action-bar-hover-bg: rgba(0, 0, 0, 0.06);
+  --node-dropdown-bg: #ffffff;
+  --node-dropdown-border: rgba(0, 0, 0, 0.1);
+  --node-dropdown-text: rgba(0, 0, 0, 0.88);
+  --node-tooltip-bg: rgba(28, 28, 32, 0.94);
+  --node-tooltip-text: #ffffff;
+  --node-inner-deep: #ececef;
+  --node-inner-mid: #f3f3f6;
+  --node-panel-border: rgba(0, 0, 0, 0.08);
+  --node-control-bg: rgba(0, 0, 0, 0.04);
+  --node-control-border: rgba(0, 0, 0, 0.1);
+  --node-control-text: rgba(0, 0, 0, 0.88);
+  --node-control-muted: rgba(0, 0, 0, 0.45);
+  --node-float-btn-bg: #e2e2e8;
+  --node-float-btn-border: rgba(0, 0, 0, 0.1);
+  --node-overlay-dark: rgba(0, 0, 0, 0.4);
+  --node-overlay-text: rgba(255, 255, 255, 0.92);
+  --node-badge-bg: rgba(0, 0, 0, 0.62);
+  --node-on-accent: #ffffff;
+  --node-popover-surface: #ffffff;
+  --node-popover-text: rgba(0, 0, 0, 0.88);
+  --node-popover-muted: rgba(0, 0, 0, 0.5);
+  --node-scrollbar-thumb: rgba(0, 0, 0, 0.12);
+  --node-scrollbar-thumb-hover: rgba(0, 0, 0, 0.22);
+  --node-divider: rgba(0, 0, 0, 0.1);
+  --node-tab-active-bg: rgba(0, 0, 0, 0.08);
+  --node-tab-inactive: rgba(0, 0, 0, 0.45);
+  --node-props-chrome-bg: rgba(255, 252, 245, 0.96);
+  --node-props-hint: rgba(120, 85, 30, 0.88);
+  --canvas-modal-scrim: rgba(0, 0, 0, 0.28);
 }
 
 [data-theme="light"] .glass-toolbar {
@@ -464,6 +674,25 @@
   border-color: rgba(0, 0, 0, 0.1) !important;
 }
 
+[data-theme="light"] .glass-node-input:not(.glass-node),
+[data-theme="light"] .glass-node-input.glass-node {
+  border-color: rgba(180, 130, 40, 0.42) !important;
+  box-shadow:
+    0 0 0 1px rgba(180, 130, 40, 0.14),
+    var(--shadow-node) !important;
+}
+[data-theme="light"] .glass-node-output.glass-node {
+  border-color: rgba(59, 130, 246, 0.4) !important;
+  box-shadow:
+    0 0 0 1px rgba(59, 130, 246, 0.12),
+    var(--shadow-node) !important;
+}
+
+[data-theme="light"] .node-select option {
+  background: #fff;
+  color: var(--text-primary);
+}
+
 /* Select dropdown dark styling */
 .node-select {
   background: rgba(255, 255, 255, 0.05);
@@ -478,6 +707,6 @@
   font-family: 'Inter', sans-serif;
 }
 .node-select option {
-  background: #1a1a1e;
+  background: var(--node-dropdown-bg);
   color: var(--text-primary);
 }

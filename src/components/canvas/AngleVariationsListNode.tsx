@@ -1,10 +1,12 @@
-import { memo, useState } from 'react';
-import { Handle, Position, type NodeProps } from 'reactflow';
+import { memo, useState, useMemo } from 'react';
+import { Position, type NodeProps } from 'reactflow';
 import { Plus, Grid3X3, List, Settings, CircleDot } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
+import { EnhancedHandle } from './EnhancedHandle';
+import { useQuickConnect } from '@/hooks/useQuickConnect';
 import ImageCellOverlay from './ImageCellOverlay';
 
 const AngleVariationsListNode = memo(({ id, selected }: NodeProps) => {
@@ -13,6 +15,9 @@ const AngleVariationsListNode = memo(({ id, selected }: NodeProps) => {
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
+  const nodes = useWorkflowStore((s) => s.nodes);
+  const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
+  const { connectMenuItems } = useQuickConnect(id, selfPos);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const images = Array.from({ length: 9 }, (_, i) => i);
@@ -31,6 +36,7 @@ const AngleVariationsListNode = memo(({ id, selected }: NodeProps) => {
         onDuplicate={() => duplicateNode(id)}
         onDelete={() => deleteNode(id)}
         showDownload
+        connectMenuItems={connectMenuItems}
       />
 
       <NodeContentFocus nodeId={id}>
@@ -52,36 +58,45 @@ const AngleVariationsListNode = memo(({ id, selected }: NodeProps) => {
 
       {/* Footer */}
       <div className="flex items-center justify-between px-3 py-2 border-t border-border">
-        <button className="flex items-center gap-1.5 bg-white/10 rounded-lg px-3 py-1.5 text-[12px] text-white/80 hover:bg-white/15 transition-colors">
+        <button
+          type="button"
+          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] transition-colors bg-[var(--node-control-bg)] border border-[var(--node-control-border)] text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
+        >
           <Plus size={11} />
           Replace Items
         </button>
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] text-white/40">{totalImages}</span>
-          <button className="p-1 rounded hover:bg-white/10 transition-colors text-white/50 hover:text-white/80">
+          <span className="text-[11px] text-[var(--node-control-muted)]">{totalImages}</span>
+          <button
+            type="button"
+            className="p-1 rounded transition-colors text-[var(--node-control-muted)] hover:text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
+          >
             <CircleDot size={12} />
           </button>
           <button
-            className={`p-1 rounded transition-colors ${viewMode === 'list' ? 'bg-white/20 text-white/90' : 'text-white/50 hover:bg-white/10 hover:text-white/80'}`}
+            className={`p-1 rounded transition-colors ${viewMode === 'list' ? 'bg-[var(--node-tab-active-bg)] text-[var(--text-primary)]' : 'text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-control-text)]'}`}
             onClick={() => setViewMode('list')}
           >
             <List size={12} />
           </button>
           <button
-            className={`p-1 rounded transition-colors ${viewMode === 'grid' ? 'bg-white/20 text-white/90' : 'text-white/50 hover:bg-white/10 hover:text-white/80'}`}
+            className={`p-1 rounded transition-colors ${viewMode === 'grid' ? 'bg-[var(--node-tab-active-bg)] text-[var(--text-primary)]' : 'text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-control-text)]'}`}
             onClick={() => setViewMode('grid')}
           >
             <Grid3X3 size={12} />
           </button>
-          <button className="p-1 rounded hover:bg-white/10 transition-colors text-white/50 hover:text-white/80">
+          <button
+            type="button"
+            className="p-1 rounded transition-colors text-[var(--node-control-muted)] hover:text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
+          >
             <Settings size={12} />
           </button>
         </div>
       </div>
       </NodeContentFocus>
 
-      <Handle type="target" position={Position.Left} className="port-input" />
-      <Handle type="source" position={Position.Right} className="port-output" />
+      <EnhancedHandle type="target" position={Position.Left} className="port-input" dataType="image" />
+      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
     </div>
   );

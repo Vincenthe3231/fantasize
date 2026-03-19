@@ -75,7 +75,7 @@ const CustomEdge = memo(({
             onClick={handleDelete}
             className="w-4 h-4 rounded-full bg-red-500/80 flex items-center justify-center hover:bg-red-500 transition-colors"
           >
-            <X size={8} className="text-white" />
+            <X size={8} className="text-[var(--node-on-accent)]" />
           </button>
         </foreignObject>
       )}

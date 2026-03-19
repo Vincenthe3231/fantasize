@@ -1,9 +1,11 @@
 import { memo, useState, useMemo, useCallback } from 'react';
-import { Handle, Position, type NodeProps } from 'reactflow';
+import { Position, type NodeProps } from 'reactflow';
 import { Sparkles, Loader2, Type, Image as ImageIcon, Settings, Play } from 'lucide-react';
 import { NodeLabelRow } from './NodeLabelRow';
-import { useWorkflowStore, type NodeType } from '@/stores/workflowStore';
-import NodeActionBar, { type ConnectMenuItem } from './NodeActionBar';
+import { useWorkflowStore } from '@/stores/workflowStore';
+import NodeActionBar from './NodeActionBar';
+import { EnhancedHandle } from './EnhancedHandle';
+import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NodeContentFocus } from './NodeContentFocus';
 import {
   DropdownMenu,
@@ -82,39 +84,7 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
     wireEdge(makeEdge(id, nid, undefined, 'text-in'));
   }, [addNode, selfPos, id, wireEdge]);
 
-  const connectMenuItems: ConnectMenuItem[] = useMemo(
-    () => [
-      {
-        label: 'Image Generator',
-        onClick: () => {
-          const nid = addNode('imageGeneratorNode', { x: selfPos.x + 340, y: selfPos.y });
-          wireEdge(makeEdge(id, nid, undefined, 'text-in'));
-        },
-      },
-      {
-        label: 'Video Generator',
-        onClick: () => {
-          const nid = addNode('videoGeneratorNode', { x: selfPos.x + 340, y: selfPos.y });
-          wireEdge(makeEdge(id, nid, undefined, 'text-in'));
-        },
-      },
-      {
-        label: 'Image Upscaler',
-        onClick: () => {
-          const nid = addNode('imageUpscalerNode', { x: selfPos.x + 340, y: selfPos.y });
-          wireEdge(makeEdge(id, nid));
-        },
-      },
-      {
-        label: 'Assistant',
-        onClick: () => {
-          const nid = addNode('assistantNode', { x: selfPos.x + 340, y: selfPos.y });
-          wireEdge(makeEdge(id, nid, undefined, 'text-in'));
-        },
-      },
-    ],
-    [addNode, selfPos, id, wireEdge]
-  );
+  const { connectMenuItems } = useQuickConnect(id, selfPos);
 
   const handleRun = useCallback(() => {
     setIsRunning(true);
@@ -144,7 +114,7 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
         e.stopPropagation();
         onClick();
       }}
-      className={`w-8 h-8 rounded-full bg-[#2a2a2e] border border-white/10 flex items-center justify-center text-white/80 hover:bg-white/10 hover:text-white transition-colors shadow-lg ${className}`}
+      className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-lg bg-[var(--node-float-btn-bg)] border border-[var(--node-float-btn-border)] text-[var(--node-action-bar-icon)] hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-action-bar-icon-hover)] ${className}`}
     >
       {children}
     </button>
@@ -174,8 +144,8 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
               : 'border-transparent'
           }`}
         >
-          <div className="rounded-[10px] overflow-hidden bg-[#1a1a1c]">
-            <div className="flex items-center gap-1 p-2 border-b border-white/5">
+          <div className="rounded-[10px] overflow-hidden bg-[var(--node-inner-mid)]">
+            <div className="flex items-center gap-1 p-2 border-b border-[var(--node-panel-border)]">
               <button
                 type="button"
                 onClick={(e) => {
@@ -183,7 +153,9 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
                   updateNodeData(id, { view: 'prompt' });
                 }}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-mono-display uppercase tracking-wider transition-colors ${
-                  view === 'prompt' ? 'bg-white/15 text-white' : 'text-white/45 hover:text-white/70'
+                  view === 'prompt'
+                    ? 'bg-[var(--node-tab-active-bg)] text-[var(--text-primary)]'
+                    : 'text-[var(--node-tab-inactive)] hover:text-[var(--node-control-text)]'
                 }`}
               >
                 <span className="opacity-80">Prompt</span>
@@ -195,7 +167,9 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
                   updateNodeData(id, { view: 'result' });
                 }}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-mono-display uppercase tracking-wider transition-colors ${
-                  view === 'result' ? 'bg-white/15 text-white' : 'text-white/45 hover:text-white/70'
+                  view === 'result'
+                    ? 'bg-[var(--node-tab-active-bg)] text-[var(--text-primary)]'
+                    : 'text-[var(--node-tab-inactive)] hover:text-[var(--node-control-text)]'
                 }`}
               >
                 <Sparkles size={12} />
@@ -220,19 +194,19 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
               )}
             </div>
 
-            <div className="flex items-center gap-2 px-3 py-2.5 border-t border-white/5 bg-black/20">
+            <div className="flex items-center gap-2 px-3 py-2.5 border-t border-[var(--node-panel-border)] bg-[var(--node-control-bg)]">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
                     onClick={(e) => e.stopPropagation()}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] text-white/90 hover:bg-white/10 max-w-[120px] truncate"
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[var(--node-inner-mid)] border border-[var(--node-control-border)] text-[11px] text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)] max-w-[120px] truncate"
                   >
                     {model}
-                    <span className="text-white/40 text-[9px]">▼</span>
+                    <span className="text-[var(--node-control-muted)] text-[9px]">▼</span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="bg-[#1a1a1e] border-white/10 text-white/90 text-xs max-h-56 overflow-y-auto">
+                <DropdownMenuContent className="node-canvas-dropdown text-xs max-h-56 overflow-y-auto">
                   {ASSISTANT_MODELS.map((m) => (
                     <DropdownMenuItem key={m} onClick={() => updateNodeData(id, { assistantModel: m })}>
                       {m}
@@ -242,7 +216,7 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
               </DropdownMenu>
               <button
                 type="button"
-                className="p-2 rounded-lg text-white/50 hover:text-white/90 hover:bg-white/10"
+                className="p-2 rounded-lg text-[var(--node-control-muted)] hover:text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
                 title="Settings"
               >
                 <Settings size={14} />
@@ -253,13 +227,13 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
                   <button
                     type="button"
                     onClick={(e) => e.stopPropagation()}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] text-white/90 hover:bg-white/10"
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[var(--node-inner-mid)] border border-[var(--node-control-border)] text-[11px] text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
                   >
                     Export as text
-                    <span className="text-white/40 text-[9px]">▼</span>
+                    <span className="text-[var(--node-control-muted)] text-[9px]">▼</span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="bg-[#1a1a1e] border-white/10 text-white/90 text-xs w-52">
+                <DropdownMenuContent className="node-canvas-dropdown text-xs w-52">
                   <DropdownMenuItem
                     onClick={() => {
                       const nid = addNode('listNode', { x: selfPos.x + 40, y: selfPos.y + 200 });
@@ -269,7 +243,7 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
                   >
                     <div>
                       <div>Export as list</div>
-                      <div className="text-[10px] text-white/50">Export results as a list node</div>
+                      <div className="text-[10px] text-[var(--node-popover-muted)]">Export results as a list node</div>
                     </div>
                   </DropdownMenuItem>
                   <DropdownMenuItem
@@ -280,7 +254,7 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
                   >
                     <div>
                       <div>Export as text</div>
-                      <div className="text-[10px] text-white/50">Export results as text</div>
+                      <div className="text-[10px] text-[var(--node-popover-muted)]">Export results as text</div>
                     </div>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -292,7 +266,7 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
                   e.stopPropagation();
                   handleRun();
                 }}
-                className="w-10 h-10 rounded-full bg-[var(--accent-color)] text-white flex items-center justify-center hover:bg-[var(--accent-hover)] disabled:opacity-50 shadow-lg shrink-0"
+                className="w-10 h-10 rounded-full bg-[var(--accent-color)] text-[var(--node-on-accent)] flex items-center justify-center hover:bg-[var(--accent-hover)] disabled:opacity-50 shadow-lg shrink-0"
               >
                 {isRunning ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} className="ml-0.5" />}
               </button>
@@ -319,9 +293,23 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
         </>
       )}
 
-      <Handle type="target" position={Position.Left} id="text-in" className="port-input" style={{ top: '35%' }} />
-      <Handle type="target" position={Position.Left} id="image-in" className="port-input" style={{ top: '65%' }} />
-      <Handle type="source" position={Position.Right} className="port-output" />
+      <EnhancedHandle
+        type="target"
+        position={Position.Left}
+        id="text-in"
+        className="port-input"
+        style={{ top: '35%' }}
+        dataType="text"
+      />
+      <EnhancedHandle
+        type="target"
+        position={Position.Left}
+        id="image-in"
+        className="port-input"
+        style={{ top: '65%' }}
+        dataType="image"
+      />
+      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="text" />
       </div>
     </div>
   );

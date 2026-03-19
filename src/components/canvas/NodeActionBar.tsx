@@ -66,11 +66,12 @@ const Btn = ({
   <div className="node-action-bar-icon">
     {tooltip && <span className="node-action-bar-tooltip">{tooltip}</span>}
     <button
+      type="button"
       onClick={(e) => {
         e.stopPropagation();
         onClick?.();
       }}
-      className={`flex items-center justify-center w-8 h-8 rounded-full text-white/60 hover:text-white/90 transition-all duration-300 ease-in-out hover:bg-white/10 ${className}`}
+      className={`node-action-bar-btn flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 ease-in-out ${className}`}
     >
       {children}
     </button>
@@ -94,19 +95,13 @@ const NodeActionBar = memo(
     const isAssistant = variant === 'assistant';
     const isImageGen = variant === 'imageGen';
 
+    const showConnectMenu = connectMenuItems.length > 0;
+
     return (
-      <div
-        className="node-action-bar absolute top-0 left-1/2 flex items-center gap-1 px-3 py-2 shadow-xl z-50"
-        style={{
-          transform: 'translate(-50%, calc(-100% - 8px))',
-          background: 'rgba(26, 26, 26, 0.9)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid rgba(255,255,255,0.1)',
-        }}
-      >
+      <div className="node-action-bar node-action-bar-pill absolute top-0 left-1/2 flex items-center gap-0.5 px-1.5 py-0.5 z-50">
         {onRun && (
           <Btn onClick={onRun} tooltip="Run">
-            <Play size={14} />
+            <Play size={12} />
           </Btn>
         )}
 
@@ -114,110 +109,106 @@ const NodeActionBar = memo(
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="node-action-bar-icon flex items-center justify-center w-8 h-8 rounded-full text-white/60 hover:text-white/90 transition-all duration-300 ease-in-out hover:bg-white/10"
+              className="node-action-bar-icon node-action-bar-btn flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 ease-in-out"
             >
               <span className="node-action-bar-tooltip">Run options</span>
-              <ChevronDown size={12} />
+              <ChevronDown size={10} />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="bg-[#1a1a1e] border-white/10 text-white/90 text-xs">
+          <DropdownMenuContent className="node-canvas-dropdown text-xs">
             <DropdownMenuItem onClick={onRun}>Run this node</DropdownMenuItem>
             <DropdownMenuItem>Run from here</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="w-px h-4 bg-white/10 mx-0.5" />
+        <div className="w-px h-3 node-action-bar-divider mx-0.5" />
 
-        {(isAssistant || isImageGen) && (
+        {showConnectMenu && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="node-action-bar-icon flex items-center justify-center w-8 h-8 rounded-full text-white/60 hover:text-white/90 transition-all duration-300 ease-in-out hover:bg-white/10"
+                className="node-action-bar-icon node-action-bar-btn flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 ease-in-out"
               >
                 <span className="node-action-bar-tooltip">Connect</span>
-                <Link2 size={12} />
+                <Link2 size={10} />
                 <ChevronDown size={10} className="ml-0.5" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="bg-[#1a1a1e] border-white/10 text-white/90 text-xs min-w-[180px]">
-              {connectMenuItems.length > 0 ? (
-                connectMenuItems.map((item) => (
-                  <DropdownMenuItem
-                    key={item.label}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      item.onClick();
-                    }}
-                  >
-                    {item.label}
-                  </DropdownMenuItem>
-                ))
-              ) : (
-                <DropdownMenuItem disabled>Add connected node…</DropdownMenuItem>
-              )}
+            <DropdownMenuContent className="node-canvas-dropdown text-xs min-w-[180px]">
+              {connectMenuItems.map((item) => (
+                <DropdownMenuItem
+                  key={item.label}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    item.onClick();
+                  }}
+                >
+                  {item.label}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
 
         {isAssistant && (
           <>
-            <div className="w-px h-4 bg-white/10 mx-0.5" />
-            {onExpand && <Btn onClick={onExpand} tooltip="Expand"><Maximize2 size={14} /></Btn>}
-            {onDuplicate && <Btn onClick={onDuplicate} tooltip="Duplicate"><Copy size={14} /></Btn>}
-            {onDelete && <Btn onClick={onDelete} tooltip="Delete" className="hover:!text-red-400"><Trash2 size={14} /></Btn>}
+            <div className="w-px h-3 node-action-bar-divider mx-0.5" />
+            {onExpand && <Btn onClick={onExpand} tooltip="Expand"><Maximize2 size={12} /></Btn>}
+            {onDuplicate && <Btn onClick={onDuplicate} tooltip="Duplicate"><Copy size={12} /></Btn>}
+            {onDelete && <Btn onClick={onDelete} tooltip="Delete" className="hover:!text-red-400"><Trash2 size={12} /></Btn>}
           </>
         )}
 
         {isImageGen && (
           <>
-            <div className="w-px h-4 bg-white/10 mx-0.5" />
-            {onDelete && <Btn onClick={onDelete} tooltip="Delete" className="hover:!text-red-400"><Trash2 size={14} /></Btn>}
+            <div className="w-px h-3 node-action-bar-divider mx-0.5" />
+            {onDelete && <Btn onClick={onDelete} tooltip="Delete" className="hover:!text-red-400"><Trash2 size={12} /></Btn>}
           </>
         )}
 
         {!isAssistant && !isImageGen && (
           <>
-            {onExpand && <Btn onClick={onExpand} tooltip="Expand"><Maximize2 size={14} /></Btn>}
+            {onExpand && <Btn onClick={onExpand} tooltip="Expand"><Maximize2 size={12} /></Btn>}
             {variant === 'text' && (
               <>
-                <Btn tooltip="Select"><CircleDot size={14} /></Btn>
-                <Btn tooltip="Type"><Type size={14} /></Btn>
+                <Btn tooltip="Select"><CircleDot size={12} /></Btn>
+                <Btn tooltip="Type"><Type size={12} /></Btn>
               </>
             )}
             {(variant === 'image' || variant === 'multiImage') && onGridToggle && (
-              <Btn onClick={onGridToggle} tooltip="Grid"><Grid3X3 size={14} /></Btn>
+              <Btn onClick={onGridToggle} tooltip="Grid"><Grid3X3 size={12} /></Btn>
             )}
-            {variant === 'image' && <Btn tooltip="Corner"><CornerDownRight size={14} /></Btn>}
+            {variant === 'image' && <Btn tooltip="Corner"><CornerDownRight size={12} /></Btn>}
             {variant === 'multiImage' && (
               <>
-                {onSelectMode && <Btn onClick={onSelectMode} tooltip="Select mode"><CircleDot size={14} /></Btn>}
-                <Btn tooltip="List"><List size={14} /></Btn>
-                <Btn tooltip="Settings"><Settings size={14} /></Btn>
-                <Btn tooltip="Add"><Plus size={14} /></Btn>
+                {onSelectMode && <Btn onClick={onSelectMode} tooltip="Select mode"><CircleDot size={12} /></Btn>}
+                <Btn tooltip="List"><List size={12} /></Btn>
+                <Btn tooltip="Settings"><Settings size={12} /></Btn>
+                <Btn tooltip="Add"><Plus size={12} /></Btn>
               </>
             )}
             {variant === 'group' && <div className="w-2 h-2 rounded-full bg-yellow-400 mx-1" />}
-            <div className="w-px h-4 bg-white/10 mx-0.5" />
-            {onLock && <Btn onClick={onLock} tooltip="Lock"><Lock size={14} /></Btn>}
-            {onDuplicate && <Btn onClick={onDuplicate} tooltip="Duplicate"><Copy size={14} /></Btn>}
-            {onDelete && <Btn onClick={onDelete} tooltip="Delete" className="hover:!text-red-400"><Trash2 size={14} /></Btn>}
+            <div className="w-px h-3 node-action-bar-divider mx-0.5" />
+            {onLock && <Btn onClick={onLock} tooltip="Lock"><Lock size={12} /></Btn>}
+            {onDuplicate && <Btn onClick={onDuplicate} tooltip="Duplicate"><Copy size={12} /></Btn>}
+            {onDelete && <Btn onClick={onDelete} tooltip="Delete" className="hover:!text-red-400"><Trash2 size={12} /></Btn>}
           </>
         )}
 
-        {showDownload && onDownload && <Btn onClick={onDownload} tooltip="Download"><Download size={14} /></Btn>}
+        {showDownload && onDownload && <Btn onClick={onDownload} tooltip="Download"><Download size={12} /></Btn>}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="node-action-bar-icon flex items-center justify-center w-8 h-8 rounded-full text-white/60 hover:text-white/90 transition-all duration-300 ease-in-out hover:bg-white/10"
+              className="node-action-bar-icon node-action-bar-btn flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 ease-in-out"
             >
               <span className="node-action-bar-tooltip">More</span>
-              <MoreHorizontal size={14} />
+              <MoreHorizontal size={12} />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="bg-[#1a1a1e] border-white/10 text-white/90 text-xs">
+          <DropdownMenuContent className="node-canvas-dropdown text-xs">
             {onDuplicate && isImageGen && <DropdownMenuItem onClick={onDuplicate}>Duplicate</DropdownMenuItem>}
             {onDuplicate && !isAssistant && !isImageGen && <DropdownMenuItem onClick={onDuplicate}>Duplicate</DropdownMenuItem>}
             <DropdownMenuItem>Rename</DropdownMenuItem>

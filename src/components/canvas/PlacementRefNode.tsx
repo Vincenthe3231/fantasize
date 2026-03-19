@@ -1,10 +1,12 @@
-import { memo } from 'react';
-import { Handle, Position, type NodeProps } from 'reactflow';
+import { memo, useMemo } from 'react';
+import { Position, type NodeProps } from 'reactflow';
 import { LayoutGrid } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
+import { EnhancedHandle } from './EnhancedHandle';
+import { useQuickConnect } from '@/hooks/useQuickConnect';
 import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
 
@@ -15,6 +17,17 @@ const PlacementRefNode = memo(({ id, selected }: NodeProps) => {
   const lockNode = useWorkflowStore((s) => s.lockNode);
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
+  const nodes = useWorkflowStore((s) => s.nodes);
+  const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
+  const quickOverrides = useMemo(
+    () => ({
+      imageGenerator: { targetHandle: 'image-in' as const },
+      videoGenerator: { targetHandle: 'image-in' as const },
+      assistant: { targetHandle: 'image-in' as const },
+    }),
+    []
+  );
+  const { connectMenuItems } = useQuickConnect(id, selfPos, quickOverrides);
 
   return (
     <div className="w-[280px] relative">
@@ -29,13 +42,14 @@ const PlacementRefNode = memo(({ id, selected }: NodeProps) => {
         onDuplicate={() => duplicateNode(id)}
         onDelete={() => deleteNode(id)}
         onLock={() => lockNode(id)}
+        connectMenuItems={connectMenuItems}
       />
       <NodeContentFocus nodeId={id}>
         <div className="p-2 pt-2">
           <ImageCellOverlay src={MOCK.placement} resolution="1920 × 1080" index={0} nodeId={id} />
         </div>
       </NodeContentFocus>
-      <Handle type="source" position={Position.Right} className="port-output" />
+      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
     </div>
   );

@@ -1,10 +1,12 @@
-import { memo, useState } from 'react';
-import { Handle, Position, type NodeProps } from 'reactflow';
+import { memo, useState, useMemo } from 'react';
+import { Position, type NodeProps } from 'reactflow';
 import { RefreshCw, Grid3X3 } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
+import { EnhancedHandle } from './EnhancedHandle';
+import { useQuickConnect } from '@/hooks/useQuickConnect';
 import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
 
@@ -19,6 +21,9 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
   const toggleGrid = useWorkflowStore((s) => s.toggleGridLayout);
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
+  const nodes = useWorkflowStore((s) => s.nodes);
+  const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
+  const { connectMenuItems } = useQuickConnect(id, selfPos);
   const [splitImages, setSplitImages] = useState(false);
   const [selectedCount] = useState(4);
 
@@ -41,6 +46,7 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
         onLock={() => lockNode(id)}
         showDownload
         onGridToggle={() => toggleGrid(id)}
+        connectMenuItems={connectMenuItems}
       />
 
       <NodeContentFocus nodeId={id}>
@@ -51,7 +57,7 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
         </div>
 
       {/* Resolution badge */}
-      <div className="absolute top-12 right-3 bg-black/60 rounded px-1.5 py-0.5 text-[10px] font-mono text-white/80 z-10">
+      <div className="absolute top-12 right-3 rounded px-1.5 py-0.5 text-[10px] font-mono z-10 text-[var(--node-overlay-text)] bg-[var(--node-badge-bg)]">
         5504 × 3072
       </div>
 
@@ -69,13 +75,13 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
 
       {/* Footer */}
       <div className="flex items-center justify-between px-3 py-2 border-t border-border text-[10px]">
-        <div className="flex items-center gap-2 text-white/50">
+        <div className="flex items-center gap-2 text-[var(--node-control-muted)]">
           <span className="text-[var(--accent-color)] cursor-pointer hover:underline">Reframe</span>
           <span className="bg-white/10 rounded px-1.5 py-0.5">16:9</span>
           <span className="bg-white/10 rounded px-1.5 py-0.5">4K</span>
           <span className="bg-white/10 rounded px-1.5 py-0.5">{gridLayout}</span>
         </div>
-        <div className="flex items-center gap-2 text-white/60">
+        <div className="flex items-center gap-2 text-[var(--text-muted)]">
           <span>{selectedCount} Selected</span>
           <label className="flex items-center gap-1 cursor-pointer">
             <span className="text-[9px]">Split</span>
@@ -93,8 +99,8 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
       </div>
       </NodeContentFocus>
 
-      <Handle type="target" position={Position.Left} className="port-input" />
-      <Handle type="source" position={Position.Right} className="port-output" />
+      <EnhancedHandle type="target" position={Position.Left} className="port-input" dataType="image" />
+      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
     </div>
   );

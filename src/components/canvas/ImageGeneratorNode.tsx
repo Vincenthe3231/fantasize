@@ -1,5 +1,5 @@
 import { memo, useState, useMemo, useCallback } from 'react';
-import { Handle, Position, type NodeProps } from 'reactflow';
+import { Position, type NodeProps } from 'reactflow';
 import {
   Clapperboard,
   Loader2,
@@ -13,7 +13,9 @@ import {
 import { NodeLabelRow } from './NodeLabelRow';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
-import NodeActionBar, { type ConnectMenuItem } from './NodeActionBar';
+import NodeActionBar from './NodeActionBar';
+import { EnhancedHandle } from './EnhancedHandle';
+import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NodeContentFocus } from './NodeContentFocus';
 import {
   DropdownMenu,
@@ -90,39 +92,7 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
     wireEdge(makeEdge(id, nid, undefined, 'text-in'));
   }, [addNode, selfPos, id, wireEdge]);
 
-  const connectMenuItems: ConnectMenuItem[] = useMemo(
-    () => [
-      {
-        label: 'Image Generator',
-        onClick: () => {
-          const nid = addNode('imageGeneratorNode', { x: selfPos.x + 340, y: selfPos.y });
-          wireEdge(makeEdge(id, nid, undefined, 'text-in'));
-        },
-      },
-      {
-        label: 'Video Generator',
-        onClick: () => {
-          const nid = addNode('videoGeneratorNode', { x: selfPos.x + 340, y: selfPos.y });
-          wireEdge(makeEdge(id, nid, undefined, 'text-in'));
-        },
-      },
-      {
-        label: 'Image Upscaler',
-        onClick: () => {
-          const nid = addNode('imageUpscalerNode', { x: selfPos.x + 340, y: selfPos.y });
-          wireEdge(makeEdge(id, nid));
-        },
-      },
-      {
-        label: 'Assistant',
-        onClick: () => {
-          const nid = addNode('assistantNode', { x: selfPos.x + 340, y: selfPos.y });
-          wireEdge(makeEdge(id, nid, undefined, 'text-in'));
-        },
-      },
-    ],
-    [addNode, selfPos, id, wireEdge]
-  );
+  const { connectMenuItems } = useQuickConnect(id, selfPos);
 
   const handleRun = () => {
     if (!prompt.trim()) return;
@@ -149,7 +119,7 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
         e.stopPropagation();
         onClick();
       }}
-      className={`w-8 h-8 rounded-full bg-[#2a2a2e] border border-white/10 flex items-center justify-center text-white/80 hover:bg-white/10 hover:text-white transition-colors shadow-lg ${className}`}
+      className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-lg bg-[var(--node-float-btn-bg)] border border-[var(--node-float-btn-border)] text-[var(--node-action-bar-icon)] hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-action-bar-icon-hover)] ${className}`}
     >
       {children}
     </button>
@@ -183,7 +153,7 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
               : 'border-transparent'
           }`}
         >
-          <div className="rounded-[10px] overflow-hidden bg-[#141416] flex flex-col min-h-[220px]">
+          <div className="rounded-[10px] overflow-hidden bg-[var(--node-inner-deep)] flex flex-col min-h-[220px]">
             <div className="flex-1 min-h-[120px] relative flex flex-col">
               <AnimatePresence>
                 {status === 'success' && generatedUrl && (
@@ -218,26 +188,28 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 px-2.5 py-2 border-t border-white/5 bg-black/25 flex-wrap">
-              <div className="flex items-center gap-0.5 rounded-lg bg-white/5 border border-white/10 p-0.5">
+            <div className="flex items-center gap-1.5 px-2.5 py-2 border-t border-[var(--node-panel-border)] bg-[var(--node-control-bg)] flex-wrap">
+              <div className="flex items-center gap-0.5 rounded-lg bg-[var(--node-inner-mid)] border border-[var(--node-control-border)] p-0.5">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     updateNodeData(id, { images: Math.max(1, images - 1) });
                   }}
-                  className="p-1 rounded text-white/60 hover:bg-white/10"
+                  className="p-1 rounded text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)]"
                 >
                   <Minus size={12} />
                 </button>
-                <span className="text-[11px] font-mono-display text-white/80 min-w-[2rem] text-center">x{images}</span>
+                <span className="text-[11px] font-mono-display text-[var(--node-control-text)] min-w-[2rem] text-center">
+                  x{images}
+                </span>
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     updateNodeData(id, { images: Math.min(4, images + 1) });
                   }}
-                  className="p-1 rounded text-white/60 hover:bg-white/10"
+                  className="p-1 rounded text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)]"
                 >
                   <Plus size={12} />
                 </button>
@@ -248,13 +220,13 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
                   <button
                     type="button"
                     onClick={(e) => e.stopPropagation()}
-                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] text-white/90 max-w-[72px] truncate"
+                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-[var(--node-inner-mid)] border border-[var(--node-control-border)] text-[10px] text-[var(--node-control-text)] max-w-[72px] truncate hover:bg-[var(--node-action-bar-hover-bg)]"
                   >
                     {mode}
-                    <span className="text-white/40">▼</span>
+                    <span className="text-[var(--node-control-muted)]">▼</span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="bg-[#1a1a1e] border-white/10 text-white/90 text-xs max-h-48 overflow-y-auto">
+                <DropdownMenuContent className="node-canvas-dropdown text-xs max-h-48 overflow-y-auto">
                   {MODES.map((m) => (
                     <DropdownMenuItem key={m} onClick={() => updateNodeData(id, { mode: m })}>
                       {m}
@@ -268,13 +240,13 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
                   <button
                     type="button"
                     onClick={(e) => e.stopPropagation()}
-                    className="flex items-center gap-0.5 px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] text-white/80 min-w-[2.5rem] justify-center"
+                    className="flex items-center gap-0.5 px-2 py-1.5 rounded-lg bg-[var(--node-inner-mid)] border border-[var(--node-control-border)] text-[11px] text-[var(--node-control-text)] min-w-[2.5rem] justify-center hover:bg-[var(--node-action-bar-hover-bg)]"
                   >
                     {aspect === 'custom' ? '—' : aspect}
-                    <span className="text-white/40 text-[9px]">▼</span>
+                    <span className="text-[var(--node-control-muted)] text-[9px]">▼</span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="bg-[#1a1a1e] border-white/10 text-white/90 text-xs">
+                <DropdownMenuContent className="node-canvas-dropdown text-xs">
                   {['1:1', '16:9', '4:3', '9:16', '3:2'].map((a) => (
                     <DropdownMenuItem key={a} onClick={() => updateNodeData(id, { aspect: a })}>
                       {a}
@@ -288,21 +260,23 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
                   <button
                     type="button"
                     onClick={(e) => e.stopPropagation()}
-                    className="p-2 rounded-lg text-white/50 hover:text-white/90 hover:bg-white/10"
+                    className="p-2 rounded-lg text-[var(--node-control-muted)] hover:text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
                     title="Negative prompt"
                   >
                     <Settings size={14} />
                   </button>
                 </PopoverTrigger>
                 <PopoverContent
-                  className="w-64 bg-[#1a1a1e] border-white/10 text-white p-3"
+                  className="node-canvas-popover w-64 p-3"
                   onPointerDown={(e) => e.stopPropagation()}
                 >
-                  <label className="text-[10px] font-mono-display text-white/50 uppercase">Negative prompt</label>
+                  <label className="text-[10px] font-mono-display text-[var(--node-popover-muted)] uppercase">
+                    Negative prompt
+                  </label>
                   <textarea
                     value={negativePrompt}
                     onChange={(e) => updateNodeData(id, { negativePrompt: e.target.value })}
-                    className="mt-2 w-full bg-white/5 rounded-lg p-2 text-[12px] text-white resize-none min-h-[72px] border border-white/10"
+                    className="mt-2 w-full rounded-lg p-2 text-[12px] text-[var(--node-popover-text)] resize-none min-h-[72px] border border-[var(--node-control-border)] bg-[var(--node-control-bg)]"
                     placeholder="Elements to exclude…"
                   />
                 </PopoverContent>
@@ -317,7 +291,7 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
                   e.stopPropagation();
                   handleRun();
                 }}
-                className="w-10 h-10 rounded-full bg-[var(--accent-color)] text-white flex items-center justify-center hover:bg-[var(--accent-hover)] disabled:opacity-35 disabled:grayscale shrink-0"
+                className="w-10 h-10 rounded-full bg-[var(--accent-color)] text-[var(--node-on-accent)] flex items-center justify-center hover:bg-[var(--accent-hover)] disabled:opacity-35 disabled:grayscale shrink-0"
               >
                 {status === 'generating' ? (
                   <Loader2 size={18} className="animate-spin" />
@@ -348,9 +322,23 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
         </>
       )}
 
-      <Handle type="target" position={Position.Left} id="text-in" className="port-input" style={{ top: '35%' }} />
-      <Handle type="target" position={Position.Left} id="image-in" className="port-input" style={{ top: '65%' }} />
-      <Handle type="source" position={Position.Right} className="port-output" />
+      <EnhancedHandle
+        type="target"
+        position={Position.Left}
+        id="text-in"
+        className="port-input"
+        style={{ top: '35%' }}
+        dataType="text"
+      />
+      <EnhancedHandle
+        type="target"
+        position={Position.Left}
+        id="image-in"
+        className="port-input"
+        style={{ top: '65%' }}
+        dataType="image"
+      />
+      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
     </div>
   );

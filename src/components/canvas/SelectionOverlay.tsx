@@ -24,7 +24,13 @@ const GROUP_COLOR_PRESETS: { label: string; value: string | undefined }[] = [
 
 const DEFAULT_NODE_WIDTH = 280;
 const DEFAULT_NODE_HEIGHT = 120;
-const OVERLAY_GAP = 12;
+/** Space between bottom of this overlay and top edge of selected nodes (flow coords → screen). */
+const OVERLAY_GAP = 16;
+/**
+ * Floating node action bar sits above the node (`translate(-100% - 8px)`). Without extra clearance,
+ * the multiselect toolbar overlaps that pill and blocks clicks.
+ */
+const NODE_TOP_CHROME_CLEARANCE_PX = 56;
 
 interface SelectionOverlayProps {
   nodes: Node[];
@@ -95,9 +101,11 @@ export default function SelectionOverlay({ nodes, edges, wrapperRef }: Selection
     const screen = flowToScreen(centerX, topY, viewport, rect);
     const overlayWidth = 320;
     const hasColorRow = showGroupColors;
-    const overlayHeight = hasColorRow ? 118 : 80;
+    // Approx. stacked height (color row + gaps + “Group” chip + toolbar); keep ≥ real DOM to avoid overlapping nodes.
+    const overlayHeight = hasColorRow ? 132 : 88;
     let left = screen.x - overlayWidth / 2;
-    let top = screen.y - overlayHeight - OVERLAY_GAP;
+    let top =
+      screen.y - overlayHeight - OVERLAY_GAP - NODE_TOP_CHROME_CLEARANCE_PX;
     left = Math.max(8, Math.min(window.innerWidth - overlayWidth - 8, left));
     top = Math.max(8, Math.min(window.innerHeight - overlayHeight - 8, top));
     return { left, top };
@@ -117,7 +125,7 @@ export default function SelectionOverlay({ nodes, edges, wrapperRef }: Selection
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed z-50 flex flex-col items-center gap-1"
+        className="fixed z-[60] flex flex-col items-center gap-2"
         style={{ left: position.left, top: position.top }}
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
@@ -125,7 +133,7 @@ export default function SelectionOverlay({ nodes, edges, wrapperRef }: Selection
         transition={{ duration: 0.2, ease: 'easeOut' }}
       >
         {showGroupColors && (
-          <div className="flex items-center gap-1.5 rounded-full bg-black/80 px-2.5 py-1.5 backdrop-blur-sm">
+          <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1 backdrop-blur-sm bg-[var(--node-action-bar-bg)] border border-[var(--node-action-bar-border)] shadow-md">
             {GROUP_COLOR_PRESETS.map(({ label, value }) => {
               const isSelected =
                 singleGroupSelected != null
@@ -135,10 +143,10 @@ export default function SelectionOverlay({ nodes, edges, wrapperRef }: Selection
                 <button
                   key={label}
                   type="button"
-                  className="h-5 w-5 shrink-0 rounded-full border-2 border-transparent transition-[box-shadow,border-color] hover:border-white/50"
+                  className="h-5 w-5 shrink-0 rounded-full border-2 border-transparent transition-[box-shadow,border-color] hover:border-[var(--node-control-border)]"
                   style={{
                     background: value ?? 'var(--accent-color)',
-                    boxShadow: isSelected ? '0 0 0 2px white' : undefined,
+                    boxShadow: isSelected ? '0 0 0 2px var(--text-primary)' : undefined,
                   }}
                   title={label}
                   onClick={() => {
@@ -153,10 +161,10 @@ export default function SelectionOverlay({ nodes, edges, wrapperRef }: Selection
             })}
           </div>
         )}
-        <span className="rounded-full bg-black/80 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+        <span className="rounded-full px-2.5 py-1 text-[11px] font-medium backdrop-blur-sm bg-[var(--node-action-bar-bg)] border border-[var(--node-action-bar-border)] text-[var(--text-primary)] shadow-md">
           {canUngroup ? 'Ungroup' : 'Group'}
         </span>
-        <div className="flex items-center gap-1 rounded-full glass-toolbar px-3 py-2">
+        <div className="flex h-10 items-center gap-1 rounded-full glass-toolbar px-3 py-0">
           <button
             type="button"
             className="flex items-center justify-center rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"

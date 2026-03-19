@@ -1,11 +1,13 @@
-import { memo } from 'react';
-import { Handle, Position, type NodeProps } from 'reactflow';
+import { memo, useMemo } from 'react';
+import { Position, type NodeProps } from 'reactflow';
 import { List, Plus, X } from 'lucide-react';
 import { Reorder } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
+import { EnhancedHandle } from './EnhancedHandle';
+import { useQuickConnect } from '@/hooks/useQuickConnect';
 
 interface ListItem {
   id: string;
@@ -19,6 +21,9 @@ const ListNode = memo(({ id, data }: NodeProps) => {
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
+  const nodes = useWorkflowStore((s) => s.nodes);
+  const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
+  const { connectMenuItems } = useQuickConnect(id, selfPos);
 
   const items: ListItem[] = (data.items as ListItem[]) || [
     { id: '1', text: 'Scene description' },
@@ -52,6 +57,7 @@ const ListNode = memo(({ id, data }: NodeProps) => {
         onRun={() => runFromNode(id)}
         onDuplicate={() => duplicateNode(id)}
         onDelete={() => deleteNode(id)}
+        connectMenuItems={connectMenuItems}
       />
 
       <NodeContentFocus nodeId={id}>
@@ -91,7 +97,7 @@ const ListNode = memo(({ id, data }: NodeProps) => {
         </div>
       </NodeContentFocus>
 
-      <Handle type="source" position={Position.Right} className="port-output" />
+      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="text" />
       </div>
     </div>
   );

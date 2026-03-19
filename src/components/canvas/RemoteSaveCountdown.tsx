@@ -2,7 +2,7 @@ import { useSpacePersistenceUi } from '@/contexts/SpacePersistenceContext';
 
 function Digit({ n }: { n: string }) {
   return (
-    <span className="inline-flex min-w-[0.65em] justify-center rounded bg-black/25 dark:bg-white/10 px-0.5 font-mono-display text-[11px] tabular-nums text-foreground/90">
+    <span className="inline-flex min-w-[0.65em] justify-center rounded px-0.5 font-mono-display text-[11px] tabular-nums text-foreground/90 bg-[var(--node-control-bg)] border border-[var(--node-control-border)]">
       {n}
     </span>
   );

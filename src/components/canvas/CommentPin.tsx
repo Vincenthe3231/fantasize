@@ -28,7 +28,7 @@ const CommentPin = ({ comment }: CommentPinProps) => {
             initial={{ opacity: 0, scale: 0.9, y: -4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: -4 }}
-            className="absolute top-8 left-0 w-[220px] bg-[#1a1a2e] border border-[var(--accent-color)]/40 rounded-xl p-3 space-y-2 shadow-lg"
+            className="absolute top-8 left-0 w-[220px] rounded-xl p-3 space-y-2 shadow-lg bg-[var(--node-inner-mid)] border border-[var(--accent-color)]/40"
           >
             <textarea
               value={comment.text}

@@ -57,13 +57,13 @@ const ImageCellOverlay = ({
       }}
     >
       {label && (
-        <div className="text-[11px] text-white/60 font-mono mb-1 flex items-center gap-1">
+        <div className="text-[11px] text-[var(--node-control-muted)] font-mono mb-1 flex items-center gap-1">
           <ImageIcon size={10} />
           {label}
         </div>
       )}
 
-      <div className="relative aspect-[4/3] bg-white/5 border border-white/10 rounded-xl overflow-hidden group/cell">
+      <div className="relative aspect-[4/3] bg-[var(--node-control-bg)] border border-[var(--node-control-border)] rounded-xl overflow-hidden group/cell">
         <img src={src} alt={label || 'image'} className="w-full h-full object-cover transition-transform duration-300 group-hover/cell:scale-[1.02]" />
 
         <AnimatePresence>
@@ -73,12 +73,12 @@ const ImageCellOverlay = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18 }}
-              className="absolute inset-0 bg-black/45 flex flex-col items-center justify-center gap-2 pointer-events-none"
+              className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none bg-[var(--node-overlay-dark)]"
             >
               <div className="flex items-center gap-1.5 pointer-events-auto">
                 <button
                   type="button"
-                  className="rounded-lg bg-white/15 hover:bg-white/25 px-2.5 py-1.5 text-[11px] text-white flex items-center gap-1 backdrop-blur-sm transition-colors"
+                  className="rounded-lg bg-white/15 hover:bg-white/25 px-2.5 py-1.5 text-[11px] text-[var(--node-on-accent)] flex items-center gap-1 backdrop-blur-sm transition-colors"
                   onClick={(e) => {
                     e.stopPropagation();
                     fileRef.current?.click();
@@ -89,7 +89,7 @@ const ImageCellOverlay = ({
                 </button>
                 <button
                   type="button"
-                  className="rounded-lg bg-white/15 hover:bg-white/25 p-1.5 text-white backdrop-blur-sm transition-colors"
+                  className="rounded-lg bg-white/15 hover:bg-white/25 p-1.5 text-[var(--node-on-accent)] backdrop-blur-sm transition-colors"
                   title="Download"
                   onClick={handleDownload}
                 >
@@ -99,17 +99,20 @@ const ImageCellOverlay = ({
                   <DialogTrigger asChild>
                     <button
                       type="button"
-                      className="rounded-lg bg-white/15 hover:bg-white/25 p-1.5 text-white backdrop-blur-sm transition-colors"
+                      className="rounded-lg bg-white/15 hover:bg-white/25 p-1.5 text-[var(--node-on-accent)] backdrop-blur-sm transition-colors"
                       title="Expand"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Maximize2 size={14} />
                     </button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-[90vw] max-h-[90vh] p-2 bg-black/95 border-white/10" onClick={(e) => e.stopPropagation()}>
+                  <DialogContent
+                    className="max-w-[90vw] max-h-[90vh] p-2 border border-[var(--node-control-border)] bg-[var(--node-inner-deep)]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <img src={src} alt="" className="w-full h-auto max-h-[85vh] object-contain rounded-md mx-auto" />
                     {resolution && (
-                      <p className="text-center text-[11px] font-mono text-white/50 pt-1">{resolution}</p>
+                      <p className="text-center text-[11px] font-mono text-[var(--text-muted)] pt-1">{resolution}</p>
                     )}
                   </DialogContent>
                 </Dialog>
@@ -122,7 +125,7 @@ const ImageCellOverlay = ({
           <motion.div
             initial={false}
             animate={{ opacity: hovered ? 0 : 1 }}
-            className="absolute top-1.5 right-1.5 bg-black/60 rounded px-1.5 py-0.5 text-[10px] font-mono text-white/80"
+            className="absolute top-1.5 right-1.5 rounded px-1.5 py-0.5 text-[10px] font-mono text-[var(--node-on-accent)] bg-[var(--node-badge-bg)]"
           >
             {resolution}
           </motion.div>

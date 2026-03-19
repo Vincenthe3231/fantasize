@@ -1,10 +1,12 @@
-import { memo } from 'react';
-import { Handle, Position, type NodeProps } from 'reactflow';
+import { memo, useMemo } from 'react';
+import { Position, type NodeProps } from 'reactflow';
 import { Cloud, Download } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
+import { EnhancedHandle } from './EnhancedHandle';
+import { useQuickConnect } from '@/hooks/useQuickConnect';
 import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
 import { toast } from 'sonner';
@@ -23,6 +25,9 @@ const AtmosphereTestNode = memo(({ id, selected }: NodeProps) => {
   const lockNode = useWorkflowStore((s) => s.lockNode);
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
+  const nodes = useWorkflowStore((s) => s.nodes);
+  const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
+  const { connectMenuItems } = useQuickConnect(id, selfPos);
 
   return (
     <div className="w-[420px] relative">
@@ -39,12 +44,13 @@ const AtmosphereTestNode = memo(({ id, selected }: NodeProps) => {
         onLock={() => lockNode(id)}
         showDownload
         onDownload={() => toast.success('Export queued (mock)')}
+        connectMenuItems={connectMenuItems}
       />
 
       <NodeContentFocus nodeId={id}>
         <div className="grid grid-cols-2 gap-2 p-3 pt-2">
         {MOODS.map((m, i) => (
-          <div key={m.label} className="rounded-lg overflow-hidden border border-white/10">
+          <div key={m.label} className="rounded-lg overflow-hidden border border-[var(--node-control-border)]">
             <ImageCellOverlay src={m.src} label={m.label} resolution="4K" index={i} nodeId={id} />
           </div>
         ))}
@@ -53,7 +59,7 @@ const AtmosphereTestNode = memo(({ id, selected }: NodeProps) => {
       <div className="flex items-center justify-between px-3 py-2 border-t border-border">
         <div className="flex flex-wrap gap-1 text-[9px] font-mono-display text-[var(--text-muted)] uppercase tracking-wider">
           {MOODS.map((m) => (
-            <span key={m.label} className="px-1.5 py-0.5 rounded bg-white/5">
+            <span key={m.label} className="px-1.5 py-0.5 rounded bg-[var(--node-control-bg)] border border-[var(--node-panel-border)]">
               {m.label}
             </span>
           ))}
@@ -72,8 +78,8 @@ const AtmosphereTestNode = memo(({ id, selected }: NodeProps) => {
       </div>
       </NodeContentFocus>
 
-      <Handle type="target" position={Position.Left} className="port-input" />
-      <Handle type="source" position={Position.Right} className="port-output" />
+      <EnhancedHandle type="target" position={Position.Left} className="port-input" dataType="image" />
+      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
     </div>
   );

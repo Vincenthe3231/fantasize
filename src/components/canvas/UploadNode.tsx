@@ -1,11 +1,13 @@
-import { memo, useCallback } from 'react';
-import { Handle, Position, type NodeProps } from 'reactflow';
+import { memo, useCallback, useMemo } from 'react';
+import { Position, type NodeProps } from 'reactflow';
 import { Image, Upload } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
+import { EnhancedHandle } from './EnhancedHandle';
+import { useQuickConnect } from '@/hooks/useQuickConnect';
 
 const UploadNode = memo(({ id, data }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
@@ -14,6 +16,17 @@ const UploadNode = memo(({ id, data }: NodeProps) => {
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
+  const nodes = useWorkflowStore((s) => s.nodes);
+  const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
+  const quickOverrides = useMemo(
+    () => ({
+      imageGenerator: { targetHandle: 'image-in' as const },
+      videoGenerator: { targetHandle: 'image-in' as const },
+      assistant: { targetHandle: 'image-in' as const },
+    }),
+    []
+  );
+  const { connectMenuItems } = useQuickConnect(id, selfPos, quickOverrides);
 
   const mediaUrl = (data.mediaUrl as string) || '';
   const label = (data.label as string) || '';
@@ -59,6 +72,7 @@ const UploadNode = memo(({ id, data }: NodeProps) => {
         onRun={() => runFromNode(id)}
         onDuplicate={() => duplicateNode(id)}
         onDelete={() => deleteNode(id)}
+        connectMenuItems={connectMenuItems}
       />
 
       <NodeContentFocus nodeId={id}>
@@ -70,8 +84,8 @@ const UploadNode = memo(({ id, data }: NodeProps) => {
             ) : (
               <img src={mediaUrl} alt="Reference" className="w-full h-[140px] object-cover rounded-lg" />
             )}
-            <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5 bg-black/50 backdrop-blur-sm">
-              <span className="text-[10px] font-mono-display text-[var(--text-muted)] uppercase tracking-wider">
+            <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5 backdrop-blur-sm bg-[var(--node-overlay-dark)]">
+              <span className="text-[10px] font-mono-display uppercase tracking-wider text-[var(--node-overlay-text)]">
                 {label || 'Uploaded media'}
               </span>
             </div>
@@ -93,7 +107,7 @@ const UploadNode = memo(({ id, data }: NodeProps) => {
         </div>
       </NodeContentFocus>
 
-      <Handle type="source" position={Position.Right} className="port-output" />
+      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
     </div>
   );
