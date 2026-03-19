@@ -60,6 +60,91 @@ export type Database = {
         }
         Relationships: []
       }
+      space_comment_versions: {
+        Row: {
+          author: string | null
+          comment_id: string
+          id: string
+          resolved: boolean
+          space_id: string
+          text: string
+          updated_at: string
+          version: number
+          x: number | null
+          y: number | null
+        }
+        Insert: {
+          author?: string | null
+          comment_id: string
+          id?: string
+          resolved?: boolean
+          space_id: string
+          text?: string
+          updated_at?: string
+          version: number
+          x?: number | null
+          y?: number | null
+        }
+        Update: {
+          author?: string | null
+          comment_id?: string
+          id?: string
+          resolved?: boolean
+          space_id?: string
+          text?: string
+          updated_at?: string
+          version?: number
+          x?: number | null
+          y?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "space_comment_versions_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      space_node_versions: {
+        Row: {
+          data: Json
+          id: string
+          node_id: string
+          position: Json
+          space_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          data?: Json
+          id?: string
+          node_id: string
+          position?: Json
+          space_id: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          data?: Json
+          id?: string
+          node_id?: string
+          position?: Json
+          space_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "space_node_versions_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       spaces: {
         Row: {
           comments: Json

@@ -114,10 +114,19 @@ export interface WorkflowState {
 
   setNodesSilently: (nodes: Node[]) => void;
   setEdgesSilently: (edges: Edge[]) => void;
+  pushSelectionCommand: (
+    prevNodes: Node[],
+    prevEdges: Edge[],
+    nextNodes: Node[],
+    nextEdges: Edge[]
+  ) => void;
   commitNodesAfterDrag: (nodes: Node[], deltas: Record<string, { from: XYPosition; to: XYPosition }>) => void;
   connectEdgeWithHistory: (nextEdges: Edge[], newEdge: Edge) => void;
   applyEdgeRemoval: (nextEdges: Edge[], removed: Edge[]) => void;
   removeEdgeById: (id: string) => void;
+
+  groupSelectedNodes: (color?: string) => void;
+  ungroupSelectedNodes: () => void;
 
   addNode: (type: NodeType, position: XYPosition, data?: Record<string, unknown>) => string;
   deleteNode: (id: string) => void;
@@ -399,6 +408,22 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     setNodesSilently: (nodes) => set({ nodes }),
     setEdgesSilently: (edges) => set({ edges }),
 
+    pushSelectionCommand: (prevNodes, prevEdges, nextNodes, nextEdges) => {
+      const prev = {
+        nodes: structuredClone(prevNodes),
+        edges: structuredClone(prevEdges),
+      };
+      const next = {
+        nodes: structuredClone(nextNodes),
+        edges: structuredClone(nextEdges),
+      };
+      set({ nodes: next.nodes, edges: next.edges });
+      pushCmd({
+        undo: () => set({ nodes: prev.nodes, edges: prev.edges }),
+        execute: () => set({ nodes: next.nodes, edges: next.edges }),
+      });
+    },
+
     commitNodesAfterDrag: (nodes, deltas) => {
       set({ nodes });
       const ids = Object.keys(deltas);
@@ -492,27 +517,148 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       return id;
     },
 
+    groupSelectedNodes: (color?: string) => {
+      const s = get();
+      const selected = s.nodes.filter((n) => n.selected && !n.parentId && n.type !== 'group');
+      if (selected.length === 0) return;
+
+      const DEFAULT_NODE_WIDTH = 280;
+      const DEFAULT_NODE_HEIGHT = 120;
+      const GROUP_PADDING = 24;
+
+      const widths = selected.map((n) =>
+        typeof n.width === 'number' && n.width > 0 ? n.width : DEFAULT_NODE_WIDTH
+      );
+      const heights = selected.map((n) =>
+        typeof n.height === 'number' && n.height > 0 ? n.height : DEFAULT_NODE_HEIGHT
+      );
+
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+
+      for (let i = 0; i < selected.length; i++) {
+        const n = selected[i];
+        const w = widths[i];
+        const h = heights[i];
+        minX = Math.min(minX, n.position.x);
+        minY = Math.min(minY, n.position.y);
+        maxX = Math.max(maxX, n.position.x + w);
+        maxY = Math.max(maxY, n.position.y + h);
+      }
+
+      const groupX = minX - GROUP_PADDING;
+      const groupY = minY - GROUP_PADDING;
+      const groupW = Math.max(1, maxX - minX + GROUP_PADDING * 2);
+      const groupH = Math.max(1, maxY - minY + GROUP_PADDING * 2);
+
+      const groupId = `group-${Date.now()}`;
+
+      const beforeNodes = structuredClone(s.nodes);
+      const beforeEdges = structuredClone(s.edges);
+
+      const groupNode: Node = {
+        id: groupId,
+        type: 'group',
+        position: { x: groupX, y: groupY },
+        data: color != null ? { color } : {},
+        style: { width: groupW, height: groupH } as any,
+        selected: true,
+        draggable: true,
+        selectable: true,
+      };
+
+      const selectedIds = new Set(selected.map((n) => n.id));
+      const children = selected.map((child) => ({
+        ...structuredClone(child),
+        parentId: groupId,
+        extent: 'parent' as const,
+        position: { x: child.position.x - groupX, y: child.position.y - groupY },
+        selected: false,
+      }));
+
+      // Keep all non-selected nodes (including existing groups); deselect everything except the newly created group.
+      const nextNodesBase = s.nodes.filter((n) => !selectedIds.has(n.id));
+      const nextNodes = [
+        ...nextNodesBase.map((n) => ({ ...n, selected: false })),
+        groupNode,
+        ...children,
+      ];
+
+      set({ nodes: structuredClone(nextNodes), edges: structuredClone(s.edges) });
+      pushCmd({
+        undo: () => set({ nodes: beforeNodes, edges: beforeEdges }),
+        execute: () => set({ nodes: structuredClone(nextNodes), edges: structuredClone(beforeEdges) }),
+      });
+    },
+
+    ungroupSelectedNodes: () => {
+      const s = get();
+      const selectedGroups = s.nodes.filter((n) => n.selected && n.type === 'group');
+      if (selectedGroups.length === 0) return;
+
+      const beforeNodes = structuredClone(s.nodes);
+      const beforeEdges = structuredClone(s.edges);
+
+      const groupIds = new Set(selectedGroups.map((g) => g.id));
+
+      const updatedChildById = new Map<string, Node>();
+      for (const group of selectedGroups) {
+        for (const child of s.nodes) {
+          if (child.parentId !== group.id) continue;
+          updatedChildById.set(child.id, {
+            ...structuredClone(child),
+            parentId: undefined,
+            extent: undefined,
+            position: { x: child.position.x + group.position.x, y: child.position.y + group.position.y },
+            selected: true,
+          });
+        }
+      }
+
+      const nextNodes = s.nodes
+        .filter((n) => !groupIds.has(n.id))
+        .map((n) => {
+          const updated = updatedChildById.get(n.id);
+          if (updated) return updated;
+          return { ...n, selected: false };
+        });
+
+      set({ nodes: structuredClone(nextNodes), edges: structuredClone(s.edges) });
+      pushCmd({
+        undo: () => set({ nodes: beforeNodes, edges: beforeEdges }),
+        execute: () => set({ nodes: structuredClone(nextNodes), edges: structuredClone(beforeEdges) }),
+      });
+    },
+
     deleteNode: (id) => {
       const s = get();
       const node = s.nodes.find((n) => n.id === id);
       if (!node) return;
-      const nClone = structuredClone(node);
-      const removedEdges = s.edges.filter((e) => e.source === id || e.target === id).map(structuredClone);
-      set({
-        nodes: s.nodes.filter((n) => n.id !== id),
-        edges: s.edges.filter((e) => e.source !== id && e.target !== id),
+
+      const beforeNodes = structuredClone(s.nodes);
+      const beforeEdges = structuredClone(s.edges);
+
+      const nextNodes = s.nodes.filter((n) => n.id !== id).map((n) => {
+        // If deleting a group, detach its children so their position remains correct in absolute space.
+        if (node.type === 'group' && n.parentId === id) {
+          return {
+            ...n,
+            parentId: undefined,
+            extent: undefined,
+            position: { x: n.position.x + node.position.x, y: n.position.y + node.position.y },
+            selected: false,
+          };
+        }
+        return n;
       });
+      const nextEdges = s.edges.filter((e) => e.source !== id && e.target !== id);
+
+      set({ nodes: structuredClone(nextNodes), edges: structuredClone(nextEdges) });
       pushCmd({
-        undo: () =>
-          set((st) => ({
-            nodes: [...st.nodes, structuredClone(nClone)],
-            edges: [...st.edges, ...removedEdges.map((e) => structuredClone(e))],
-          })),
-        execute: () =>
-          set((st) => ({
-            nodes: st.nodes.filter((n) => n.id !== id),
-            edges: st.edges.filter((e) => e.source !== id && e.target !== id),
-          })),
+        undo: () => set({ nodes: beforeNodes, edges: beforeEdges }),
+        execute: () => set({ nodes: structuredClone(nextNodes), edges: structuredClone(nextEdges) }),
       });
     },
 

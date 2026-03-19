@@ -218,6 +218,38 @@
   border-radius: var(--radius-node);
 }
 
+/* Node action bar (NewToolBar-style): pill container + hover tooltips */
+.node-action-bar {
+  border-radius: 9999px;
+  transition: box-shadow 0.3s ease-in-out;
+}
+.node-action-bar .node-action-bar-icon {
+  position: relative;
+  margin: 0 2px;
+}
+.node-action-bar .node-action-bar-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(0);
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.9);
+  color: #fff;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
+}
+.node-action-bar .node-action-bar-icon:hover .node-action-bar-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(-4px);
+}
+
 /* Ensure node wrapper allows overflow for action bars */
 .react-flow__node {
   overflow: visible !important;

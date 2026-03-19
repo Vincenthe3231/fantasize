@@ -9,13 +9,18 @@ import ReactFlow, {
   Background,
   MiniMap,
   type Node,
+  type Edge,
   useNodesState,
   useEdgesState,
   addEdge,
   applyEdgeChanges,
   type Connection,
   useReactFlow,
+  useStoreApi,
+  useStore,
   ReactFlowProvider,
+  SelectionMode,
+  getConnectedEdges,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -42,6 +47,8 @@ import TopBar from '@/components/canvas/TopBar';
 import SettingsPanel from '@/components/canvas/SettingsPanel';
 import BottomBar from '@/components/canvas/BottomBar';
 import CommentPin from '@/components/canvas/CommentPin';
+import SelectionOverlay from '@/components/canvas/SelectionOverlay';
+import GroupNode from '@/components/canvas/GroupNode';
 import { useWorkflowStore } from '@/stores/workflowStore';
 
 const nodeTypes = {
@@ -61,9 +68,44 @@ const nodeTypes = {
   lightingScenarioNode: LightingScenarioNode,
   atmosphereTestNode: AtmosphereTestNode,
   placementRefNode: PlacementRefNode,
+  group: GroupNode,
 };
 
 const edgeTypes = { custom: CustomEdge };
+
+function getOverlappingArea(
+  rectA: { x: number; y: number; width: number; height: number },
+  rectB: { x: number; y: number; width: number; height: number }
+): number {
+  const xOverlap = Math.max(
+    0,
+    Math.min(rectA.x + rectA.width, rectB.x + rectB.width) - Math.max(rectA.x, rectB.x)
+  );
+  const yOverlap = Math.max(
+    0,
+    Math.min(rectA.y + rectA.height, rectB.y + rectB.height) - Math.max(rectA.y, rectB.y)
+  );
+  return xOverlap * yOverlap;
+}
+
+/** Returns nodes that are fully inside the given flow-space rect and have measured dimensions. */
+function getNodesFullyInsideRect(
+  flowRect: { x: number; y: number; width: number; height: number },
+  nodes: Node[]
+): Node[] {
+  return nodes.filter((node) => {
+    const w = node.width ?? 0;
+    const h = node.height ?? 0;
+    if (typeof node.width !== 'number' || typeof node.height !== 'number' || w <= 0 || h <= 0) {
+      return false;
+    }
+    const pos = node.positionAbsolute ?? node.position;
+    const nodeRect = { x: pos.x, y: pos.y, width: w, height: h };
+    const area = w * h;
+    const overlap = getOverlappingArea(flowRect, nodeRect);
+    return overlap >= area;
+  });
+}
 
 function canvasClass(pattern: string) {
   switch (pattern) {
@@ -118,6 +160,7 @@ const CanvasInner = ({
   const setFocusedNodeContentId = useWorkflowStore((s) => s.setFocusedNodeContentId);
   const hydrateFromSpace = useWorkflowStore((s) => s.hydrateFromSpace);
   const setLastViewport = useWorkflowStore((s) => s.setLastViewport);
+  const pushSelectionCommand = useWorkflowStore((s) => s.pushSelectionCommand);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(storeNodes);
   const [edges, setEdges] = useEdgesState(storeEdges);
@@ -125,8 +168,18 @@ const CanvasInner = ({
   const [addPanelOpen, setAddPanelOpen] = useState(false);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const dragStartPositions = useRef<Record<string, { x: number; y: number }>>({});
+  const selectionPrevRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null);
+  const selectionSelectedIdsRef = useRef<{ nodeIds: Set<string>; edgeIds: Set<string> } | null>(null);
+  const selectionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const userSelectionRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const { screenToFlowPosition, fitView, getNodes, setViewport } = useReactFlow();
+  const storeApi = useStoreApi();
+  const userSelectionRect = useStore((s) => s.userSelectionRect);
   const hydratedSpaceId = useRef<string | null>(null);
+
+  useEffect(() => {
+    userSelectionRectRef.current = userSelectionRect ?? null;
+  }, [userSelectionRect]);
 
   const onApplyExternalDraft = useCallback(
     (draft: StoredSpaceDraft) => {
@@ -143,7 +196,9 @@ const CanvasInner = ({
       requestAnimationFrame(() => {
         if (
           v &&
-          (Math.abs(v.zoom - 1) > 0.02 || Math.abs(v.x) > 2 || Math.abs(v.y) > 2)
+          typeof v.x === 'number' &&
+          typeof v.y === 'number' &&
+          typeof v.zoom === 'number'
         ) {
           setViewport({ x: v.x, y: v.y, zoom: v.zoom }, { duration: 0 });
         } else {
@@ -180,7 +235,9 @@ const CanvasInner = ({
     requestAnimationFrame(() => {
       if (
         v &&
-        (Math.abs(v.zoom - 1) > 0.02 || Math.abs(v.x) > 2 || Math.abs(v.y) > 2)
+        typeof v.x === 'number' &&
+        typeof v.y === 'number' &&
+        typeof v.zoom === 'number'
       ) {
         setViewport({ x: v.x, y: v.y, zoom: v.zoom }, { duration: 0 });
       } else {
@@ -229,6 +286,116 @@ const CanvasInner = ({
     },
     [setEdges, applyEdgeRemoval, setEdgesSilently]
   );
+
+  const onSelectionChange = useCallback(
+    ({ nodes: selectedNodes, edges: selectedEdges }: { nodes: Node[]; edges: Edge[] }) => {
+      const store = useWorkflowStore.getState();
+      if (!selectionPrevRef.current) {
+        selectionPrevRef.current = { nodes: [...store.nodes], edges: [...store.edges] };
+      }
+      // Only treat nodes as selected if they have measured dimensions. React Flow includes
+      // nodes without width/height in every selection (treated as "not initialized"), which
+      // caused marquee selection to select almost all nodes.
+      const validSelectedNodes = selectedNodes.filter(
+        (n) =>
+          typeof n.width === 'number' &&
+          typeof n.height === 'number' &&
+          n.width > 0 &&
+          n.height > 0
+      );
+      const selectedNodeIds = new Set(validSelectedNodes.map((n) => n.id));
+      const selectedEdgeIds = new Set(
+        selectedEdges.filter(
+          (e) => selectedNodeIds.has(e.source) && selectedNodeIds.has(e.target)
+        ).map((e) => e.id)
+      );
+      const nextNodes = store.nodes.map((n) => ({ ...n, selected: selectedNodeIds.has(n.id) }));
+      const nextEdges = store.edges.map((e) => ({ ...e, selected: selectedEdgeIds.has(e.id) }));
+      setNodesSilently(nextNodes);
+      setEdgesSilently(nextEdges);
+      selectionSelectedIdsRef.current = { nodeIds: selectedNodeIds, edgeIds: selectedEdgeIds };
+      if (selectionDebounceRef.current) clearTimeout(selectionDebounceRef.current);
+      selectionDebounceRef.current = setTimeout(() => {
+        selectionDebounceRef.current = null;
+        const prev = selectionPrevRef.current;
+        const ids = selectionSelectedIdsRef.current;
+        selectionPrevRef.current = null;
+        selectionSelectedIdsRef.current = null;
+        if (prev && ids) {
+          const current = useWorkflowStore.getState();
+          const nextNodesFromStore = current.nodes.map((n) => ({
+            ...n,
+            selected: ids.nodeIds.has(n.id),
+          }));
+          const nextEdgesFromStore = current.edges.map((e) => ({
+            ...e,
+            selected: ids.edgeIds.has(e.id),
+          }));
+          pushSelectionCommand(prev.nodes, prev.edges, nextNodesFromStore, nextEdgesFromStore);
+        }
+      }, 120);
+    },
+    [setNodesSilently, setEdgesSilently, pushSelectionCommand]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (selectionDebounceRef.current) clearTimeout(selectionDebounceRef.current);
+    };
+  }, []);
+
+  const onSelectionStart = useCallback(() => {
+    const store = useWorkflowStore.getState();
+    selectionPrevRef.current = { nodes: [...store.nodes], edges: [...store.edges] };
+  }, []);
+
+  const onSelectionEnd = useCallback(() => {
+    if (selectionDebounceRef.current) {
+      clearTimeout(selectionDebounceRef.current);
+      selectionDebounceRef.current = null;
+    }
+    const rect = userSelectionRectRef.current;
+    const store = useWorkflowStore.getState();
+    const { transform } = storeApi.getState();
+    const [tx, ty, tScale] = transform ?? [0, 0, 1];
+
+    let selectedNodeIds: Set<string>;
+    let selectedEdgeIds: Set<string>;
+
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+      selectedNodeIds = new Set();
+      selectedEdgeIds = new Set();
+    } else {
+      const flowRect = {
+        x: (rect.x - tx) / tScale,
+        y: (rect.y - ty) / tScale,
+        width: rect.width / tScale,
+        height: rect.height / tScale,
+      };
+      const allNodes = storeApi.getState().getNodes();
+      const validNodes = getNodesFullyInsideRect(flowRect, allNodes);
+      selectedNodeIds = new Set(validNodes.map((n) => n.id));
+      selectedEdgeIds = new Set(
+        getConnectedEdges(validNodes, store.edges).map((e) => e.id)
+      );
+    }
+
+    const nextNodes = store.nodes.map((n) => ({
+      ...n,
+      selected: selectedNodeIds.has(n.id),
+    }));
+    const nextEdges = store.edges.map((e) => ({
+      ...e,
+      selected: selectedEdgeIds.has(e.id),
+    }));
+    setNodesSilently(nextNodes);
+    setEdgesSilently(nextEdges);
+    const prev = selectionPrevRef.current;
+    selectionPrevRef.current = null;
+    if (prev) {
+      pushSelectionCommand(prev.nodes, prev.edges, nextNodes, nextEdges);
+    }
+  }, [storeApi, setNodesSilently, setEdgesSilently, pushSelectionCommand]);
 
   const handleAddNode = useCallback(
     (type: string) => {
@@ -322,7 +489,15 @@ const CanvasInner = ({
         e.preventDefault();
         pasteClipboard({ x: 48, y: 48 });
       }
-      if (e.key === 'Escape') setContextMenu(null);
+      if (e.key === 'Escape') {
+        setContextMenu(null);
+        const store = useWorkflowStore.getState();
+        const hasSelection = store.nodes.some((n) => n.selected) || store.edges.some((e) => e.selected);
+        if (hasSelection) {
+          setNodesSilently(store.nodes.map((n) => ({ ...n, selected: false })));
+          setEdgesSilently(store.edges.map((e) => ({ ...e, selected: false })));
+        }
+      }
       if (e.key.toLowerCase() === 'n' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         setAddPanelOpen(true);
@@ -336,6 +511,8 @@ const CanvasInner = ({
     duplicateNode,
     runAll,
     setContextMenu,
+    setNodesSilently,
+    setEdgesSilently,
     selectAllNodes,
     fitView,
     copyNodesByIds,
@@ -376,6 +553,14 @@ const CanvasInner = ({
         onAddPanelOpenChange={setAddPanelOpen}
       />
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      {(storeNodes.some((n) => n.selected) || storeEdges.some((e) => e.selected)) && (
+        <SelectionOverlay
+          nodes={storeNodes}
+          edges={storeEdges}
+          wrapperRef={reactFlowWrapper}
+        />
+      )}
 
       {comments.map((c) => (
         <CommentPin key={c.id} comment={c} />
@@ -511,6 +696,12 @@ const CanvasInner = ({
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        nodesConnectable
+        defaultViewport={
+          resolvedDraft?.payload.viewport ??
+          space.viewport ??
+          { x: 0, y: 0, zoom: 1 }
+        }
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChangeTracked}
         onConnect={onConnect}
@@ -548,12 +739,16 @@ const CanvasInner = ({
           setLastViewport({ x: vp.x, y: vp.y, zoom: vp.zoom })
         }
         onPaneClick={() => setFocusedNodeContentId(null)}
+        onSelectionChange={onSelectionChange}
+        onSelectionStart={onSelectionStart}
+        onSelectionEnd={onSelectionEnd}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        panOnDrag={selectedTool === 'hand'}
+        panOnDrag={selectedTool === 'hand' ? true : [1]}
         panOnScroll={settings.mouseWheelBehavior === 'pan'}
         zoomOnScroll={settings.mouseWheelBehavior === 'zoom'}
         selectionOnDrag={selectedTool === 'select'}
+        selectionMode={SelectionMode.Full}
         fitView={false}
         defaultEdgeOptions={{ type: 'custom' }}
         proOptions={{ hideAttribution: true }}

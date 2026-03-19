@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import {
   Plus, Play, MousePointer2, Hand, Scissors, Link2,
   Pen, Smile, StickyNote, MessageCircle, Square,
@@ -136,7 +137,12 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
     'w-auto p-1 border rounded-lg shadow-xl bg-[hsl(var(--popover))] text-[hsl(var(--popover-foreground))] border-[hsl(var(--border))]';
 
   return (
-    <div className="fixed left-4 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-0.5 p-1.5 rounded-xl glass-toolbar">
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+      className="fixed left-4 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-0.5 p-1.5 rounded-xl glass-toolbar transition-opacity duration-200"
+    >
       <Popover open={addOpen} onOpenChange={setAddOpen}>
         <PopoverTrigger asChild>
           <button
@@ -287,7 +293,7 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
       >
         <Settings size={16} />
       </button>
-    </div>
+    </motion.div>
   );
 };
 

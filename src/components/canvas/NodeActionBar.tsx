@@ -52,16 +52,29 @@ interface NodeActionBarProps {
   connectMenuItems?: ConnectMenuItem[];
 }
 
-const Btn = ({ children, onClick, className = '' }: { children: React.ReactNode; onClick?: () => void; className?: string }) => (
-  <button
-    onClick={(e) => {
-      e.stopPropagation();
-      onClick?.();
-    }}
-    className={`p-1.5 rounded-md hover:bg-white/10 transition-colors text-white/60 hover:text-white/90 ${className}`}
-  >
-    {children}
-  </button>
+const Btn = ({
+  children,
+  onClick,
+  className = '',
+  tooltip,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+  tooltip?: string;
+}) => (
+  <div className="node-action-bar-icon">
+    {tooltip && <span className="node-action-bar-tooltip">{tooltip}</span>}
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
+      className={`flex items-center justify-center w-8 h-8 rounded-full text-white/60 hover:text-white/90 transition-all duration-300 ease-in-out hover:bg-white/10 ${className}`}
+    >
+      {children}
+    </button>
+  </div>
 );
 
 const NodeActionBar = memo(
@@ -83,7 +96,7 @@ const NodeActionBar = memo(
 
     return (
       <div
-        className="node-action-bar absolute top-0 left-1/2 flex items-center gap-0.5 px-2 py-1.5 rounded-xl shadow-xl z-50"
+        className="node-action-bar absolute top-0 left-1/2 flex items-center gap-1 px-3 py-2 shadow-xl z-50"
         style={{
           transform: 'translate(-50%, calc(-100% - 8px))',
           background: 'rgba(26, 26, 26, 0.9)',
@@ -91,12 +104,20 @@ const NodeActionBar = memo(
           border: '1px solid rgba(255,255,255,0.1)',
         }}
       >
-        {onRun && <Btn onClick={onRun}><Play size={12} /></Btn>}
+        {onRun && (
+          <Btn onClick={onRun} tooltip="Run">
+            <Play size={14} />
+          </Btn>
+        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="p-1 rounded-md hover:bg-white/10 transition-colors text-white/60 hover:text-white/90">
-              <ChevronDown size={10} />
+            <button
+              type="button"
+              className="node-action-bar-icon flex items-center justify-center w-8 h-8 rounded-full text-white/60 hover:text-white/90 transition-all duration-300 ease-in-out hover:bg-white/10"
+            >
+              <span className="node-action-bar-tooltip">Run options</span>
+              <ChevronDown size={12} />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="bg-[#1a1a1e] border-white/10 text-white/90 text-xs">
@@ -110,9 +131,13 @@ const NodeActionBar = memo(
         {(isAssistant || isImageGen) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-0.5 p-1 rounded-md hover:bg-white/10 transition-colors text-white/60 hover:text-white/90">
+              <button
+                type="button"
+                className="node-action-bar-icon flex items-center justify-center w-8 h-8 rounded-full text-white/60 hover:text-white/90 transition-all duration-300 ease-in-out hover:bg-white/10"
+              >
+                <span className="node-action-bar-tooltip">Connect</span>
                 <Link2 size={12} />
-                <ChevronDown size={10} />
+                <ChevronDown size={10} className="ml-0.5" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="bg-[#1a1a1e] border-white/10 text-white/90 text-xs min-w-[180px]">
@@ -138,54 +163,58 @@ const NodeActionBar = memo(
         {isAssistant && (
           <>
             <div className="w-px h-4 bg-white/10 mx-0.5" />
-            {onExpand && <Btn onClick={onExpand}><Maximize2 size={12} /></Btn>}
-            {onDuplicate && <Btn onClick={onDuplicate}><Copy size={12} /></Btn>}
-            {onDelete && <Btn onClick={onDelete} className="hover:!text-red-400"><Trash2 size={12} /></Btn>}
+            {onExpand && <Btn onClick={onExpand} tooltip="Expand"><Maximize2 size={14} /></Btn>}
+            {onDuplicate && <Btn onClick={onDuplicate} tooltip="Duplicate"><Copy size={14} /></Btn>}
+            {onDelete && <Btn onClick={onDelete} tooltip="Delete" className="hover:!text-red-400"><Trash2 size={14} /></Btn>}
           </>
         )}
 
         {isImageGen && (
           <>
             <div className="w-px h-4 bg-white/10 mx-0.5" />
-            {onDelete && <Btn onClick={onDelete} className="hover:!text-red-400"><Trash2 size={12} /></Btn>}
+            {onDelete && <Btn onClick={onDelete} tooltip="Delete" className="hover:!text-red-400"><Trash2 size={14} /></Btn>}
           </>
         )}
 
         {!isAssistant && !isImageGen && (
           <>
-            {onExpand && <Btn onClick={onExpand}><Maximize2 size={12} /></Btn>}
+            {onExpand && <Btn onClick={onExpand} tooltip="Expand"><Maximize2 size={14} /></Btn>}
             {variant === 'text' && (
               <>
-                <Btn><CircleDot size={12} /></Btn>
-                <Btn><Type size={12} /></Btn>
+                <Btn tooltip="Select"><CircleDot size={14} /></Btn>
+                <Btn tooltip="Type"><Type size={14} /></Btn>
               </>
             )}
             {(variant === 'image' || variant === 'multiImage') && onGridToggle && (
-              <Btn onClick={onGridToggle}><Grid3X3 size={12} /></Btn>
+              <Btn onClick={onGridToggle} tooltip="Grid"><Grid3X3 size={14} /></Btn>
             )}
-            {variant === 'image' && <Btn><CornerDownRight size={12} /></Btn>}
+            {variant === 'image' && <Btn tooltip="Corner"><CornerDownRight size={14} /></Btn>}
             {variant === 'multiImage' && (
               <>
-                {onSelectMode && <Btn onClick={onSelectMode}><CircleDot size={12} /></Btn>}
-                <Btn><List size={12} /></Btn>
-                <Btn><Settings size={12} /></Btn>
-                <Btn><Plus size={12} /></Btn>
+                {onSelectMode && <Btn onClick={onSelectMode} tooltip="Select mode"><CircleDot size={14} /></Btn>}
+                <Btn tooltip="List"><List size={14} /></Btn>
+                <Btn tooltip="Settings"><Settings size={14} /></Btn>
+                <Btn tooltip="Add"><Plus size={14} /></Btn>
               </>
             )}
             {variant === 'group' && <div className="w-2 h-2 rounded-full bg-yellow-400 mx-1" />}
             <div className="w-px h-4 bg-white/10 mx-0.5" />
-            {onLock && <Btn onClick={onLock}><Lock size={12} /></Btn>}
-            {onDuplicate && <Btn onClick={onDuplicate}><Copy size={12} /></Btn>}
-            {onDelete && <Btn onClick={onDelete} className="hover:!text-red-400"><Trash2 size={12} /></Btn>}
+            {onLock && <Btn onClick={onLock} tooltip="Lock"><Lock size={14} /></Btn>}
+            {onDuplicate && <Btn onClick={onDuplicate} tooltip="Duplicate"><Copy size={14} /></Btn>}
+            {onDelete && <Btn onClick={onDelete} tooltip="Delete" className="hover:!text-red-400"><Trash2 size={14} /></Btn>}
           </>
         )}
 
-        {showDownload && onDownload && <Btn onClick={onDownload}><Download size={12} /></Btn>}
+        {showDownload && onDownload && <Btn onClick={onDownload} tooltip="Download"><Download size={14} /></Btn>}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="p-1.5 rounded-md hover:bg-white/10 transition-colors text-white/60 hover:text-white/90">
-              <MoreHorizontal size={12} />
+            <button
+              type="button"
+              className="node-action-bar-icon flex items-center justify-center w-8 h-8 rounded-full text-white/60 hover:text-white/90 transition-all duration-300 ease-in-out hover:bg-white/10"
+            >
+              <span className="node-action-bar-tooltip">More</span>
+              <MoreHorizontal size={14} />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="bg-[#1a1a1e] border-white/10 text-white/90 text-xs">
