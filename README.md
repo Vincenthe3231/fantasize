@@ -91,7 +91,7 @@ If you edit the schema only in the dashboard, run **`pnpm db:types`** so [`src/i
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev` | Dev server with HMR |
+| `pnpm dev --port 8082 --host` | Dev server with HMR |
 | `pnpm build` | Production build to `dist/` |
 | `pnpm build:dev` | Build in development mode |
 | `pnpm preview` | Preview production build |

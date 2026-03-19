@@ -1,7 +1,9 @@
-import { memo, useState } from 'react';
+import { memo, useState, useRef, useEffect, useCallback } from 'react';
 import { getBezierPath, type EdgeProps } from 'reactflow';
-import { X } from 'lucide-react';
+import { Scissors } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
+
+const HOVER_LEAVE_MS = 140;
 
 const CustomEdge = memo(({
   id,
@@ -18,6 +20,29 @@ const CustomEdge = memo(({
   const selectedTool = useWorkflowStore((s) => s.selectedTool);
   const removeEdgeById = useWorkflowStore((s) => s.removeEdgeById);
   const [hovered, setHovered] = useState(false);
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearLeaveTimer = useCallback(() => {
+    if (leaveTimerRef.current) {
+      clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+  }, []);
+
+  const onEdgePointerEnter = useCallback(() => {
+    clearLeaveTimer();
+    setHovered(true);
+  }, [clearLeaveTimer]);
+
+  const onEdgePointerLeave = useCallback(() => {
+    clearLeaveTimer();
+    leaveTimerRef.current = setTimeout(() => {
+      setHovered(false);
+      leaveTimerRef.current = null;
+    }, HOVER_LEAVE_MS);
+  }, [clearLeaveTimer]);
+
+  useEffect(() => () => clearLeaveTimer(), [clearLeaveTimer]);
 
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -29,15 +54,22 @@ const CustomEdge = memo(({
     curvature: 0.35,
   });
 
-  const handleClick = () => {
-    if (selectedTool === 'cut') {
-      removeEdgeById(id);
-    }
+  /** Cut/snips on pointer down so we win over pane drag/selection; `stroke` hit target fixes transparent-stroke + visibleStroke glitches from React Flow defaults. */
+  const handleInteractionPointerDown = (e: React.PointerEvent) => {
+    if (selectedTool !== 'cut' || e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    removeEdgeById(id);
   };
 
-  const handleDelete = (e: React.MouseEvent) => {
+  const handleSnipClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();
     removeEdgeById(id);
+  };
+
+  const handleSnipPointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
   };
 
   const midX = labelX;
@@ -47,17 +79,25 @@ const CustomEdge = memo(({
   const strokeW = hovered || selected ? 2 : 1.5;
   const opacity = isRunning ? 1 : hovered || selected ? 0.9 : 0.7;
 
+  const showSnipControl = hovered || selected;
+  /** foreignObject top-left so button is centered on midpoint */
+  const foSize = 32;
+  const foHalf = foSize / 2;
+
   return (
     <>
       <path
         d={edgePath}
         fill="none"
         stroke="transparent"
-        strokeWidth={16}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onClick={handleClick}
-        className={selectedTool === 'cut' ? 'cursor-scissors' : 'cursor-pointer'}
+        strokeWidth={24}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ touchAction: 'none' }}
+        onPointerEnter={onEdgePointerEnter}
+        onPointerLeave={onEdgePointerLeave}
+        onPointerDown={handleInteractionPointerDown}
+        className={`custom-edge-hit-area ${selectedTool === 'cut' ? 'cursor-scissors' : 'cursor-pointer'}`}
       />
       <path
         id={id}
@@ -68,15 +108,33 @@ const CustomEdge = memo(({
         className={isRunning && edgeAnimation ? 'animated-edge' : ''}
         style={{ opacity, pointerEvents: 'none' }}
       />
-      {selected && (
-        <foreignObject x={midX - 8} y={midY - 8} width={16} height={16} className="overflow-visible">
-          <button
-            type="button"
-            onClick={handleDelete}
-            className="w-4 h-4 rounded-full bg-red-500/80 flex items-center justify-center hover:bg-red-500 transition-colors"
+      {showSnipControl && (
+        <foreignObject
+          x={midX - foHalf}
+          y={midY - foHalf}
+          width={foSize}
+          height={foSize}
+          className="overflow-visible"
+        >
+          <div
+            className="flex h-full w-full items-center justify-center"
+            onPointerEnter={onEdgePointerEnter}
+            onPointerLeave={onEdgePointerLeave}
           >
-            <X size={8} className="text-[var(--node-on-accent)]" />
-          </button>
+            <button
+              type="button"
+              title="Remove connection"
+              onClick={handleSnipClick}
+              onPointerDown={handleSnipPointerDown}
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border shadow-md transition-colors ${
+                selected
+                  ? 'border-red-400/50 bg-red-500/90 text-[var(--node-on-accent)] hover:bg-red-500'
+                  : 'border-[var(--node-control-border)] bg-[var(--node-action-bar-bg)] text-[var(--node-action-bar-icon)] hover:border-[var(--accent-color)] hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-action-bar-icon-hover)]'
+              }`}
+            >
+              <Scissors size={14} strokeWidth={2} />
+            </button>
+          </div>
         </foreignObject>
       )}
     </>
