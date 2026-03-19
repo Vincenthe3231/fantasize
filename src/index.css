@@ -418,6 +418,18 @@
   overflow: visible !important;
 }
 
+/* Corner resize handles must receive pointer events above the node shell */
+.react-flow__resize-control {
+  z-index: 25;
+  pointer-events: auto !important;
+}
+
+/* Allow shrinking below global .glass-node min-width for user-resized nodes */
+.vf-resizable-root > .glass-node {
+  min-width: 0;
+  max-width: 100%;
+}
+
 /* Tiptap editor styling */
 .ProseMirror {
   outline: none;

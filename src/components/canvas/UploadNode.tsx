@@ -1,7 +1,9 @@
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Position, type NodeProps } from 'reactflow';
-import { Image, Upload } from 'lucide-react';
+import { Image, Loader2, Upload } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
+import { toast } from 'sonner';
+import { uploadWorkflowMedia } from '@/lib/uploadStorage';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
@@ -9,7 +11,13 @@ import { NodeLabelRow } from './NodeLabelRow';
 import { EnhancedHandle } from './EnhancedHandle';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 
+function isVideoUrl(url: string): boolean {
+  return /\.(mp4|mov|webm)(\?|$)/i.test(url);
+}
+
 const UploadNode = memo(({ id, data }: NodeProps) => {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -32,14 +40,26 @@ const UploadNode = memo(({ id, data }: NodeProps) => {
   const label = (data.label as string) || '';
 
   const onDrop = useCallback(
-    (files: File[]) => {
+    async (files: File[]) => {
       const file = files[0];
-      if (file) {
-        const url = URL.createObjectURL(file);
+      if (!file) return;
+      if (mediaUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(mediaUrl);
+      }
+      setUploadError(null);
+      setUploading(true);
+      try {
+        const { url } = await uploadWorkflowMedia(file);
         updateNodeData(id, { mediaUrl: url, label: file.name });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Upload failed';
+        setUploadError(msg);
+        toast.error(msg);
+      } finally {
+        setUploading(false);
       }
     },
-    [id, updateNodeData]
+    [id, mediaUrl, updateNodeData]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -51,6 +71,7 @@ const UploadNode = memo(({ id, data }: NodeProps) => {
       'video/mp4': ['.mp4'],
       'video/quicktime': ['.mov'],
     },
+    disabled: uploading,
     noClick: !!mediaUrl,
     noDragEventsBubbling: true,
   });
@@ -79,7 +100,7 @@ const UploadNode = memo(({ id, data }: NodeProps) => {
         <div className="p-3 pt-2">
         {mediaUrl ? (
           <div className="relative rounded-lg overflow-hidden">
-            {mediaUrl.includes('.mp4') || mediaUrl.includes('.mov') ? (
+            {isVideoUrl(mediaUrl) ? (
               <video src={mediaUrl} className="w-full h-[140px] object-cover rounded-lg" muted />
             ) : (
               <img src={mediaUrl} alt="Reference" className="w-full h-[140px] object-cover rounded-lg" />
@@ -91,17 +112,33 @@ const UploadNode = memo(({ id, data }: NodeProps) => {
             </div>
           </div>
         ) : (
-          <div
-            {...getRootProps()}
-            className={`h-[140px] border border-dashed rounded-lg flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors ${
-              isDragActive ? 'border-[var(--port-input)] bg-[var(--port-input)]/5' : 'border-[var(--border-node)] hover:border-[var(--accent-color)]/35'
-            }`}
-          >
-            <input {...getInputProps()} />
-            <Upload size={20} className="text-[var(--text-muted)]" />
-            <span className="text-[11px] text-[var(--text-muted)] font-mono-display">
-              Drop image or video here
-            </span>
+          <div className="space-y-2">
+            <div
+              {...getRootProps()}
+              className={`h-[140px] border border-dashed rounded-lg flex flex-col items-center justify-center gap-2 transition-colors ${
+                uploading
+                  ? 'border-[var(--border-node)] opacity-80 cursor-wait'
+                  : `cursor-pointer ${isDragActive ? 'border-[var(--port-input)] bg-[var(--port-input)]/5' : 'border-[var(--border-node)] hover:border-[var(--accent-color)]/35'}`
+              }`}
+            >
+              <input {...getInputProps()} />
+              {uploading ? (
+                <>
+                  <Loader2 size={22} className="text-[var(--accent-color)] animate-spin" />
+                  <span className="text-[11px] text-[var(--text-muted)] font-mono-display">Uploading…</span>
+                </>
+              ) : (
+                <>
+                  <Upload size={20} className="text-[var(--text-muted)]" />
+                  <span className="text-[11px] text-[var(--text-muted)] font-mono-display">
+                    Drop image or video here
+                  </span>
+                </>
+              )}
+            </div>
+            {uploadError ? (
+              <p className="text-[10px] text-red-400 font-mono-display leading-snug px-0.5">{uploadError}</p>
+            ) : null}
           </div>
         )}
         </div>

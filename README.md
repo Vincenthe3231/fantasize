@@ -55,6 +55,15 @@ Migrations live in [`supabase/migrations/`](supabase/migrations/).
 
 Row Level Security (RLS) restricts `profiles` and `spaces` to the authenticated user.
 
+### Storage (Upload node)
+
+1. Set **`VITE_SUPABASE_STORAGE_BUCKET`** in `.env` to your bucket id (must match the name in **Storage → Buckets**). Defaults in migrations: **`uploads`**, **`canvas`**, or **`workflow-media`**.
+2. **Apply storage policies** (fixes **403** / RLS on upload): run **`pnpm db:push-sync`** (or `pnpx supabase db push`) so migration [`20260321120000_storage_upload_policies.sql`](supabase/migrations/20260321120000_storage_upload_policies.sql) runs — it creates those buckets if missing and adds **INSERT** (`authenticated`) + **SELECT** (`public`) on `storage.objects`.
+3. **Authentication → Providers → Anonymous** — keep **Anonymous sign-in** enabled (the app uses `signInAnonymously()` so uploads use the `authenticated` role).
+4. If your bucket id is **not** one of the three above, add it to the `array['uploads', ...]` in that migration (or run [`docs/supabase-storage-upload-policies.sql`](docs/supabase-storage-upload-policies.sql) in **SQL Editor** with your bucket name).
+
+The S3-style env vars (`VITE_SUPABASE_STORAGE_ACCESS_KEY`, etc.) are optional; the app uploads via the Supabase JS client (REST), not direct S3.
+
 ### Apply migrations to your remote project
 
 **Option A — Supabase CLI (recommended)**

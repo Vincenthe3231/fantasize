@@ -1,5 +1,7 @@
 import { memo, useState, useMemo, useCallback } from 'react';
 import { Position, type NodeProps } from 'reactflow';
+import NodeCornerResizer from './NodeCornerResizer';
+import { useResizableNodeShell } from './nodeResizeUtils';
 import {
   Clapperboard,
   Loader2,
@@ -47,7 +49,9 @@ function makeEdge(
   };
 }
 
-const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
+const DEFAULT_WIDTH = 300;
+
+const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
   const [negOpen, setNegOpen] = useState(false);
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
@@ -58,6 +62,8 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
   const connectEdgeWithHistory = useWorkflowStore((s) => s.connectEdgeWithHistory);
   const nodes = useWorkflowStore((s) => s.nodes);
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
+
+  const { shellStyle, fillHeight } = useResizableNodeShell(id, DEFAULT_WIDTH);
 
   const prompt = (data.prompt as string) || '';
   const mode = (data.mode as string) || 'Auto';
@@ -126,7 +132,11 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
   );
 
   return (
-    <div className="w-[300px] relative">
+    <div
+      style={shellStyle}
+      className={`vf-resizable-root relative ${fillHeight ? 'flex flex-col min-h-0 h-full' : ''}`}
+    >
+      <NodeCornerResizer nodeId={id} isVisible={selected} minWidth={200} minHeight={200} />
       <NodeLabelRow
         nodeId={id}
         nodeType="imageGeneratorNode"
@@ -134,7 +144,7 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
         icon={<Clapperboard size={12} />}
       />
       <div
-        className={`glass-node w-full relative ${isRunning || status === 'generating' ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        className={`glass-node w-full relative ${fillHeight ? 'flex flex-1 flex-col min-h-0' : ''} ${isRunning || status === 'generating' ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
       <NodeActionBar
@@ -147,14 +157,18 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
 
       <NodeContentFocus nodeId={id}>
         <div
-          className={`rounded-xl border-2 transition-colors ${
+          className={`rounded-xl border-2 transition-colors ${fillHeight ? 'flex flex-1 flex-col min-h-0' : ''} ${
             contentFocused
               ? 'border-[hsl(217_91%_60%)] shadow-[0_0_0_3px_hsla(217,91%,60%,0.15)]'
               : 'border-transparent'
           }`}
         >
-          <div className="rounded-[10px] overflow-hidden bg-[var(--node-inner-deep)] flex flex-col min-h-[220px]">
-            <div className="flex-1 min-h-[120px] relative flex flex-col">
+          <div
+            className={`rounded-[10px] overflow-hidden bg-[var(--node-inner-deep)] flex flex-col ${fillHeight ? 'flex-1 min-h-0' : 'min-h-[220px]'}`}
+          >
+            <div
+              className={`relative flex flex-col ${fillHeight ? 'flex-1 min-h-0' : 'flex-1 min-h-[120px]'}`}
+            >
               <AnimatePresence>
                 {status === 'success' && generatedUrl && (
                   <motion.div
@@ -173,9 +187,9 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
                 </div>
               )}
               {status !== 'generating' && status !== 'success' && (
-                <div className="flex-1 min-h-[80px]" />
+                <div className={`flex-1 ${fillHeight ? 'min-h-0' : 'min-h-[80px]'}`} />
               )}
-              <div className="p-3 pt-0 mt-auto">
+              <div className="p-3 pt-0 mt-auto shrink-0">
                 <textarea
                   value={prompt}
                   onChange={(e) => updateNodeData(id, { prompt: e.target.value })}
@@ -188,7 +202,7 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 px-2.5 py-2 border-t border-[var(--node-panel-border)] bg-[var(--node-control-bg)] flex-wrap">
+            <div className="flex shrink-0 flex-wrap items-center gap-1.5 px-2.5 py-2 border-t border-[var(--node-panel-border)] bg-[var(--node-control-bg)]">
               <div className="flex items-center gap-0.5 rounded-lg bg-[var(--node-inner-mid)] border border-[var(--node-control-border)] p-0.5">
                 <button
                   type="button"

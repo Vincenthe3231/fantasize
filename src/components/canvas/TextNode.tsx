@@ -1,5 +1,7 @@
 import { memo, useCallback, useMemo } from 'react';
 import { Position, type NodeProps } from 'reactflow';
+import NodeCornerResizer from './NodeCornerResizer';
+import { useResizableNodeShell } from './nodeResizeUtils';
 import { Type, Bold, Italic, List, ListOrdered } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -18,6 +20,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+const DEFAULT_WIDTH = 280;
+
 const TextNode = memo(({ id, data, selected }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
@@ -29,6 +33,8 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
   const nodes = useWorkflowStore((s) => s.nodes);
   const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
   const { connectMenuItems } = useQuickConnect(id, selfPos);
+
+  const { shellStyle, fillHeight } = useResizableNodeShell(id, DEFAULT_WIDTH);
 
   const content = (data.content as string) || '';
 
@@ -43,7 +49,8 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
     },
     editorProps: {
       attributes: {
-        class: 'w-full text-[13px] text-[var(--text-primary)] outline-none min-h-[80px] leading-relaxed prose prose-invert prose-sm max-w-none',
+        class:
+          'w-full text-[13px] text-[var(--text-primary)] outline-none min-h-[80px] leading-relaxed prose prose-invert prose-sm max-w-none',
         style: 'font-family: Inter, sans-serif',
       },
       handleDOMEvents: {
@@ -68,10 +75,14 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
   }, [editor]);
 
   return (
-    <div className="w-[280px] relative">
+    <div
+      style={shellStyle}
+      className={`vf-resizable-root relative ${fillHeight ? 'flex flex-col min-h-0 h-full' : ''}`}
+    >
+      <NodeCornerResizer nodeId={id} isVisible={selected} minWidth={200} minHeight={120} />
       <NodeLabelRow nodeId={id} nodeType="textNode" labelPrefix="Text" icon={<Type size={12} />} />
       <div
-        className={`glass-node glass-node-input w-full relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-amber-500/40' : ''}`}
+        className={`glass-node glass-node-input w-full relative ${fillHeight ? 'flex flex-1 flex-col min-h-0' : ''} ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-amber-500/40' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
       <NodeActionBar
@@ -147,8 +158,13 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
       </AnimatePresence>
 
       <NodeContentFocus nodeId={id}>
-        <div className="p-3 pt-2" onMouseDown={(e) => e.stopPropagation()}>
-          <EditorContent editor={editor} />
+        <div
+          className={`p-3 pt-2 ${fillHeight ? 'flex flex-1 min-h-0 flex-col overflow-hidden' : ''}`}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className={fillHeight ? 'flex flex-1 min-h-0 flex-col overflow-y-auto' : ''}>
+            <EditorContent editor={editor} />
+          </div>
         </div>
       </NodeContentFocus>
 

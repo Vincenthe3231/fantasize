@@ -10,10 +10,12 @@ import ReactFlow, {
   MiniMap,
   type Node,
   type Edge,
+  type NodeChange,
   useNodesState,
   useEdgesState,
   addEdge,
   applyEdgeChanges,
+  applyNodeChanges,
   type Connection,
   useReactFlow,
   useStoreApi,
@@ -23,6 +25,7 @@ import ReactFlow, {
   getConnectedEdges,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import '@reactflow/node-resizer/dist/style.css';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import TextNode from '@/components/canvas/TextNode';
@@ -49,7 +52,7 @@ import BottomBar from '@/components/canvas/BottomBar';
 import CommentPin from '@/components/canvas/CommentPin';
 import SelectionOverlay from '@/components/canvas/SelectionOverlay';
 import GroupNode from '@/components/canvas/GroupNode';
-import { useWorkflowStore } from '@/stores/workflowStore';
+import { useWorkflowStore, type NodeType } from '@/stores/workflowStore';
 
 const nodeTypes = {
   textNode: TextNode,
@@ -162,7 +165,25 @@ const CanvasInner = ({
   const setLastViewport = useWorkflowStore((s) => s.setLastViewport);
   const pushSelectionCommand = useWorkflowStore((s) => s.pushSelectionCommand);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(storeNodes);
+  const [nodes, setNodes] = useNodesState(storeNodes);
+
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      setNodes((nds) => {
+        const next = applyNodeChanges(changes, nds);
+        const resizeEnded = changes.some(
+          (c) => c.type === 'dimensions' && 'resizing' in c && c.resizing === false
+        );
+        if (resizeEnded) {
+          queueMicrotask(() => {
+            setNodesSilently(structuredClone(next));
+          });
+        }
+        return next;
+      });
+    },
+    [setNodes, setNodesSilently]
+  );
   const [edges, setEdges] = useEdgesState(storeEdges);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addPanelOpen, setAddPanelOpen] = useState(false);
@@ -400,7 +421,7 @@ const CanvasInner = ({
   const handleAddNode = useCallback(
     (type: string) => {
       const position = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
-      addNodeAction(type as any, { x: position.x - 100, y: position.y - 80 });
+      addNodeAction(type as NodeType, { x: position.x - 100, y: position.y - 80 });
     },
     [addNodeAction, screenToFlowPosition]
   );

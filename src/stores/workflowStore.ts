@@ -570,7 +570,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         type: 'group',
         position: { x: groupX, y: groupY },
         data: { labelText: 'Group', ...(color != null ? { color } : {}) },
-        style: { width: groupW, height: groupH } as any,
+        style: { width: groupW, height: groupH },
         selected: true,
         draggable: true,
         selectable: true,
