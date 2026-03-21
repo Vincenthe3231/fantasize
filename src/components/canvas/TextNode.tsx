@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo } from 'react';
-import { Position, type NodeProps } from 'reactflow';
+import { type NodeProps } from 'reactflow';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { Type, Bold, Italic, List, ListOrdered } from 'lucide-react';
@@ -9,7 +9,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
-import { EnhancedHandle } from './EnhancedHandle';
+import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
@@ -165,8 +165,7 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
         </div>
       </NodeContentFocus>
 
-      <EnhancedHandle type="target" position={Position.Left} id="text-in" className="port-input" dataType="text" />
-      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="text" />
+      <DefaultNodePortHandles />
       </div>
     </FlowNodeResizeRoot>
   );

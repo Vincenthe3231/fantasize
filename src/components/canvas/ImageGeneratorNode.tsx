@@ -1,5 +1,5 @@
 import { memo, useState, useMemo, useCallback } from 'react';
-import { Position, type NodeProps } from 'reactflow';
+import { type NodeProps } from 'reactflow';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import {
@@ -16,7 +16,7 @@ import { NodeLabelRow } from './NodeLabelRow';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
-import { EnhancedHandle } from './EnhancedHandle';
+import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NodeContentFocus } from './NodeContentFocus';
 import {
@@ -331,23 +331,7 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
         </>
       )}
 
-      <EnhancedHandle
-        type="target"
-        position={Position.Left}
-        id="text-in"
-        className="port-input"
-        style={{ top: '35%' }}
-        dataType="text"
-      />
-      <EnhancedHandle
-        type="target"
-        position={Position.Left}
-        id="image-in"
-        className="port-input"
-        style={{ top: '65%' }}
-        dataType="image"
-      />
-      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
+      <DefaultNodePortHandles />
       </div>
     </FlowNodeResizeRoot>
   );

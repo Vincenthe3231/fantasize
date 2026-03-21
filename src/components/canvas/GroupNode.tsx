@@ -2,6 +2,7 @@ import { memo, useState, useCallback, useRef } from 'react';
 import type { NodeProps } from 'reactflow';
 
 import { useWorkflowStore } from '@/stores/workflowStore';
+import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 
 const isValidColor = (s: unknown): s is string =>
   typeof s === 'string' && (s.startsWith('#') || s.startsWith('rgb'));
@@ -121,6 +122,7 @@ const GroupNode = memo(({ id, selected, style, data }: GroupNodeProps) => {
         }}
         data-group-node-selected={selected || undefined}
       />
+      <DefaultNodePortHandles />
     </div>
   );
 });

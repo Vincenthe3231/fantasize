@@ -1,11 +1,11 @@
 import { memo, useMemo } from 'react';
-import { Position, type NodeProps } from 'reactflow';
+import { type NodeProps } from 'reactflow';
 import { Package } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
-import { EnhancedHandle } from './EnhancedHandle';
+import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
@@ -81,22 +81,7 @@ const PropsInputNode = memo(({ id, selected }: NodeProps) => {
         </div>
       </NodeContentFocus>
 
-      <EnhancedHandle
-        type="source"
-        position={Position.Right}
-        id="image-out"
-        className="port-output"
-        style={{ top: '40%' }}
-        dataType="image"
-      />
-      <EnhancedHandle
-        type="source"
-        position={Position.Right}
-        id="text-out"
-        className="port-output port-output-accent"
-        style={{ top: '55%' }}
-        dataType="text"
-      />
+      <DefaultNodePortHandles />
       </div>
     </FlowNodeResizeRoot>
   );

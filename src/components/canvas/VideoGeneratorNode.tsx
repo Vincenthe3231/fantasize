@@ -6,6 +6,7 @@ import { Video, Loader2, Play, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
+import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { EnhancedHandle } from './EnhancedHandle';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NodeContentFocus } from './NodeContentFocus';
@@ -135,23 +136,15 @@ const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
         </div>
       </NodeContentFocus>
 
+      <DefaultNodePortHandles />
       <EnhancedHandle
-        type="target"
-        position={Position.Left}
-        id="text-in"
-        className="port-input"
-        style={{ top: '35%' }}
-        dataType="text"
+        type="source"
+        position={Position.Right}
+        id="video-out"
+        className="port-output"
+        style={{ top: '78%' }}
+        dataType="video"
       />
-      <EnhancedHandle
-        type="target"
-        position={Position.Left}
-        id="image-in"
-        className="port-input"
-        style={{ top: '65%' }}
-        dataType="image"
-      />
-      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="video" />
       </div>
     </FlowNodeResizeRoot>
   );

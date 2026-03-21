@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react';
-import { Position, type NodeProps } from 'reactflow';
+import { type NodeProps } from 'reactflow';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { ArrowUpCircle, Loader2, Play, Download } from 'lucide-react';
@@ -8,7 +8,7 @@ import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
-import { EnhancedHandle } from './EnhancedHandle';
+import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 
 const ImageUpscalerNode = memo(({ id, data, selected }: NodeProps) => {
@@ -127,8 +127,7 @@ const ImageUpscalerNode = memo(({ id, data, selected }: NodeProps) => {
         </div>
       </NodeContentFocus>
 
-      <EnhancedHandle type="target" position={Position.Left} className="port-input" dataType="image" />
-      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
+      <DefaultNodePortHandles />
       </div>
     </FlowNodeResizeRoot>
   );

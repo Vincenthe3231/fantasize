@@ -1,11 +1,11 @@
 import { memo, useState, useMemo } from 'react';
-import { Position, type NodeProps } from 'reactflow';
+import { type NodeProps } from 'reactflow';
 import { Plus, Grid3X3, List, Settings, CircleDot } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
-import { EnhancedHandle } from './EnhancedHandle';
+import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import ImageCellOverlay from './ImageCellOverlay';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
@@ -103,8 +103,7 @@ const AngleVariationsListNode = memo(({ id, selected }: NodeProps) => {
         </div>
       </NodeContentFocus>
 
-      <EnhancedHandle type="target" position={Position.Left} className="port-input" dataType="image" />
-      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
+      <DefaultNodePortHandles />
       </div>
     </FlowNodeResizeRoot>
   );

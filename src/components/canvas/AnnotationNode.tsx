@@ -5,6 +5,7 @@ import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
+import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 
 const AnnotationNode = memo(({ id, data, selected }: NodeProps) => {
   const text = (data.text as string) || '';
@@ -54,6 +55,7 @@ const AnnotationNode = memo(({ id, data, selected }: NodeProps) => {
           })}
         </p>
       </NodeContentFocus>
+      <DefaultNodePortHandles />
     </div>
     </FlowNodeResizeRoot>
   );

@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useState } from 'react';
-import { Position, type NodeProps } from 'reactflow';
+import { type NodeProps } from 'reactflow';
 import { Image, Loader2, Upload } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { toast } from 'sonner';
@@ -8,7 +8,7 @@ import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
-import { EnhancedHandle } from './EnhancedHandle';
+import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
@@ -164,7 +164,7 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
           </div>
         </NodeContentFocus>
 
-        <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
+        <DefaultNodePortHandles />
       </div>
     </FlowNodeResizeRoot>
   );

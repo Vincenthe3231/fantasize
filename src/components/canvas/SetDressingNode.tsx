@@ -75,7 +75,15 @@ const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
       <EnhancedHandle
         type="target"
         position={Position.Left}
-        id="location-in"
+        id="text-in"
+        className="port-input"
+        style={{ top: '10%' }}
+        dataType="text"
+      />
+      <EnhancedHandle
+        type="target"
+        position={Position.Left}
+        id="image-in"
         className="port-input"
         style={{ top: '22%' }}
         dataType="image"
@@ -83,9 +91,17 @@ const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
       <EnhancedHandle
         type="target"
         position={Position.Left}
+        id="location-in"
+        className="port-input"
+        style={{ top: '34%' }}
+        dataType="image"
+      />
+      <EnhancedHandle
+        type="target"
+        position={Position.Left}
         id="placement-in"
         className="port-input"
-        style={{ top: '38%' }}
+        style={{ top: '46%' }}
         dataType="image"
       />
       <EnhancedHandle
@@ -93,7 +109,7 @@ const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
         position={Position.Left}
         id="props-in"
         className="port-input"
-        style={{ top: '54%' }}
+        style={{ top: '58%' }}
         dataType="image"
       />
       <EnhancedHandle
@@ -104,7 +120,22 @@ const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
         style={{ top: '70%' }}
         dataType="generic"
       />
-      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
+      <EnhancedHandle
+        type="source"
+        position={Position.Right}
+        id="text-out"
+        className="port-output port-output-accent"
+        style={{ top: '42%' }}
+        dataType="text"
+      />
+      <EnhancedHandle
+        type="source"
+        position={Position.Right}
+        id="image-out"
+        className="port-output"
+        style={{ top: '58%' }}
+        dataType="image"
+      />
       </div>
     </FlowNodeResizeRoot>
   );

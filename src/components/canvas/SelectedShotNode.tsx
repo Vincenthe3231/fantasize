@@ -1,12 +1,12 @@
 import { memo, useState, useMemo } from 'react';
-import { Position, type NodeProps } from 'reactflow';
+import { type NodeProps } from 'reactflow';
 import { ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
-import { EnhancedHandle } from './EnhancedHandle';
+import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 
@@ -85,8 +85,7 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
         </div>
       </NodeContentFocus>
 
-      <EnhancedHandle type="target" position={Position.Left} className="port-input" dataType="image" />
-      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
+      <DefaultNodePortHandles />
       </div>
     </FlowNodeResizeRoot>
   );
