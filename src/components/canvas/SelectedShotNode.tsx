@@ -8,6 +8,7 @@ import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
 import { EnhancedHandle } from './EnhancedHandle';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
+import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 
 const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -34,10 +35,15 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
   const resolution = (data.resolution as string) || '2738 × 1524';
 
   return (
-    <div className="w-[280px] relative">
+    <FlowNodeResizeRoot
+      selected={!!selected}
+      minWidth={220}
+      minHeight={120}
+      className="rf-node-resize-root relative flex flex-col min-h-0"
+    >
       <NodeLabelRow nodeId={id} nodeType="selectedShotNode" labelPrefix="Selected shot" icon={<ImageIcon size={12} />} />
       <div
-        className={`glass-node glass-node-output w-full relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        className={`glass-node glass-node-output relative flex w-full flex-1 flex-col min-h-0 ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         data-content-focused={contentFocused || undefined}
@@ -82,7 +88,7 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
       <EnhancedHandle type="target" position={Position.Left} className="port-input" dataType="image" />
       <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
-    </div>
+    </FlowNodeResizeRoot>
   );
 });
 

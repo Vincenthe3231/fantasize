@@ -131,6 +131,29 @@ function mergeNodesWithSelection(
   });
 }
 
+/**
+ * While the store lags behind React Flow during drag/resize, re-applying `storeNodes`
+ * would stomp live width/height/position and cause jitter. Keep store fields (data, type,
+ * …) but preserve measured geometry from the current flow snapshot.
+ */
+function mergeStoreNodesWithFlowGeometry(storeNodes: Node[], flowNodes: Node[]): Node[] {
+  const flowById = new Map(flowNodes.map((n) => [n.id, n]));
+  return storeNodes.map((sn) => {
+    const live = flowById.get(sn.id);
+    if (!live) return sn;
+    return {
+      ...live,
+      ...sn,
+      position: live.position,
+      ...(live.positionAbsolute !== undefined ? { positionAbsolute: live.positionAbsolute } : {}),
+      width: live.width ?? sn.width,
+      height: live.height ?? sn.height,
+      style: live.style ?? sn.style,
+      selected: live.selected,
+    };
+  });
+}
+
 function applyEdgeSelection(storeEdges: Edge[], selectedEdgeIds: Set<string>): Edge[] {
   return storeEdges.map((e) => ({ ...e, selected: selectedEdgeIds.has(e.id) }));
 }
@@ -189,19 +212,32 @@ const CanvasInner = ({
   const hydrateFromSpace = useWorkflowStore((s) => s.hydrateFromSpace);
   const setLastViewport = useWorkflowStore((s) => s.setLastViewport);
   const pushSelectionCommand = useWorkflowStore((s) => s.pushSelectionCommand);
+  const isDragging = useWorkflowStore((s) => s.isDragging);
 
   const [nodes, setNodes] = useNodesState(storeNodes);
+  const isNodeResizeActiveRef = useRef(false);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       setNodes((nds) => {
+        let resizeEnded = false;
+        for (const c of changes) {
+          if (c.type === 'dimensions' && 'resizing' in c) {
+            if (c.resizing === true) {
+              isNodeResizeActiveRef.current = true;
+            } else {
+              // Keep merge mode until the store catches up (microtask), or a stale
+              // storeNodes effect can replace RF dimensions before setNodesSilently runs.
+              isNodeResizeActiveRef.current = true;
+              resizeEnded = true;
+            }
+          }
+        }
         const next = applyNodeChanges(changes, nds);
-        const resizeEnded = changes.some(
-          (c) => c.type === 'dimensions' && 'resizing' in c && c.resizing === false
-        );
         if (resizeEnded) {
           queueMicrotask(() => {
             setNodesSilently(structuredClone(next));
+            isNodeResizeActiveRef.current = false;
           });
         }
         return next;
@@ -299,8 +335,13 @@ const CanvasInner = ({
   }, []);
 
   useEffect(() => {
-    setNodes(storeNodes);
-  }, [storeNodes, setNodes]);
+    setNodes((current) => {
+      if (isDragging || isNodeResizeActiveRef.current) {
+        return mergeStoreNodesWithFlowGeometry(storeNodes, current);
+      }
+      return storeNodes;
+    });
+  }, [storeNodes, setNodes, isDragging]);
   useEffect(() => {
     setEdges(storeEdges);
   }, [storeEdges, setEdges]);

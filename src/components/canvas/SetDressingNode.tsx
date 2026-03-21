@@ -9,6 +9,7 @@ import { EnhancedHandle } from './EnhancedHandle';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
+import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 
 const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -23,10 +24,15 @@ const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
   const { connectMenuItems } = useQuickConnect(id, selfPos);
 
   return (
-    <div className="w-[420px] relative">
+    <FlowNodeResizeRoot
+      selected={!!selected}
+      minWidth={320}
+      minHeight={200}
+      className="rf-node-resize-root relative flex flex-col min-h-0"
+    >
       <NodeLabelRow nodeId={id} nodeType="setDressingNode" labelPrefix="Set dressing preview" icon={<Sofa size={12} />} />
       <div
-        className={`glass-node w-full relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        className={`glass-node relative flex w-full flex-1 flex-col min-h-0 ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
       <NodeActionBar
@@ -100,7 +106,7 @@ const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
       />
       <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
-    </div>
+    </FlowNodeResizeRoot>
   );
 });
 

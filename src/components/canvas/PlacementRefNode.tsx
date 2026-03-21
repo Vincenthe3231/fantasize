@@ -9,6 +9,7 @@ import { EnhancedHandle } from './EnhancedHandle';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
+import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 
 const PlacementRefNode = memo(({ id, selected }: NodeProps) => {
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -30,10 +31,15 @@ const PlacementRefNode = memo(({ id, selected }: NodeProps) => {
   const { connectMenuItems } = useQuickConnect(id, selfPos, quickOverrides);
 
   return (
-    <div className="w-[280px] relative">
+    <FlowNodeResizeRoot
+      selected={!!selected}
+      minWidth={220}
+      minHeight={120}
+      className="rf-node-resize-root relative flex flex-col min-h-0"
+    >
       <NodeLabelRow nodeId={id} nodeType="placementRefNode" labelPrefix="Placement ref" icon={<LayoutGrid size={12} />} />
       <div
-        className={`glass-node-input glass-node w-full relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-amber-500/50' : ''}`}
+        className={`glass-node-input glass-node relative flex w-full flex-1 flex-col min-h-0 ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-amber-500/50' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
       <NodeActionBar
@@ -51,7 +57,7 @@ const PlacementRefNode = memo(({ id, selected }: NodeProps) => {
       </NodeContentFocus>
       <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
-    </div>
+    </FlowNodeResizeRoot>
   );
 });
 

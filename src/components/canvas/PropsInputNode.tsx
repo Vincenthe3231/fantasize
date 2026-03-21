@@ -9,6 +9,7 @@ import { EnhancedHandle } from './EnhancedHandle';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
+import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 
 const PROPS_ITEMS = [
   { label: 'Coffee table', src: MOCK.propTable, resolution: '1024 × 768' },
@@ -40,10 +41,15 @@ const PropsInputNode = memo(({ id, selected }: NodeProps) => {
   const { connectMenuItems } = useQuickConnect(id, selfPos, quickOverrides);
 
   return (
-    <div className="w-[420px] relative">
+    <FlowNodeResizeRoot
+      selected={!!selected}
+      minWidth={320}
+      minHeight={180}
+      className="rf-node-resize-root relative flex flex-col min-h-0"
+    >
       <NodeLabelRow nodeId={id} nodeType="propsInputNode" labelPrefix="Props input" icon={<Package size={12} />} />
       <div
-        className={`glass-node-input relative w-full rounded-[var(--radius-node)] overflow-visible ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-amber-500/40' : ''}`}
+        className={`glass-node-input relative flex w-full flex-1 flex-col min-h-0 overflow-visible rounded-[var(--radius-node)] ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-amber-500/40' : ''}`}
         style={{ background: 'var(--node-props-chrome-bg)', boxShadow: 'var(--shadow-node)' }}
         data-content-focused={contentFocused || undefined}
       >
@@ -92,7 +98,7 @@ const PropsInputNode = memo(({ id, selected }: NodeProps) => {
         dataType="text"
       />
       </div>
-    </div>
+    </FlowNodeResizeRoot>
   );
 });
 

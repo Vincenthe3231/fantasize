@@ -425,7 +425,8 @@
 }
 
 /* Allow shrinking below global .glass-node min-width for user-resized nodes */
-.vf-resizable-root > .glass-node {
+.rf-node-resize-root > .glass-node,
+.rf-node-resize-root .glass-node {
   min-width: 0;
   max-width: 100%;
 }

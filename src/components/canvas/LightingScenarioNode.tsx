@@ -9,6 +9,7 @@ import { EnhancedHandle } from './EnhancedHandle';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
+import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 
 const PRESETS = [
   { id: 'golden', label: 'Golden hour', src: MOCK.lightWarm },
@@ -30,10 +31,15 @@ const LightingScenarioNode = memo(({ id, selected }: NodeProps) => {
   const { connectMenuItems } = useQuickConnect(id, selfPos);
 
   return (
-    <div className="w-[400px] relative">
+    <FlowNodeResizeRoot
+      selected={!!selected}
+      minWidth={300}
+      minHeight={180}
+      className="rf-node-resize-root relative flex flex-col min-h-0"
+    >
       <NodeLabelRow nodeId={id} nodeType="lightingScenarioNode" labelPrefix="Lighting scenario" icon={<Sun size={12} />} />
       <div
-        className={`glass-node w-full relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        className={`glass-node relative flex w-full flex-1 flex-col min-h-0 ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
       <NodeActionBar
@@ -95,7 +101,7 @@ const LightingScenarioNode = memo(({ id, selected }: NodeProps) => {
       <EnhancedHandle type="target" position={Position.Left} className="port-input" dataType="image" />
       <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
-    </div>
+    </FlowNodeResizeRoot>
   );
 });
 

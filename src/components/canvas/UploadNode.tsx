@@ -11,12 +11,13 @@ import { NodeLabelRow } from './NodeLabelRow';
 import { EnhancedHandle } from './EnhancedHandle';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
+import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 
 function isVideoUrl(url: string): boolean {
   return /\.(mp4|mov|webm)(\?|$)/i.test(url);
 }
 
-const UploadNode = memo(({ id, data }: NodeProps) => {
+const UploadNode = memo(({ id, data, selected }: NodeProps) => {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
@@ -78,7 +79,12 @@ const UploadNode = memo(({ id, data }: NodeProps) => {
   });
 
   return (
-    <div className="w-[280px] relative">
+    <FlowNodeResizeRoot
+      selected={!!selected}
+      minWidth={220}
+      minHeight={120}
+      className="rf-node-resize-root relative flex flex-col min-h-0"
+    >
       <NodeLabelRow
         nodeId={id}
         nodeType="uploadNode"
@@ -87,7 +93,7 @@ const UploadNode = memo(({ id, data }: NodeProps) => {
         fallbackText={label}
       />
       <div
-        className={`glass-node glass-node-input w-full relative ${isRunning ? 'ring-1 ring-amber-500/40' : ''}`}
+        className={`glass-node glass-node-input relative flex w-full flex-1 flex-col min-h-0 ${isRunning ? 'ring-1 ring-amber-500/40' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
       <NodeActionBar
@@ -148,7 +154,7 @@ const UploadNode = memo(({ id, data }: NodeProps) => {
 
       <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
-    </div>
+    </FlowNodeResizeRoot>
   );
 });
 

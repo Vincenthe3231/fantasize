@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Position, type NodeProps } from 'reactflow';
-import NodeCornerResizer from './NodeCornerResizer';
-import { NODE_INTERACTIVE_CLASS, useResizableNodeShell } from './nodeResizeUtils';
+import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
+import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { List, Plus, X } from 'lucide-react';
 import { Reorder } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
@@ -16,8 +16,6 @@ interface ListItem {
   text: string;
 }
 
-const DEFAULT_WIDTH = 260;
-
 const ListNode = memo(({ id, data, selected }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
@@ -28,8 +26,6 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
   const nodes = useWorkflowStore((s) => s.nodes);
   const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
   const { connectMenuItems } = useQuickConnect(id, selfPos);
-
-  const { shellStyle, fillHeight } = useResizableNodeShell(id, DEFAULT_WIDTH);
 
   const items: ListItem[] = (data.items as ListItem[]) || [
     { id: '1', text: 'Scene description' },
@@ -53,14 +49,15 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
   };
 
   return (
-    <div
-      style={shellStyle}
-      className={`vf-resizable-root relative ${fillHeight ? 'flex flex-col min-h-0 h-full' : ''}`}
+    <FlowNodeResizeRoot
+      selected={!!selected}
+      minWidth={200}
+      minHeight={140}
+      className="rf-node-resize-root relative flex flex-col min-h-0"
     >
-      <NodeCornerResizer nodeId={id} isVisible={selected} minWidth={200} minHeight={140} />
       <NodeLabelRow nodeId={id} nodeType="listNode" labelPrefix="List" icon={<List size={12} />} />
       <div
-        className={`glass-node w-full relative ${fillHeight ? 'flex flex-1 flex-col min-h-0' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        className={`glass-node relative flex w-full flex-1 flex-col min-h-0 ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
       <NodeActionBar
@@ -71,12 +68,12 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
       />
 
       <NodeContentFocus nodeId={id}>
-        <div className={`p-3 space-y-1 ${fillHeight ? 'flex flex-1 min-h-0 flex-col overflow-hidden' : ''}`}>
+        <div className="flex flex-1 min-h-0 flex-col space-y-1 overflow-hidden p-3">
         <Reorder.Group
           axis="y"
           values={items}
           onReorder={(newItems) => updateNodeData(id, { items: newItems })}
-          className={`space-y-1 ${fillHeight ? 'min-h-0 flex-1 overflow-y-auto' : ''}`}
+          className="min-h-0 flex-1 space-y-1 overflow-y-auto"
         >
           {items.map((item) => (
             <Reorder.Item
@@ -115,7 +112,7 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
 
       <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="text" />
       </div>
-    </div>
+    </FlowNodeResizeRoot>
   );
 });
 

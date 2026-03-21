@@ -1,8 +1,8 @@
 import { memo, useState, useMemo } from 'react';
 import { Position, type NodeProps } from 'reactflow';
 import { RefreshCw, Grid3X3 } from 'lucide-react';
-import NodeCornerResizer from './NodeCornerResizer';
-import { NODE_INTERACTIVE_CLASS, useResizableNodeShell } from './nodeResizeUtils';
+import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
+import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
@@ -13,7 +13,6 @@ import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
 
 const CAMERA_SRC = [MOCK.camera1, MOCK.camera2, MOCK.camera3, MOCK.camera4];
-const DEFAULT_WIDTH = 380;
 
 const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -30,21 +29,20 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
   const [splitImages, setSplitImages] = useState(false);
   const [selectedCount] = useState(4);
 
-  const { shellStyle, fillHeight } = useResizableNodeShell(id, DEFAULT_WIDTH);
-
   const cols = gridLayout === '1x1' ? 1 : gridLayout === '2x2' ? 2 : 3;
   const cellCount = cols * cols;
   const cells = Array.from({ length: Math.min(cellCount, 4) }, (_, i) => i);
 
   return (
-    <div
-      style={shellStyle}
-      className={`vf-resizable-root relative ${fillHeight ? 'flex flex-col min-h-0 h-full' : ''}`}
+    <FlowNodeResizeRoot
+      selected={!!selected}
+      minWidth={280}
+      minHeight={160}
+      className="rf-node-resize-root relative flex flex-col min-h-0"
     >
-      <NodeCornerResizer nodeId={id} isVisible={selected} minWidth={280} minHeight={160} />
       <NodeLabelRow nodeId={id} nodeType="angleVariationsNode" labelPrefix="Angle variations" icon={<Grid3X3 size={12} />} />
       <div
-        className={`glass-node w-full relative ${fillHeight ? 'flex flex-1 flex-col min-h-0' : ''} ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        className={`glass-node relative flex w-full flex-1 flex-col min-h-0 ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
       <NodeActionBar
@@ -59,7 +57,7 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
       />
 
       <NodeContentFocus nodeId={id}>
-        <div className={`relative flex flex-col ${fillHeight ? 'flex-1 min-h-0' : ''}`}>
+        <div className="relative flex min-h-0 flex-1 flex-col">
         <div className="px-3 py-2 flex items-center justify-end text-[10px] text-[var(--text-muted)] shrink-0">
           <span>variations</span>
           <span className="mx-1">•</span>
@@ -71,7 +69,7 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
         5504 × 3072
       </div>
 
-      <div className={`grid gap-2 p-3 ${fillHeight ? 'min-h-0 flex-1 overflow-auto' : ''}`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+      <div className="grid min-h-0 flex-1 gap-2 overflow-auto p-3" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
         {cells.map((i) => (
           <ImageCellOverlay
             key={i}
@@ -113,7 +111,7 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
       <EnhancedHandle type="target" position={Position.Left} className="port-input" dataType="image" />
       <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
-    </div>
+    </FlowNodeResizeRoot>
   );
 });
 

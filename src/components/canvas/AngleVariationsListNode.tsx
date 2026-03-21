@@ -8,6 +8,7 @@ import { NodeLabelRow } from './NodeLabelRow';
 import { EnhancedHandle } from './EnhancedHandle';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import ImageCellOverlay from './ImageCellOverlay';
+import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 
 const AngleVariationsListNode = memo(({ id, selected }: NodeProps) => {
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -24,10 +25,15 @@ const AngleVariationsListNode = memo(({ id, selected }: NodeProps) => {
   const totalImages = 20;
 
   return (
-    <div className="w-[340px] relative">
+    <FlowNodeResizeRoot
+      selected={!!selected}
+      minWidth={280}
+      minHeight={160}
+      className="rf-node-resize-root relative flex flex-col min-h-0"
+    >
       <NodeLabelRow nodeId={id} nodeType="angleVariationsListNode" labelPrefix="Angle variations list" icon={<Grid3X3 size={12} />} />
       <div
-        className={`glass-node w-full relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        className={`glass-node relative flex w-full flex-1 flex-col min-h-0 ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
       <NodeActionBar
@@ -40,11 +46,12 @@ const AngleVariationsListNode = memo(({ id, selected }: NodeProps) => {
       />
 
       <NodeContentFocus nodeId={id}>
-        <div className="px-3 py-2 flex justify-end">
+        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="px-3 py-2 flex justify-end shrink-0">
           <span className="text-[11px] text-[var(--text-muted)]">{totalImages} images</span>
         </div>
 
-      <div className="grid grid-cols-3 gap-2 p-3 max-h-[280px] overflow-y-auto custom-scrollbar">
+      <div className="grid min-h-0 flex-1 grid-cols-3 gap-2 overflow-y-auto p-3 custom-scrollbar">
         {images.map((i) => (
           <ImageCellOverlay
             key={i}
@@ -93,12 +100,13 @@ const AngleVariationsListNode = memo(({ id, selected }: NodeProps) => {
           </button>
         </div>
       </div>
+        </div>
       </NodeContentFocus>
 
       <EnhancedHandle type="target" position={Position.Left} className="port-input" dataType="image" />
       <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
-    </div>
+    </FlowNodeResizeRoot>
   );
 });
 

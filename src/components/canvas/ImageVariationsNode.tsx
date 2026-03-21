@@ -12,8 +12,8 @@ import {
   LayoutGrid,
   type LucideIcon,
 } from 'lucide-react';
-import NodeCornerResizer from './NodeCornerResizer';
-import { NODE_INTERACTIVE_CLASS, useResizableNodeShell } from './nodeResizeUtils';
+import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
+import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { EnhancedHandle } from './EnhancedHandle';
@@ -39,8 +39,6 @@ import {
   normalizeResolution,
   type GridSizeId,
 } from '@/lib/imageVariationsOptions';
-
-const DEFAULT_WIDTH = 380;
 
 const MODE_ICON: Record<string, LucideIcon> = {
   age: User,
@@ -81,7 +79,6 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
 
   const modeLabel = VARIATION_MODES.find((m) => m.id === variationMode)?.label ?? 'Reframe';
 
-  const { shellStyle, fillHeight } = useResizableNodeShell(id, DEFAULT_WIDTH);
   const [perspectivesOpen, setPerspectivesOpen] = useState(false);
 
   const togglePerspective = useCallback(
@@ -95,14 +92,15 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
   );
 
   return (
-    <div
-      style={shellStyle}
-      className={`vf-resizable-root relative ${fillHeight ? 'flex flex-col min-h-0 h-full' : ''}`}
+    <FlowNodeResizeRoot
+      selected={!!selected}
+      minWidth={320}
+      minHeight={240}
+      className="rf-node-resize-root relative flex flex-col min-h-0"
     >
-      <NodeCornerResizer nodeId={id} isVisible={selected} minWidth={320} minHeight={240} />
       <NodeLabelRow nodeId={id} nodeType="imageVariationsNode" labelPrefix="Variations" icon={<Layers size={12} />} />
       <div
-        className={`glass-node w-full relative ${fillHeight ? 'flex flex-1 flex-col min-h-0' : ''} ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        className={`glass-node w-full relative flex flex-1 flex-col min-h-0 ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
         <NodeActionBar
@@ -115,18 +113,14 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
 
         <NodeContentFocus nodeId={id}>
           <div
-            className={`rounded-xl border-2 transition-colors ${fillHeight ? 'flex flex-1 flex-col min-h-0' : ''} ${
+            className={`rounded-xl border-2 transition-colors flex flex-1 flex-col min-h-0 ${
               contentFocused
                 ? 'border-[hsl(217_91%_60%)] shadow-[0_0_0_3px_hsla(217,91%,60%,0.15)]'
                 : 'border-transparent'
             }`}
           >
-            <div
-              className={`rounded-[10px] overflow-hidden bg-[var(--node-inner-deep)] flex flex-col ${fillHeight ? 'flex-1 min-h-0' : ''}`}
-            >
-              <div
-                className={`flex flex-1 flex-col items-center justify-center gap-2 px-6 py-10 text-center ${fillHeight ? 'min-h-[140px]' : 'min-h-[160px]'}`}
-              >
+            <div className="rounded-[10px] overflow-hidden bg-[var(--node-inner-deep)] flex flex-col flex-1 min-h-0">
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 py-10 text-center min-h-[140px]">
                 <div className="rounded-2xl bg-[var(--node-inner-mid)] p-4 text-[var(--node-control-muted)]">
                   <Layers size={40} strokeWidth={1.25} />
                 </div>
@@ -327,7 +321,7 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
         <EnhancedHandle type="target" position={Position.Left} className="port-input" dataType="image" />
         <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
-    </div>
+    </FlowNodeResizeRoot>
   );
 });
 

@@ -1,7 +1,7 @@
 import { memo, useState, useMemo, useCallback } from 'react';
 import { Position, type NodeProps } from 'reactflow';
-import NodeCornerResizer from './NodeCornerResizer';
-import { NODE_INTERACTIVE_CLASS, useResizableNodeShell } from './nodeResizeUtils';
+import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
+import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { Sparkles, Loader2, Type, Image as ImageIcon, Settings, Play } from 'lucide-react';
 import { NodeLabelRow } from './NodeLabelRow';
 import { useWorkflowStore } from '@/stores/workflowStore';
@@ -44,8 +44,6 @@ function makeEdge(
   };
 }
 
-const DEFAULT_WIDTH = 300;
-
 const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
   const [isRunning, setIsRunning] = useState(false);
   const isStoreRunning = useWorkflowStore((s) => s.runningNodes.has(id));
@@ -57,8 +55,6 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
   const connectEdgeWithHistory = useWorkflowStore((s) => s.connectEdgeWithHistory);
   const nodes = useWorkflowStore((s) => s.nodes);
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
-
-  const { shellStyle, fillHeight } = useResizableNodeShell(id, DEFAULT_WIDTH);
 
   const prompt = (data.prompt as string) || '';
   const result = (data.result as string) || (data.refinedPrompt as string) || '';
@@ -127,14 +123,15 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
   );
 
   return (
-    <div
-      style={shellStyle}
-      className={`vf-resizable-root relative ${fillHeight ? 'flex flex-col min-h-0 h-full' : ''}`}
+    <FlowNodeResizeRoot
+      selected={!!selected}
+      minWidth={200}
+      minHeight={180}
+      className="rf-node-resize-root relative flex flex-col min-h-0"
     >
-      <NodeCornerResizer nodeId={id} isVisible={selected} minWidth={200} minHeight={180} />
       <NodeLabelRow nodeId={id} nodeType="assistantNode" labelPrefix="Assistant" icon={<Sparkles size={12} />} />
       <div
-        className={`glass-node w-full relative ${fillHeight ? 'flex flex-1 flex-col min-h-0' : ''} ${isStoreRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        className={`glass-node relative flex w-full flex-1 flex-col min-h-0 ${isStoreRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
       <NodeActionBar
@@ -148,19 +145,13 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
 
       <NodeContentFocus nodeId={id}>
         <div
-          className={`rounded-xl border-2 transition-colors ${
-            fillHeight ? 'flex flex-1 flex-col min-h-0' : ''
-          } ${
+          className={`rounded-xl border-2 transition-colors flex flex-1 flex-col min-h-0 ${
             contentFocused
               ? 'border-[hsl(217_91%_60%)] shadow-[0_0_0_3px_hsla(217,91%,60%,0.15)]'
               : 'border-transparent'
           }`}
         >
-          <div
-            className={`rounded-[10px] overflow-hidden bg-[var(--node-inner-mid)] ${
-              fillHeight ? 'flex flex-1 flex-col min-h-0' : ''
-            }`}
-          >
+          <div className="rounded-[10px] overflow-hidden bg-[var(--node-inner-mid)] flex flex-1 flex-col min-h-0">
             <div
               className={`${NODE_INTERACTIVE_CLASS} flex shrink-0 items-center gap-1 p-2 border-b border-[var(--node-panel-border)]`}
             >
@@ -195,26 +186,18 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
               </button>
             </div>
 
-            <div
-              className={`p-3 min-h-[140px] ${fillHeight ? 'flex flex-1 min-h-0 flex-col overflow-hidden' : ''}`}
-            >
+            <div className="flex min-h-[140px] flex-1 flex-col overflow-hidden p-3">
               {view === 'prompt' ? (
                 <textarea
                   value={prompt}
                   onChange={(e) => updateNodeData(id, { prompt: e.target.value })}
                   onPointerDown={(e) => e.stopPropagation()}
                   placeholder={PLACEHOLDER}
-                  className={`${NODE_INTERACTIVE_CLASS} w-full min-h-[120px] bg-transparent text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] resize-none outline-none leading-relaxed ${
-                    fillHeight ? 'flex-1 min-h-0' : ''
-                  }`}
+                  className={`${NODE_INTERACTIVE_CLASS} min-h-[120px] w-full flex-1 bg-transparent text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] resize-none outline-none leading-relaxed`}
                   style={{ fontFamily: 'Inter, sans-serif' }}
                 />
               ) : (
-                <div
-                  className={`min-h-[120px] text-[12px] text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap ${
-                    fillHeight ? 'flex-1 min-h-0 overflow-y-auto' : ''
-                  }`}
-                >
+                <div className="min-h-[120px] flex-1 overflow-y-auto text-[12px] text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap">
                   {result || <span className="text-[var(--text-muted)]">Run the assistant to see results here.</span>}
                 </div>
               )}
@@ -339,7 +322,7 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
       />
       <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="text" />
       </div>
-    </div>
+    </FlowNodeResizeRoot>
   );
 });
 

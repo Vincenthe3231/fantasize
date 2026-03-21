@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Position, type NodeProps } from 'reactflow';
-import NodeCornerResizer from './NodeCornerResizer';
-import { NODE_INTERACTIVE_CLASS, useResizableNodeShell } from './nodeResizeUtils';
+import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
+import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { Video, Loader2, Play, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
@@ -10,8 +10,6 @@ import { EnhancedHandle } from './EnhancedHandle';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
-
-const DEFAULT_WIDTH = 300;
 
 const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
@@ -23,8 +21,6 @@ const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
   const nodes = useWorkflowStore((s) => s.nodes);
   const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
   const { connectMenuItems } = useQuickConnect(id, selfPos);
-
-  const { shellStyle, fillHeight } = useResizableNodeShell(id, DEFAULT_WIDTH);
 
   const mode = (data.mode as string) || 'text-to-video';
   const duration = (data.duration as string) || '5s';
@@ -40,14 +36,15 @@ const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
   };
 
   return (
-    <div
-      style={shellStyle}
-      className={`vf-resizable-root relative ${fillHeight ? 'flex flex-col min-h-0 h-full' : ''}`}
+    <FlowNodeResizeRoot
+      selected={!!selected}
+      minWidth={200}
+      minHeight={180}
+      className="rf-node-resize-root relative flex flex-col min-h-0"
     >
-      <NodeCornerResizer nodeId={id} isVisible={selected} minWidth={200} minHeight={180} />
       <NodeLabelRow nodeId={id} nodeType="videoGeneratorNode" labelPrefix="Video Generator" icon={<Video size={12} />} />
       <div
-        className={`glass-node w-full relative ${fillHeight ? 'flex flex-1 flex-col min-h-0' : ''} ${isRunning || status === 'generating' ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        className={`glass-node relative flex w-full flex-1 flex-col min-h-0 ${isRunning || status === 'generating' ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
       <NodeActionBar
@@ -58,9 +55,7 @@ const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
       />
 
       <NodeContentFocus nodeId={id}>
-        <div
-          className={`p-3 space-y-3 ${fillHeight ? 'flex flex-1 min-h-0 flex-col overflow-y-auto' : ''}`}
-        >
+        <div className="flex flex-1 min-h-0 flex-col space-y-3 overflow-y-auto p-3">
         <div className={`${NODE_INTERACTIVE_CLASS} grid shrink-0 grid-cols-3 gap-2`}>
           <div>
             <label className="text-[10px] font-mono-display text-[var(--text-muted)] uppercase tracking-wider mb-1 block">Mode</label>
@@ -91,7 +86,7 @@ const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
           value={prompt}
           onChange={(e) => updateNodeData(id, { prompt: e.target.value })}
           placeholder="Describe the scene motion…"
-          className={`${NODE_INTERACTIVE_CLASS} w-full rounded-lg p-2 text-[12px] text-[var(--text-primary)] resize-none outline-none min-h-[50px] border border-[var(--node-control-border)] bg-[var(--node-control-bg)] placeholder:text-[var(--text-muted)] ${fillHeight ? 'flex-1 min-h-[50px]' : ''}`}
+          className={`${NODE_INTERACTIVE_CLASS} min-h-[50px] w-full flex-1 rounded-lg border border-[var(--node-control-border)] bg-[var(--node-control-bg)] p-2 text-[12px] text-[var(--text-primary)] resize-none outline-none placeholder:text-[var(--text-muted)]`}
           style={{ fontFamily: 'Inter, sans-serif' }}
         />
 
@@ -100,11 +95,9 @@ const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
             <motion.div
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
-              className={`rounded-lg overflow-hidden relative group ${fillHeight ? 'min-h-[120px] flex-1 flex flex-col' : ''}`}
+              className="group relative min-h-[120px] flex-1 flex flex-col overflow-hidden rounded-lg"
             >
-              <div
-                className={`bg-gradient-to-br from-blue-900/30 to-purple-900/30 flex items-center justify-center ${fillHeight ? 'flex-1 min-h-[120px]' : 'h-[120px]'}`}
-              >
+              <div className="flex min-h-[120px] flex-1 items-center justify-center bg-gradient-to-br from-blue-900/30 to-purple-900/30">
                 <Play size={28} className="text-[var(--node-on-accent)] opacity-70" />
               </div>
               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -121,7 +114,7 @@ const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
 
         {status === 'generating' && (
           <div
-            className={`rounded-lg bg-[var(--node-control-bg)] border border-[var(--node-panel-border)] flex flex-col items-center justify-center gap-2 ${fillHeight ? 'min-h-[120px] flex-1' : 'h-[120px]'}`}
+            className="flex min-h-[120px] flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-[var(--node-panel-border)] bg-[var(--node-control-bg)]"
           >
             <Loader2 size={20} className="animate-spin text-[var(--accent-color)]" />
             <span className="text-[11px] font-mono-display text-[var(--text-muted)]">Generating video…</span>
@@ -160,7 +153,7 @@ const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
       />
       <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="video" />
       </div>
-    </div>
+    </FlowNodeResizeRoot>
   );
 });
 

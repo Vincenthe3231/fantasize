@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Position, type NodeProps } from 'reactflow';
-import NodeCornerResizer from './NodeCornerResizer';
-import { NODE_INTERACTIVE_CLASS, useResizableNodeShell } from './nodeResizeUtils';
+import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
+import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { ArrowUpCircle, Loader2, Play, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
@@ -10,8 +10,6 @@ import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
 import { EnhancedHandle } from './EnhancedHandle';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
-
-const DEFAULT_WIDTH = 280;
 
 const ImageUpscalerNode = memo(({ id, data, selected }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
@@ -23,8 +21,6 @@ const ImageUpscalerNode = memo(({ id, data, selected }: NodeProps) => {
   const nodes = useWorkflowStore((s) => s.nodes);
   const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
   const { connectMenuItems } = useQuickConnect(id, selfPos);
-
-  const { shellStyle, fillHeight } = useResizableNodeShell(id, DEFAULT_WIDTH);
 
   const mode = (data.mode as string) || 'creative';
   const scale = (data.scale as string) || '2x';
@@ -46,14 +42,15 @@ const ImageUpscalerNode = memo(({ id, data, selected }: NodeProps) => {
   };
 
   return (
-    <div
-      style={shellStyle}
-      className={`vf-resizable-root relative ${fillHeight ? 'flex flex-col min-h-0 h-full' : ''}`}
+    <FlowNodeResizeRoot
+      selected={!!selected}
+      minWidth={200}
+      minHeight={160}
+      className="rf-node-resize-root relative flex flex-col min-h-0"
     >
-      <NodeCornerResizer nodeId={id} isVisible={selected} minWidth={200} minHeight={160} />
       <NodeLabelRow nodeId={id} nodeType="imageUpscalerNode" labelPrefix="Image Upscaler" icon={<ArrowUpCircle size={12} />} />
       <div
-        className={`glass-node w-full relative ${fillHeight ? 'flex flex-1 flex-col min-h-0' : ''} ${isRunning || status === 'processing' ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        className={`glass-node relative flex w-full flex-1 flex-col min-h-0 ${isRunning || status === 'processing' ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
       <NodeActionBar
@@ -64,7 +61,7 @@ const ImageUpscalerNode = memo(({ id, data, selected }: NodeProps) => {
       />
 
       <NodeContentFocus nodeId={id}>
-        <div className={`p-3 space-y-3 ${fillHeight ? 'flex flex-1 min-h-0 flex-col overflow-y-auto' : ''}`}>
+        <div className="flex flex-1 min-h-0 flex-col space-y-3 overflow-y-auto p-3">
         <div className={`${NODE_INTERACTIVE_CLASS} grid shrink-0 grid-cols-2 gap-2`}>
           <div>
             <label className="text-[10px] font-mono-display text-[var(--text-muted)] uppercase tracking-wider mb-1 block">Mode</label>
@@ -101,11 +98,9 @@ const ImageUpscalerNode = memo(({ id, data, selected }: NodeProps) => {
             <motion.div
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
-              className={`rounded-lg overflow-hidden relative group ${fillHeight ? 'min-h-[100px] flex-1 flex flex-col' : ''}`}
+              className="group relative min-h-[100px] flex-1 flex flex-col overflow-hidden rounded-lg"
             >
-              <div
-                className={`bg-gradient-to-br from-orange-900/20 to-amber-900/20 flex items-center justify-center ${fillHeight ? 'flex-1 min-h-[100px]' : 'h-[100px]'}`}
-              >
+              <div className="flex min-h-[100px] flex-1 items-center justify-center bg-gradient-to-br from-orange-900/20 to-amber-900/20">
                 <span className="text-[11px] font-mono-display text-[var(--text-muted)]">Upscaled preview</span>
               </div>
               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -135,7 +130,7 @@ const ImageUpscalerNode = memo(({ id, data, selected }: NodeProps) => {
       <EnhancedHandle type="target" position={Position.Left} className="port-input" dataType="image" />
       <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
-    </div>
+    </FlowNodeResizeRoot>
   );
 });
 
