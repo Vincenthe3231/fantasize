@@ -23,6 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 
 export type NodeActionBarVariant =
   | 'default'
@@ -98,7 +99,9 @@ const NodeActionBar = memo(
     const showConnectMenu = connectMenuItems.length > 0;
 
     return (
-      <div className="node-action-bar node-action-bar-pill absolute top-0 left-1/2 flex items-center gap-0.5 px-1.5 py-0.5 z-50">
+      <div
+        className={`${NODE_INTERACTIVE_CLASS} node-action-bar node-action-bar-pill absolute top-0 left-1/2 flex items-center gap-0.5 px-1.5 py-0.5 z-50`}
+      >
         {onRun && (
           <Btn onClick={onRun} tooltip="Run">
             <Play size={12} />

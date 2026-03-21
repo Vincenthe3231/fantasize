@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Position, type NodeProps } from 'reactflow';
 import NodeCornerResizer from './NodeCornerResizer';
-import { useResizableNodeShell } from './nodeResizeUtils';
+import { NODE_INTERACTIVE_CLASS, useResizableNodeShell } from './nodeResizeUtils';
 import { List, Plus, X } from 'lucide-react';
 import { Reorder } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
@@ -79,7 +79,11 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
           className={`space-y-1 ${fillHeight ? 'min-h-0 flex-1 overflow-y-auto' : ''}`}
         >
           {items.map((item) => (
-            <Reorder.Item key={item.id} value={item} className="flex items-center gap-2 group cursor-grab active:cursor-grabbing">
+            <Reorder.Item
+              key={item.id}
+              value={item}
+              className={`${NODE_INTERACTIVE_CLASS} flex items-center gap-2 group cursor-grab active:cursor-grabbing`}
+            >
               <span className="text-[var(--text-muted)] text-[10px]">•</span>
               <input
                 value={item.text}
@@ -89,8 +93,9 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                 placeholder="List item…"
               />
               <button
+                type="button"
                 onClick={() => removeItem(item.id)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--text-muted)] hover:text-red-400"
+                className={`${NODE_INTERACTIVE_CLASS} opacity-0 group-hover:opacity-100 transition-opacity text-[var(--text-muted)] hover:text-red-400`}
               >
                 <X size={11} />
               </button>
@@ -99,8 +104,9 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
         </Reorder.Group>
 
         <button
+          type="button"
           onClick={addItem}
-          className={`flex shrink-0 items-center gap-1 text-[10px] font-mono-display text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors mt-2`}
+          className={`${NODE_INTERACTIVE_CLASS} flex shrink-0 items-center gap-1 text-[10px] font-mono-display text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors mt-2`}
         >
           <Plus size={10} /> Add item
         </button>

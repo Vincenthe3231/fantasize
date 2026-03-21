@@ -10,6 +10,7 @@ import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
 import { EnhancedHandle } from './EnhancedHandle';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
+import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 
 function isVideoUrl(url: string): boolean {
   return /\.(mp4|mov|webm)(\?|$)/i.test(url);
@@ -114,12 +115,13 @@ const UploadNode = memo(({ id, data }: NodeProps) => {
         ) : (
           <div className="space-y-2">
             <div
-              {...getRootProps()}
-              className={`h-[140px] border border-dashed rounded-lg flex flex-col items-center justify-center gap-2 transition-colors ${
-                uploading
-                  ? 'border-[var(--border-node)] opacity-80 cursor-wait'
-                  : `cursor-pointer ${isDragActive ? 'border-[var(--port-input)] bg-[var(--port-input)]/5' : 'border-[var(--border-node)] hover:border-[var(--accent-color)]/35'}`
-              }`}
+              {...getRootProps({
+                className: `${NODE_INTERACTIVE_CLASS} h-[140px] border border-dashed rounded-lg flex flex-col items-center justify-center gap-2 transition-colors ${
+                  uploading
+                    ? 'border-[var(--border-node)] opacity-80 cursor-wait'
+                    : `cursor-pointer ${isDragActive ? 'border-[var(--port-input)] bg-[var(--port-input)]/5' : 'border-[var(--border-node)] hover:border-[var(--accent-color)]/35'}`
+                }`,
+              })}
             >
               <input {...getInputProps()} />
               {uploading ? (

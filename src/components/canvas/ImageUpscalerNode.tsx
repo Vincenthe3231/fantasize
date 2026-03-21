@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Position, type NodeProps } from 'reactflow';
 import NodeCornerResizer from './NodeCornerResizer';
-import { useResizableNodeShell } from './nodeResizeUtils';
+import { NODE_INTERACTIVE_CLASS, useResizableNodeShell } from './nodeResizeUtils';
 import { ArrowUpCircle, Loader2, Play, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
@@ -65,7 +65,7 @@ const ImageUpscalerNode = memo(({ id, data, selected }: NodeProps) => {
 
       <NodeContentFocus nodeId={id}>
         <div className={`p-3 space-y-3 ${fillHeight ? 'flex flex-1 min-h-0 flex-col overflow-y-auto' : ''}`}>
-        <div className="grid shrink-0 grid-cols-2 gap-2">
+        <div className={`${NODE_INTERACTIVE_CLASS} grid shrink-0 grid-cols-2 gap-2`}>
           <div>
             <label className="text-[10px] font-mono-display text-[var(--text-muted)] uppercase tracking-wider mb-1 block">Mode</label>
             <select value={mode} onChange={(e) => updateNodeData(id, { mode: e.target.value })} className="node-select w-full">
@@ -109,7 +109,7 @@ const ImageUpscalerNode = memo(({ id, data, selected }: NodeProps) => {
                 <span className="text-[11px] font-mono-display text-[var(--text-muted)]">Upscaled preview</span>
               </div>
               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors">
+                <button type="button" className={`${NODE_INTERACTIVE_CLASS} p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors`}>
                   <Download size={13} className="text-[var(--node-on-accent)]" />
                 </button>
               </div>
@@ -118,9 +118,10 @@ const ImageUpscalerNode = memo(({ id, data, selected }: NodeProps) => {
         </AnimatePresence>
 
         <button
+          type="button"
           onClick={handleRun}
           disabled={status === 'processing'}
-          className="w-full shrink-0 py-2.5 rounded-lg bg-[var(--accent-color)] text-[var(--node-on-accent)] text-[12px] font-mono-display uppercase tracking-wider hover:bg-[var(--accent-hover)] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className={`${NODE_INTERACTIVE_CLASS} w-full shrink-0 py-2.5 rounded-lg bg-[var(--accent-color)] text-[var(--node-on-accent)] text-[12px] font-mono-display uppercase tracking-wider hover:bg-[var(--accent-hover)] transition-colors disabled:opacity-50 flex items-center justify-center gap-2`}
         >
           {status === 'processing' ? (
             <><Loader2 size={13} className="animate-spin" /> Upscaling…</>

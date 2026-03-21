@@ -1,6 +1,8 @@
 import { memo, useState, useMemo } from 'react';
 import { Position, type NodeProps } from 'reactflow';
 import { RefreshCw, Grid3X3 } from 'lucide-react';
+import NodeCornerResizer from './NodeCornerResizer';
+import { NODE_INTERACTIVE_CLASS, useResizableNodeShell } from './nodeResizeUtils';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
@@ -11,6 +13,7 @@ import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
 
 const CAMERA_SRC = [MOCK.camera1, MOCK.camera2, MOCK.camera3, MOCK.camera4];
+const DEFAULT_WIDTH = 380;
 
 const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -27,15 +30,21 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
   const [splitImages, setSplitImages] = useState(false);
   const [selectedCount] = useState(4);
 
+  const { shellStyle, fillHeight } = useResizableNodeShell(id, DEFAULT_WIDTH);
+
   const cols = gridLayout === '1x1' ? 1 : gridLayout === '2x2' ? 2 : 3;
   const cellCount = cols * cols;
   const cells = Array.from({ length: Math.min(cellCount, 4) }, (_, i) => i);
 
   return (
-    <div className="w-[380px] relative">
+    <div
+      style={shellStyle}
+      className={`vf-resizable-root relative ${fillHeight ? 'flex flex-col min-h-0 h-full' : ''}`}
+    >
+      <NodeCornerResizer nodeId={id} isVisible={selected} minWidth={280} minHeight={160} />
       <NodeLabelRow nodeId={id} nodeType="angleVariationsNode" labelPrefix="Angle variations" icon={<Grid3X3 size={12} />} />
       <div
-        className={`glass-node w-full relative ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        className={`glass-node w-full relative ${fillHeight ? 'flex flex-1 flex-col min-h-0' : ''} ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
       <NodeActionBar
@@ -50,7 +59,8 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
       />
 
       <NodeContentFocus nodeId={id}>
-        <div className="px-3 py-2 flex items-center justify-end text-[10px] text-[var(--text-muted)]">
+        <div className={`relative flex flex-col ${fillHeight ? 'flex-1 min-h-0' : ''}`}>
+        <div className="px-3 py-2 flex items-center justify-end text-[10px] text-[var(--text-muted)] shrink-0">
           <span>variations</span>
           <span className="mx-1">•</span>
           <span>1 image</span>
@@ -61,7 +71,7 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
         5504 × 3072
       </div>
 
-      <div className={`grid gap-2 p-3`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+      <div className={`grid gap-2 p-3 ${fillHeight ? 'min-h-0 flex-1 overflow-auto' : ''}`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
         {cells.map((i) => (
           <ImageCellOverlay
             key={i}
@@ -74,7 +84,7 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between px-3 py-2 border-t border-border text-[10px]">
+      <div className={`${NODE_INTERACTIVE_CLASS} flex shrink-0 items-center justify-between px-3 py-2 border-t border-border text-[10px]`}>
         <div className="flex items-center gap-2 text-[var(--node-control-muted)]">
           <span className="text-[var(--accent-color)] cursor-pointer hover:underline">Reframe</span>
           <span className="bg-white/10 rounded px-1.5 py-0.5">16:9</span>
@@ -92,11 +102,12 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
               <div className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform ${splitImages ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
             </div>
           </label>
-          <button className="p-1 rounded hover:bg-white/10 transition-colors">
+          <button type="button" className="p-1 rounded hover:bg-white/10 transition-colors">
             <RefreshCw size={10} />
           </button>
         </div>
       </div>
+        </div>
       </NodeContentFocus>
 
       <EnhancedHandle type="target" position={Position.Left} className="port-input" dataType="image" />

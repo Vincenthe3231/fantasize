@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo } from 'react';
 import { Position, type NodeProps } from 'reactflow';
 import NodeCornerResizer from './NodeCornerResizer';
-import { useResizableNodeShell } from './nodeResizeUtils';
+import { NODE_INTERACTIVE_CLASS, useResizableNodeShell } from './nodeResizeUtils';
 import { Type, Bold, Italic, List, ListOrdered } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -98,7 +98,7 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
       <AnimatePresence>
         {isFocused && editor && (
           <motion.div
-            className="node-inline-toolbar absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-2 py-1 rounded-lg z-50"
+            className={`${NODE_INTERACTIVE_CLASS} node-inline-toolbar absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-2 py-1 rounded-lg z-50`}
             style={{ transform: 'translate(-50%, calc(-100% - 48px))' }}
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}

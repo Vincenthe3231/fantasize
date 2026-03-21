@@ -44,6 +44,7 @@ import SetDressingNode from '@/components/canvas/SetDressingNode';
 import LightingScenarioNode from '@/components/canvas/LightingScenarioNode';
 import AtmosphereTestNode from '@/components/canvas/AtmosphereTestNode';
 import PlacementRefNode from '@/components/canvas/PlacementRefNode';
+import ImageVariationsNode from '@/components/canvas/ImageVariationsNode';
 import CustomEdge from '@/components/canvas/CustomEdge';
 import Toolbar from '@/components/canvas/Toolbar';
 import TopBar from '@/components/canvas/TopBar';
@@ -71,6 +72,7 @@ const nodeTypes = {
   lightingScenarioNode: LightingScenarioNode,
   atmosphereTestNode: AtmosphereTestNode,
   placementRefNode: PlacementRefNode,
+  imageVariationsNode: ImageVariationsNode,
   group: GroupNode,
 };
 
@@ -108,6 +110,29 @@ function getNodesFullyInsideRect(
     const overlap = getOverlappingArea(flowRect, nodeRect);
     return overlap >= area;
   });
+}
+
+/**
+ * Reapply selection flags without dropping in-drag positions: store nodes can lag
+ * React Flow until `onNodeDragStop`; always prefer matching nodes from `getNodes()`.
+ */
+function mergeNodesWithSelection(
+  storeNodes: Node[],
+  flowNodes: Node[],
+  selectedNodeIds: Set<string>
+): Node[] {
+  const flowById = new Map(flowNodes.map((n) => [n.id, n]));
+  return storeNodes.map((n) => {
+    const live = flowById.get(n.id);
+    if (live) {
+      return { ...live, selected: selectedNodeIds.has(n.id) };
+    }
+    return { ...n, selected: selectedNodeIds.has(n.id) };
+  });
+}
+
+function applyEdgeSelection(storeEdges: Edge[], selectedEdgeIds: Set<string>): Edge[] {
+  return storeEdges.map((e) => ({ ...e, selected: selectedEdgeIds.has(e.id) }));
 }
 
 function canvasClass(pattern: string) {
@@ -330,8 +355,9 @@ const CanvasInner = ({
           (e) => selectedNodeIds.has(e.source) && selectedNodeIds.has(e.target)
         ).map((e) => e.id)
       );
-      const nextNodes = store.nodes.map((n) => ({ ...n, selected: selectedNodeIds.has(n.id) }));
-      const nextEdges = store.edges.map((e) => ({ ...e, selected: selectedEdgeIds.has(e.id) }));
+      const flowNodes = getNodes();
+      const nextNodes = mergeNodesWithSelection(store.nodes, flowNodes, selectedNodeIds);
+      const nextEdges = applyEdgeSelection(store.edges, selectedEdgeIds);
       setNodesSilently(nextNodes);
       setEdgesSilently(nextEdges);
       selectionSelectedIdsRef.current = { nodeIds: selectedNodeIds, edgeIds: selectedEdgeIds };
@@ -344,19 +370,18 @@ const CanvasInner = ({
         selectionSelectedIdsRef.current = null;
         if (prev && ids) {
           const current = useWorkflowStore.getState();
-          const nextNodesFromStore = current.nodes.map((n) => ({
-            ...n,
-            selected: ids.nodeIds.has(n.id),
-          }));
-          const nextEdgesFromStore = current.edges.map((e) => ({
-            ...e,
-            selected: ids.edgeIds.has(e.id),
-          }));
+          const flowNodesAtCommit = getNodes();
+          const nextNodesFromStore = mergeNodesWithSelection(
+            current.nodes,
+            flowNodesAtCommit,
+            ids.nodeIds
+          );
+          const nextEdgesFromStore = applyEdgeSelection(current.edges, ids.edgeIds);
           pushSelectionCommand(prev.nodes, prev.edges, nextNodesFromStore, nextEdgesFromStore);
         }
       }, 120);
     },
-    [setNodesSilently, setEdgesSilently, pushSelectionCommand]
+    [getNodes, setNodesSilently, setEdgesSilently, pushSelectionCommand]
   );
 
   useEffect(() => {
@@ -401,14 +426,9 @@ const CanvasInner = ({
       );
     }
 
-    const nextNodes = store.nodes.map((n) => ({
-      ...n,
-      selected: selectedNodeIds.has(n.id),
-    }));
-    const nextEdges = store.edges.map((e) => ({
-      ...e,
-      selected: selectedEdgeIds.has(e.id),
-    }));
+    const flowNodes = storeApi.getState().getNodes();
+    const nextNodes = mergeNodesWithSelection(store.nodes, flowNodes, selectedNodeIds);
+    const nextEdges = applyEdgeSelection(store.edges, selectedEdgeIds);
     setNodesSilently(nextNodes);
     setEdgesSilently(nextEdges);
     const prev = selectionPrevRef.current;
@@ -515,8 +535,10 @@ const CanvasInner = ({
         const store = useWorkflowStore.getState();
         const hasSelection = store.nodes.some((n) => n.selected) || store.edges.some((e) => e.selected);
         if (hasSelection) {
-          setNodesSilently(store.nodes.map((n) => ({ ...n, selected: false })));
-          setEdgesSilently(store.edges.map((e) => ({ ...e, selected: false })));
+          const empty = new Set<string>();
+          const flowNodes = getNodes();
+          setNodesSilently(mergeNodesWithSelection(store.nodes, flowNodes, empty));
+          setEdgesSilently(applyEdgeSelection(store.edges, empty));
         }
       }
       if (e.key.toLowerCase() === 'n' && !e.ctrlKey && !e.metaKey) {
@@ -538,6 +560,7 @@ const CanvasInner = ({
     fitView,
     copyNodesByIds,
     pasteClipboard,
+    getNodes,
   ]);
 
   const cursorClass =

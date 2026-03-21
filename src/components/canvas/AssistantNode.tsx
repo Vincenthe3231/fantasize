@@ -1,7 +1,7 @@
 import { memo, useState, useMemo, useCallback } from 'react';
 import { Position, type NodeProps } from 'reactflow';
 import NodeCornerResizer from './NodeCornerResizer';
-import { useResizableNodeShell } from './nodeResizeUtils';
+import { NODE_INTERACTIVE_CLASS, useResizableNodeShell } from './nodeResizeUtils';
 import { Sparkles, Loader2, Type, Image as ImageIcon, Settings, Play } from 'lucide-react';
 import { NodeLabelRow } from './NodeLabelRow';
 import { useWorkflowStore } from '@/stores/workflowStore';
@@ -120,7 +120,7 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
         e.stopPropagation();
         onClick();
       }}
-      className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-lg bg-[var(--node-float-btn-bg)] border border-[var(--node-float-btn-border)] text-[var(--node-action-bar-icon)] hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-action-bar-icon-hover)] ${className}`}
+      className={`${NODE_INTERACTIVE_CLASS} w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-lg bg-[var(--node-float-btn-bg)] border border-[var(--node-float-btn-border)] text-[var(--node-action-bar-icon)] hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-action-bar-icon-hover)] ${className}`}
     >
       {children}
     </button>
@@ -161,7 +161,9 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
               fillHeight ? 'flex flex-1 flex-col min-h-0' : ''
             }`}
           >
-            <div className="flex shrink-0 items-center gap-1 p-2 border-b border-[var(--node-panel-border)]">
+            <div
+              className={`${NODE_INTERACTIVE_CLASS} flex shrink-0 items-center gap-1 p-2 border-b border-[var(--node-panel-border)]`}
+            >
               <button
                 type="button"
                 onClick={(e) => {
@@ -202,7 +204,7 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
                   onChange={(e) => updateNodeData(id, { prompt: e.target.value })}
                   onPointerDown={(e) => e.stopPropagation()}
                   placeholder={PLACEHOLDER}
-                  className={`w-full min-h-[120px] bg-transparent text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] resize-none outline-none leading-relaxed ${
+                  className={`${NODE_INTERACTIVE_CLASS} w-full min-h-[120px] bg-transparent text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] resize-none outline-none leading-relaxed ${
                     fillHeight ? 'flex-1 min-h-0' : ''
                   }`}
                   style={{ fontFamily: 'Inter, sans-serif' }}
@@ -218,7 +220,9 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
               )}
             </div>
 
-            <div className="flex shrink-0 flex-wrap items-center gap-2 px-3 py-2.5 border-t border-[var(--node-panel-border)] bg-[var(--node-control-bg)]">
+            <div
+              className={`${NODE_INTERACTIVE_CLASS} flex shrink-0 flex-wrap items-center gap-2 px-3 py-2.5 border-t border-[var(--node-panel-border)] bg-[var(--node-control-bg)]`}
+            >
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
@@ -301,7 +305,7 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
 
       {contentFocused && (
         <>
-          <div className="absolute -left-11 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-40">
+          <div className={`${NODE_INTERACTIVE_CLASS} absolute -left-11 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-40`}>
             <FloatBtn onClick={quickAddTextLeft}>
               <Type size={14} />
             </FloatBtn>
@@ -309,7 +313,7 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
               <ImageIcon size={14} />
             </FloatBtn>
           </div>
-          <div className="absolute -right-11 top-1/2 -translate-y-1/2 z-40">
+          <div className={`${NODE_INTERACTIVE_CLASS} absolute -right-11 top-1/2 -translate-y-1/2 z-40`}>
             <FloatBtn onClick={quickAddTextRight}>
               <Type size={14} />
             </FloatBtn>

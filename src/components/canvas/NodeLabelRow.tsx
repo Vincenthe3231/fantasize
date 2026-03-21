@@ -1,6 +1,7 @@
 import { memo, useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { Pencil } from 'lucide-react';
 import { useWorkflowStore, type NodeType } from '@/stores/workflowStore';
+import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 
 const LABEL_DEBOUNCE_MS = 350;
 
@@ -110,7 +111,7 @@ export const NodeLabelRow = memo(function NodeLabelRow({
 
   return (
     <div
-      className={`mb-1 flex items-center gap-1.5 px-0.5 text-[13px] text-[var(--text-primary)] min-h-[22px] ${className}`}
+      className={`${NODE_INTERACTIVE_CLASS} mb-1 flex items-center gap-1.5 px-0.5 text-[13px] text-[var(--text-primary)] min-h-[22px] ${className}`}
       onPointerDown={(e) => e.stopPropagation()}
     >
       <button

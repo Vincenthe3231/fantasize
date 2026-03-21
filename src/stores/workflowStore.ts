@@ -16,6 +16,7 @@ export type NodeType =
   | 'uploadNode'
   | 'assistantNode'
   | 'imageGeneratorNode'
+  | 'imageVariationsNode'
   | 'videoGeneratorNode'
   | 'imageUpscalerNode'
   | 'listNode'

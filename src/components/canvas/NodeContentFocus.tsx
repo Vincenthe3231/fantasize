@@ -14,7 +14,9 @@ export function NodeContentFocus({
   return (
     <div
       className={className}
-      onPointerDownCapture={(e) => {
+      onPointerDown={(e) => {
+        // Bubble phase only: capture + stopPropagation would run before the target and block
+        // Radix triggers / inputs from receiving pointerdown inside this shell.
         e.stopPropagation();
         setFocused(nodeId);
       }}

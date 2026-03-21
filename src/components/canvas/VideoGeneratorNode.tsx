@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Position, type NodeProps } from 'reactflow';
 import NodeCornerResizer from './NodeCornerResizer';
-import { useResizableNodeShell } from './nodeResizeUtils';
+import { NODE_INTERACTIVE_CLASS, useResizableNodeShell } from './nodeResizeUtils';
 import { Video, Loader2, Play, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkflowStore } from '@/stores/workflowStore';
@@ -61,7 +61,7 @@ const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
         <div
           className={`p-3 space-y-3 ${fillHeight ? 'flex flex-1 min-h-0 flex-col overflow-y-auto' : ''}`}
         >
-        <div className="grid shrink-0 grid-cols-3 gap-2">
+        <div className={`${NODE_INTERACTIVE_CLASS} grid shrink-0 grid-cols-3 gap-2`}>
           <div>
             <label className="text-[10px] font-mono-display text-[var(--text-muted)] uppercase tracking-wider mb-1 block">Mode</label>
             <select value={mode} onChange={(e) => updateNodeData(id, { mode: e.target.value })} className="node-select w-full">
@@ -91,7 +91,7 @@ const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
           value={prompt}
           onChange={(e) => updateNodeData(id, { prompt: e.target.value })}
           placeholder="Describe the scene motion…"
-          className={`w-full rounded-lg p-2 text-[12px] text-[var(--text-primary)] resize-none outline-none min-h-[50px] border border-[var(--node-control-border)] bg-[var(--node-control-bg)] placeholder:text-[var(--text-muted)] ${fillHeight ? 'flex-1 min-h-[50px]' : ''}`}
+          className={`${NODE_INTERACTIVE_CLASS} w-full rounded-lg p-2 text-[12px] text-[var(--text-primary)] resize-none outline-none min-h-[50px] border border-[var(--node-control-border)] bg-[var(--node-control-bg)] placeholder:text-[var(--text-muted)] ${fillHeight ? 'flex-1 min-h-[50px]' : ''}`}
           style={{ fontFamily: 'Inter, sans-serif' }}
         />
 
@@ -110,7 +110,7 @@ const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   type="button"
-                  className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
+                  className={`${NODE_INTERACTIVE_CLASS} p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors`}
                 >
                   <Download size={13} className="text-[var(--node-on-accent)]" />
                 </button>
@@ -131,7 +131,7 @@ const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
         <button
           onClick={handleRun}
           disabled={status === 'generating'}
-          className="w-full shrink-0 py-2.5 rounded-lg bg-[var(--accent-color)] text-[var(--node-on-accent)] text-[12px] font-mono-display uppercase tracking-wider hover:bg-[var(--accent-hover)] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className={`${NODE_INTERACTIVE_CLASS} w-full shrink-0 py-2.5 rounded-lg bg-[var(--accent-color)] text-[var(--node-on-accent)] text-[12px] font-mono-display uppercase tracking-wider hover:bg-[var(--accent-hover)] transition-colors disabled:opacity-50 flex items-center justify-center gap-2`}
         >
           {status === 'generating' ? (
             <><Loader2 size={13} className="animate-spin" /> Generating…</>

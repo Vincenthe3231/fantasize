@@ -2,6 +2,7 @@ import { memo, useState, useRef, useEffect, useCallback } from 'react';
 import { getBezierPath, type EdgeProps } from 'reactflow';
 import { Scissors } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
+import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 
 const HOVER_LEAVE_MS = 140;
 
@@ -126,7 +127,7 @@ const CustomEdge = memo(({
               title="Remove connection"
               onClick={handleSnipClick}
               onPointerDown={handleSnipPointerDown}
-              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border shadow-md transition-colors ${
+              className={`${NODE_INTERACTIVE_CLASS} flex h-7 w-7 shrink-0 items-center justify-center rounded-full border shadow-md transition-colors ${
                 selected
                   ? 'border-red-400/50 bg-red-500/90 text-[var(--node-on-accent)] hover:bg-red-500'
                   : 'border-[var(--node-control-border)] bg-[var(--node-action-bar-bg)] text-[var(--node-action-bar-icon)] hover:border-[var(--accent-color)] hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-action-bar-icon-hover)]'

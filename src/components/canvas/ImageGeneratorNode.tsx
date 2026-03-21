@@ -1,7 +1,7 @@
 import { memo, useState, useMemo, useCallback } from 'react';
 import { Position, type NodeProps } from 'reactflow';
 import NodeCornerResizer from './NodeCornerResizer';
-import { useResizableNodeShell } from './nodeResizeUtils';
+import { NODE_INTERACTIVE_CLASS, useResizableNodeShell } from './nodeResizeUtils';
 import {
   Clapperboard,
   Loader2,
@@ -125,7 +125,7 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
         e.stopPropagation();
         onClick();
       }}
-      className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-lg bg-[var(--node-float-btn-bg)] border border-[var(--node-float-btn-border)] text-[var(--node-action-bar-icon)] hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-action-bar-icon-hover)] ${className}`}
+      className={`${NODE_INTERACTIVE_CLASS} w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-lg bg-[var(--node-float-btn-bg)] border border-[var(--node-float-btn-border)] text-[var(--node-action-bar-icon)] hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-action-bar-icon-hover)] ${className}`}
     >
       {children}
     </button>
@@ -196,13 +196,15 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
                   onPointerDown={(e) => e.stopPropagation()}
                   placeholder="Describe the image you want to generate…"
                   rows={2}
-                  className="w-full bg-transparent text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] resize-none outline-none leading-relaxed"
+                  className={`${NODE_INTERACTIVE_CLASS} w-full bg-transparent text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] resize-none outline-none leading-relaxed`}
                   style={{ fontFamily: 'Inter, sans-serif' }}
                 />
               </div>
             </div>
 
-            <div className="flex shrink-0 flex-wrap items-center gap-1.5 px-2.5 py-2 border-t border-[var(--node-panel-border)] bg-[var(--node-control-bg)]">
+            <div
+              className={`${NODE_INTERACTIVE_CLASS} flex shrink-0 flex-wrap items-center gap-1.5 px-2.5 py-2 border-t border-[var(--node-panel-border)] bg-[var(--node-control-bg)]`}
+            >
               <div className="flex items-center gap-0.5 rounded-lg bg-[var(--node-inner-mid)] border border-[var(--node-control-border)] p-0.5">
                 <button
                   type="button"
@@ -320,7 +322,7 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
 
       {contentFocused && (
         <>
-          <div className="absolute -left-11 bottom-20 flex flex-col gap-2 z-40">
+          <div className={`${NODE_INTERACTIVE_CLASS} absolute -left-11 bottom-20 flex flex-col gap-2 z-40`}>
             <FloatBtn onClick={quickTextLeft}>
               <Type size={14} />
             </FloatBtn>
@@ -328,7 +330,7 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
               <ImageIcon size={14} />
             </FloatBtn>
           </div>
-          <div className="absolute -right-11 top-24 z-40">
+          <div className={`${NODE_INTERACTIVE_CLASS} absolute -right-11 top-24 z-40`}>
             <FloatBtn onClick={quickImageRight}>
               <ImageIcon size={14} />
             </FloatBtn>

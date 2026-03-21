@@ -53,7 +53,7 @@ const allNodes: NodeEntry[] = [
   { type: 'imageGeneratorNode', label: 'Image Generator', icon: Clapperboard, color: '#a78bfa', category: ['image', 'all', 'basics'], enabled: true },
   { type: 'imageUpscalerNode', label: 'Image Upscaler', icon: ArrowUpCircle, color: '#fb923c', category: ['image', 'all', 'basics'], enabled: true },
   { type: 'imageEditor', label: 'Image Editor', icon: Wand2, color: '#f472b6', category: ['image', 'all'], enabled: false, isNew: true },
-  { type: 'imageVariations', label: 'Variations', icon: Layers, color: '#c084fc', category: ['image', 'all'], enabled: false, isNew: true },
+  { type: 'imageVariationsNode', label: 'Variations', icon: Layers, color: '#c084fc', category: ['image', 'all'], enabled: true, isNew: true },
   { type: 'imageToSvg', label: 'Image to SVG', icon: FileImage, color: '#fbbf24', category: ['image', 'all'], enabled: false, isNew: true },
   { type: 'svgGenerator', label: 'SVG Generator', icon: ScissorsIcon, color: '#34d399', category: ['image', 'all'], enabled: false, isNew: true },
 
