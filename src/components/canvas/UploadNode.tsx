@@ -96,63 +96,75 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
         className={`glass-node glass-node-input relative flex w-full flex-1 flex-col min-h-0 ${isRunning ? 'ring-1 ring-amber-500/40' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
-      <NodeActionBar
-        onRun={() => runFromNode(id)}
-        onDuplicate={() => duplicateNode(id)}
-        onDelete={() => deleteNode(id)}
-        connectMenuItems={connectMenuItems}
-      />
+        <NodeActionBar
+          onRun={() => runFromNode(id)}
+          onDuplicate={() => duplicateNode(id)}
+          onDelete={() => deleteNode(id)}
+          connectMenuItems={connectMenuItems}
+        />
 
-      <NodeContentFocus nodeId={id}>
-        <div className="p-3 pt-2">
-        {mediaUrl ? (
-          <div className="relative rounded-lg overflow-hidden">
-            {isVideoUrl(mediaUrl) ? (
-              <video src={mediaUrl} className="w-full h-[140px] object-cover rounded-lg" muted />
-            ) : (
-              <img src={mediaUrl} alt="Reference" className="w-full h-[140px] object-cover rounded-lg" />
-            )}
-            <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5 backdrop-blur-sm bg-[var(--node-overlay-dark)]">
-              <span className="text-[10px] font-mono-display uppercase tracking-wider text-[var(--node-overlay-text)]">
-                {label || 'Uploaded media'}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <div
-              {...getRootProps({
-                className: `${NODE_INTERACTIVE_CLASS} h-[140px] border border-dashed rounded-lg flex flex-col items-center justify-center gap-2 transition-colors ${
-                  uploading
-                    ? 'border-[var(--border-node)] opacity-80 cursor-wait'
-                    : `cursor-pointer ${isDragActive ? 'border-[var(--port-input)] bg-[var(--port-input)]/5' : 'border-[var(--border-node)] hover:border-[var(--accent-color)]/35'}`
-                }`,
-              })}
-            >
-              <input {...getInputProps()} />
-              {uploading ? (
-                <>
-                  <Loader2 size={22} className="text-[var(--accent-color)] animate-spin" />
-                  <span className="text-[11px] text-[var(--text-muted)] font-mono-display">Uploading…</span>
-                </>
-              ) : (
-                <>
-                  <Upload size={20} className="text-[var(--text-muted)]" />
-                  <span className="text-[11px] text-[var(--text-muted)] font-mono-display">
-                    Drop image or video here
+        <NodeContentFocus nodeId={id}>
+          <div className="flex min-h-0 flex-1 flex-col p-3 pt-2">
+            {mediaUrl ? (
+              <div className="relative min-h-[120px] min-w-0 flex-1 overflow-hidden rounded-lg bg-[var(--node-inner-mid)]">
+                {isVideoUrl(mediaUrl) ? (
+                  <video
+                    src={mediaUrl}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    muted
+                    playsInline
+                    loop
+                  />
+                ) : (
+                  <img
+                    src={mediaUrl}
+                    alt="Reference"
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                )}
+                <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5 backdrop-blur-sm bg-[var(--node-overlay-dark)]">
+                  <span className="text-[10px] font-mono-display uppercase tracking-wider text-[var(--node-overlay-text)]">
+                    {label || 'Uploaded media'}
                   </span>
-                </>
-              )}
-            </div>
-            {uploadError ? (
-              <p className="text-[10px] text-red-400 font-mono-display leading-snug px-0.5">{uploadError}</p>
-            ) : null}
+                </div>
+              </div>
+            ) : (
+              <div className="flex min-h-0 flex-1 flex-col gap-2">
+                <div
+                  {...getRootProps({
+                    className: `${NODE_INTERACTIVE_CLASS} flex min-h-[120px] min-w-0 flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed transition-colors ${
+                      uploading
+                        ? 'border-[var(--border-node)] opacity-80 cursor-wait'
+                        : `cursor-pointer ${isDragActive ? 'border-[var(--port-input)] bg-[var(--port-input)]/5' : 'border-[var(--border-node)] hover:border-[var(--accent-color)]/35'}`
+                    }`,
+                  })}
+                >
+                  <input {...getInputProps()} />
+                  {uploading ? (
+                    <>
+                      <Loader2 size={22} className="text-[var(--accent-color)] animate-spin" />
+                      <span className="text-[11px] text-[var(--text-muted)] font-mono-display">Uploading…</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={20} className="text-[var(--text-muted)]" />
+                      <span className="text-[11px] text-[var(--text-muted)] font-mono-display">
+                        Drop image or video here
+                      </span>
+                    </>
+                  )}
+                </div>
+                {uploadError ? (
+                  <p className="shrink-0 px-0.5 font-mono-display text-[10px] leading-snug text-red-400">
+                    {uploadError}
+                  </p>
+                ) : null}
+              </div>
+            )}
           </div>
-        )}
-        </div>
-      </NodeContentFocus>
+        </NodeContentFocus>
 
-      <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
+        <EnhancedHandle type="source" position={Position.Right} className="port-output" dataType="image" />
       </div>
     </FlowNodeResizeRoot>
   );
