@@ -13,11 +13,17 @@ export function NodeContentFocus({
    * leaving the node.
    */
   toggleContentFocus = false,
+  /**
+   * When true, the shell uses `cursor: move` whenever the pointer is over non-interactive
+   * descendants (see `index.css` `.node-content-focus-draggable`), not only while content-focused.
+   */
+  shellMoveCursor = false,
 }: {
   nodeId: string;
   children: React.ReactNode;
   className?: string;
   toggleContentFocus?: boolean;
+  shellMoveCursor?: boolean;
 }) {
   const setFocused = useWorkflowStore((s) => s.setFocusedNodeContentId);
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === nodeId);
@@ -26,7 +32,7 @@ export function NodeContentFocus({
     <div
       className={cn(
         'node-content-focus-root flex min-h-0 w-full min-w-0 flex-1 flex-col',
-        contentFocused && 'node-content-focus-draggable',
+        (contentFocused || shellMoveCursor) && 'node-content-focus-draggable',
         className
       )}
       onPointerDown={(e) => {

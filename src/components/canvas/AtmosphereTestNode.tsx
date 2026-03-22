@@ -32,7 +32,6 @@ const AtmosphereTestNode = memo(({ id, selected }: NodeProps) => {
 
   return (
     <FlowNodeResizeRoot
-      selected={!!selected}
       minWidth={320}
       minHeight={200}
       className="rf-node-resize-root relative flex flex-col min-h-0"
@@ -53,7 +52,7 @@ const AtmosphereTestNode = memo(({ id, selected }: NodeProps) => {
         connectMenuItems={connectMenuItems}
       />
 
-      <NodeContentFocus nodeId={id}>
+      <NodeContentFocus nodeId={id} shellMoveCursor>
         <div className="grid grid-cols-2 gap-2 p-3 pt-2">
         {MOODS.map((m, i) => (
           <div key={m.label} className="rounded-lg overflow-hidden border border-[var(--node-control-border)]">

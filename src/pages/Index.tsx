@@ -53,7 +53,11 @@ import BottomBar from '@/components/canvas/BottomBar';
 import CommentPin from '@/components/canvas/CommentPin';
 import SelectionOverlay from '@/components/canvas/SelectionOverlay';
 import GroupNode from '@/components/canvas/GroupNode';
+import { WorkspacePyramidLoader } from '@/components/canvas/WorkspacePyramidLoader';
+import { SystemNotificationToast } from '@/components/SystemNotificationToast';
+import { toast } from 'sonner';
 import { CanvasCursor } from '@/components/canvas/CanvasCursor';
+import { useMinLoadingDisplay } from '@/hooks/useMinLoadingDisplay';
 import {
   useWorkflowStore,
   type NodeType,
@@ -82,6 +86,9 @@ const nodeTypes = {
 };
 
 const edgeTypes = { custom: CustomEdge };
+
+/** Minimum time (ms) the workspace loader stays visible after fetch/draft resolve — see `useMinLoadingDisplay`. */
+const WORKSPACE_LOADER_MIN_MS = 2500;
 
 function getOverlappingArea(
   rectA: { x: number; y: number; width: number; height: number },
@@ -254,6 +261,7 @@ const CanvasInner = ({
   const [edges, setEdges] = useEdgesState(storeEdges);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addPanelOpen, setAddPanelOpen] = useState(false);
+  const [showSystemNotification, setShowSystemNotification] = useState(true);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const dragStartPositions = useRef<Record<string, { x: number; y: number }>>({});
   const dragGraphSnapshotRef = useRef<Node[] | null>(null);
@@ -885,6 +893,16 @@ const CanvasInner = ({
         )}
       </ReactFlow>
       <BottomBar />
+      {showSystemNotification ? (
+        <div className="fixed bottom-24 right-4 z-[55] w-[min(280px,calc(100vw-2rem))] max-w-[280px] max-sm:right-3">
+          <SystemNotificationToast
+            onOpen={() =>
+              toast.info('Notifications', { description: 'No new items yet (placeholder).' })
+            }
+            onDismiss={() => setShowSystemNotification(false)}
+          />
+        </div>
+      ) : null}
     </div>
     </SpacePersistenceContext.Provider>
   );
@@ -904,10 +922,13 @@ function CanvasRoot() {
     staleTime: Infinity,
   });
 
+  const spacePending = spaceLoading || !space;
+  const holdWorkspaceFetchLoader = useMinLoadingDisplay(spacePending, WORKSPACE_LOADER_MIN_MS);
+
   if (authLoading || !userId) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[var(--canvas-bg)] text-muted-foreground">
-        Connecting…
+      <div className="flex h-screen w-screen items-center justify-center bg-[var(--canvas-bg)]">
+        <WorkspacePyramidLoader caption="Connecting…" />
       </div>
     );
   }
@@ -922,10 +943,10 @@ function CanvasRoot() {
       </div>
     );
   }
-  if (spaceLoading || !space) {
+  if (holdWorkspaceFetchLoader) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[var(--canvas-bg)] text-muted-foreground">
-        Loading workspace…
+      <div className="flex h-screen w-screen items-center justify-center bg-[var(--canvas-bg)]">
+        <WorkspacePyramidLoader caption="Loading workspace…" />
       </div>
     );
   }
@@ -950,10 +971,13 @@ function CanvasRootWithDraft({ space }: { space: SpaceRow }) {
     };
   }, [space.id, space.updated_at]);
 
-  if (!draftBoot.ready) {
+  const draftPending = !draftBoot.ready;
+  const holdDraftLoader = useMinLoadingDisplay(draftPending, WORKSPACE_LOADER_MIN_MS);
+
+  if (holdDraftLoader) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[var(--canvas-bg)] text-muted-foreground">
-        Loading workspace…
+      <div className="flex h-screen w-screen items-center justify-center bg-[var(--canvas-bg)]">
+        <WorkspacePyramidLoader caption="Loading workspace…" />
       </div>
     );
   }

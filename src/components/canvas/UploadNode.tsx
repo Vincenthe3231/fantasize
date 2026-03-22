@@ -1,6 +1,6 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type NodeProps } from 'reactflow';
-import { Image, Loader2, Upload } from 'lucide-react';
+import { Image, Loader2, Replace as ReplaceIcon, Upload } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { toast } from 'sonner';
 import { uploadWorkflowMedia } from '@/lib/uploadStorage';
@@ -17,11 +17,66 @@ function isVideoUrl(url: string): boolean {
   return /\.(mp4|mov|webm)(\?|$)/i.test(url);
 }
 
+const REPLACE_INPUT_ACCEPT =
+  'image/jpeg,image/png,image/webp,video/mp4,video/quicktime';
+
+async function getImageFileDimensions(file: File): Promise<{ w: number; h: number } | null> {
+  try {
+    const bmp = await createImageBitmap(file);
+    const w = bmp.width;
+    const h = bmp.height;
+    bmp.close();
+    return w > 0 && h > 0 ? { w, h } : null;
+  } catch {
+    return null;
+  }
+}
+
+function getVideoFileDimensions(file: File): Promise<{ w: number; h: number } | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const url = URL.createObjectURL(file);
+    const v = document.createElement('video');
+    v.muted = true;
+    v.playsInline = true;
+    v.preload = 'metadata';
+    const finish = (dims: { w: number; h: number } | null) => {
+      if (settled) return;
+      settled = true;
+      URL.revokeObjectURL(url);
+      v.onloadedmetadata = null;
+      v.onerror = null;
+      v.removeAttribute('src');
+      resolve(dims);
+    };
+    v.onloadedmetadata = () => {
+      const w = v.videoWidth;
+      const h = v.videoHeight;
+      finish(w > 0 && h > 0 ? { w, h } : null);
+    };
+    v.onerror = () => finish(null);
+    v.src = url;
+  });
+}
+
+async function getMediaFileDimensions(file: File): Promise<{ w: number; h: number } | null> {
+  if (file.type.startsWith('video/')) {
+    return getVideoFileDimensions(file);
+  }
+  if (file.type.startsWith('image/')) {
+    return getImageFileDimensions(file);
+  }
+  return null;
+}
+
 const UploadNode = memo(({ id, data, selected }: NodeProps) => {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [mediaDims, setMediaDims] = useState<{ w: number; h: number } | null>(null);
+  const replaceInputRef = useRef<HTMLInputElement>(null);
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
+  const updateNodeDataSilent = useWorkflowStore((s) => s.updateNodeDataSilent);
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
@@ -41,6 +96,10 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
   const mediaUrl = (data.mediaUrl as string) || '';
   const label = (data.label as string) || '';
 
+  useEffect(() => {
+    setMediaDims(null);
+  }, [mediaUrl]);
+
   const onDrop = useCallback(
     async (files: File[]) => {
       const file = files[0];
@@ -51,8 +110,16 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
       setUploadError(null);
       setUploading(true);
       try {
-        const { url } = await uploadWorkflowMedia(file);
-        updateNodeData(id, { mediaUrl: url, label: file.name });
+        const [{ url }, measured] = await Promise.all([
+          uploadWorkflowMedia(file),
+          getMediaFileDimensions(file),
+        ]);
+        updateNodeData(id, {
+          mediaUrl: url,
+          label: file.name,
+          mediaIntrinsicW: measured?.w,
+          mediaIntrinsicH: measured?.h,
+        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Upload failed';
         setUploadError(msg);
@@ -78,9 +145,37 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
     noDragEventsBubbling: true,
   });
 
+  const onReplaceInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (file) void onDrop([file]);
+    },
+    [onDrop]
+  );
+
+  const storedW = data.mediaIntrinsicW as number | undefined;
+  const storedH = data.mediaIntrinsicH as number | undefined;
+  const displayDims =
+    mediaDims ??
+    (typeof storedW === 'number' &&
+    typeof storedH === 'number' &&
+    storedW > 0 &&
+    storedH > 0
+      ? { w: storedW, h: storedH }
+      : null);
+
+  const syncDimsFromElement = useCallback(
+    (w: number, h: number) => {
+      if (w <= 0 || h <= 0) return;
+      setMediaDims({ w, h });
+      updateNodeDataSilent(id, { mediaIntrinsicW: w, mediaIntrinsicH: h });
+    },
+    [id, updateNodeDataSilent]
+  );
+
   return (
     <FlowNodeResizeRoot
-      selected={!!selected}
       minWidth={220}
       minHeight={120}
       className="rf-node-resize-root relative flex flex-col min-h-0"
@@ -103,10 +198,10 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
           connectMenuItems={connectMenuItems}
         />
 
-        <NodeContentFocus nodeId={id}>
+        <NodeContentFocus nodeId={id} shellMoveCursor>
           <div className="flex min-h-0 flex-1 flex-col p-3 pt-2">
             {mediaUrl ? (
-              <div className="relative min-h-[120px] min-w-0 flex-1 overflow-hidden rounded-lg bg-[var(--node-inner-mid)]">
+              <div className="relative min-h-[120px] min-w-0 flex-1 overflow-hidden rounded-2xl bg-[var(--node-inner-mid)]">
                 {isVideoUrl(mediaUrl) ? (
                   <video
                     src={mediaUrl}
@@ -114,19 +209,52 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
                     muted
                     playsInline
                     loop
+                    onLoadedMetadata={(e) => {
+                      const el = e.currentTarget;
+                      syncDimsFromElement(el.videoWidth, el.videoHeight);
+                    }}
                   />
                 ) : (
                   <img
                     src={mediaUrl}
-                    alt="Reference"
+                    alt=""
                     className="absolute inset-0 h-full w-full object-cover"
+                    onLoad={(e) => {
+                      const el = e.currentTarget;
+                      syncDimsFromElement(el.naturalWidth, el.naturalHeight);
+                    }}
                   />
                 )}
-                <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5 backdrop-blur-sm bg-[var(--node-overlay-dark)]">
-                  <span className="text-[10px] font-mono-display uppercase tracking-wider text-[var(--node-overlay-text)]">
-                    {label || 'Uploaded media'}
-                  </span>
-                </div>
+                {displayDims ? (
+                  <div
+                    className="absolute right-2 top-2 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-medium tabular-nums text-white backdrop-blur-[2px]"
+                    aria-hidden
+                  >
+                    {displayDims.w} × {displayDims.h}
+                  </div>
+                ) : null}
+                <div
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-24 rounded-b-2xl bg-gradient-to-t from-black/55 via-black/25 to-transparent"
+                  aria-hidden
+                />
+                <input
+                  ref={replaceInputRef}
+                  type="file"
+                  className="sr-only"
+                  accept={REPLACE_INPUT_ACCEPT}
+                  onChange={onReplaceInputChange}
+                  disabled={uploading}
+                />
+                <button
+                  type="button"
+                  disabled={uploading}
+                  title="Replace image or video"
+                  className={`${NODE_INTERACTIVE_CLASS} absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1.5 text-[11px] font-medium text-white backdrop-blur-[2px] transition-opacity hover:bg-black/55 disabled:cursor-wait disabled:opacity-60`}
+                  onClick={() => replaceInputRef.current?.click()}
+                >
+                  <ReplaceIcon size={14} strokeWidth={2} className="shrink-0 opacity-95" aria-hidden />
+                  Replace
+                </button>
               </div>
             ) : (
               <div className="flex min-h-0 flex-1 flex-col gap-2">

@@ -43,7 +43,6 @@ const ImageUpscalerNode = memo(({ id, data, selected }: NodeProps) => {
 
   return (
     <FlowNodeResizeRoot
-      selected={!!selected}
       minWidth={200}
       minHeight={160}
       className="rf-node-resize-root relative flex flex-col min-h-0"
@@ -60,7 +59,7 @@ const ImageUpscalerNode = memo(({ id, data, selected }: NodeProps) => {
         connectMenuItems={connectMenuItems}
       />
 
-      <NodeContentFocus nodeId={id}>
+      <NodeContentFocus nodeId={id} shellMoveCursor>
         <div className="flex flex-1 min-h-0 flex-col space-y-3 overflow-y-auto p-3">
         <div className={`${NODE_INTERACTIVE_CLASS} grid shrink-0 grid-cols-2 gap-2`}>
           <div>

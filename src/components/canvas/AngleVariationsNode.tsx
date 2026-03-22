@@ -35,7 +35,6 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
 
   return (
     <FlowNodeResizeRoot
-      selected={!!selected}
       minWidth={280}
       minHeight={160}
       className="rf-node-resize-root relative flex flex-col min-h-0"
@@ -56,7 +55,7 @@ const AngleVariationsNode = memo(({ id, selected }: NodeProps) => {
         connectMenuItems={connectMenuItems}
       />
 
-      <NodeContentFocus nodeId={id}>
+      <NodeContentFocus nodeId={id} shellMoveCursor>
         <div className="relative flex min-h-0 flex-1 flex-col">
         <div className="px-3 py-2 flex items-center justify-end text-[10px] text-[var(--text-muted)] shrink-0">
           <span>variations</span>

@@ -32,7 +32,6 @@ const LightingScenarioNode = memo(({ id, selected }: NodeProps) => {
 
   return (
     <FlowNodeResizeRoot
-      selected={!!selected}
       minWidth={300}
       minHeight={180}
       className="rf-node-resize-root relative flex flex-col min-h-0"
@@ -53,7 +52,7 @@ const LightingScenarioNode = memo(({ id, selected }: NodeProps) => {
         connectMenuItems={connectMenuItems}
       />
 
-      <NodeContentFocus nodeId={id}>
+      <NodeContentFocus nodeId={id} shellMoveCursor>
         <div className="grid grid-cols-2 gap-2 p-3 pt-2">
         {PRESETS.map((p, i) => (
           <div

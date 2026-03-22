@@ -194,27 +194,31 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
 
   return (
     <FlowNodeResizeRoot
-      selected={!!selected}
       minWidth={200}
       minHeight={180}
       className="rf-node-resize-root relative flex flex-col min-h-0"
     >
       <NodeLabelRow nodeId={id} nodeType="assistantNode" labelPrefix="Assistant" icon={<Sparkles size={12} />} />
-      <NodeContentFocus nodeId={id} toggleContentFocus className="flex min-h-0 min-w-0 w-full flex-1 flex-col">
-        <AssistantGlassNode
-          $focused={!!contentFocused}
-          className={`glass-node relative flex w-full flex-1 flex-col min-h-0 rounded-[var(--radius-node)] ${isStoreRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
-          data-content-focused={contentFocused || undefined}
+      <AssistantGlassNode
+        $focused={!!contentFocused}
+        className={`glass-node relative flex w-full flex-1 flex-col min-h-0 rounded-[var(--radius-node)] ${isStoreRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+        data-content-focused={contentFocused || undefined}
+      >
+        <NodeActionBar
+          variant="assistant"
+          onRun={() => runFromNode(id)}
+          onDuplicate={() => duplicateNode(id)}
+          onDelete={() => deleteNode(id)}
+          onExpand={() => {}}
+          connectMenuItems={connectMenuItems}
+        />
+        <NodeContentFocus
+          nodeId={id}
+          toggleContentFocus
+          shellMoveCursor
+          className="flex min-h-0 min-w-0 w-full flex-1 flex-col"
         >
           <div className="assistant-glass-stack relative z-[1] flex min-h-0 min-w-0 flex-1 flex-col">
-            <NodeActionBar
-              variant="assistant"
-              onRun={() => runFromNode(id)}
-              onDuplicate={() => duplicateNode(id)}
-              onDelete={() => deleteNode(id)}
-              onExpand={() => {}}
-              connectMenuItems={connectMenuItems}
-            />
             <div
               className={`${NODE_INTERACTIVE_CLASS} flex shrink-0 items-center gap-1 p-2 border-b border-[var(--node-panel-border)]`}
             >
@@ -260,7 +264,9 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
                   style={{ fontFamily: 'Inter, sans-serif' }}
                 />
               ) : (
-                <div className="min-h-[120px] flex-1 overflow-y-auto text-[12px] text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap">
+                <div
+                  className={`${NODE_INTERACTIVE_CLASS} node-shell-readout min-h-[120px] flex-1 select-text overflow-y-auto text-[12px] text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap`}
+                >
                   {result || <span className="text-[var(--text-muted)]">Run the assistant to see results here.</span>}
                 </div>
               )}
@@ -370,8 +376,8 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
 
             <DefaultNodePortHandles />
           </div>
-        </AssistantGlassNode>
-      </NodeContentFocus>
+        </NodeContentFocus>
+      </AssistantGlassNode>
     </FlowNodeResizeRoot>
   );
 });

@@ -36,7 +36,6 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
 
   return (
     <FlowNodeResizeRoot
-      selected={!!selected}
       minWidth={220}
       minHeight={120}
       className="rf-node-resize-root relative flex flex-col min-h-0"
@@ -59,7 +58,7 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
         connectMenuItems={connectMenuItems}
       />
 
-      <NodeContentFocus nodeId={id}>
+      <NodeContentFocus nodeId={id} shellMoveCursor>
         <div className="relative">
         <img src={mediaUrl} alt="Selected shot" className="w-full aspect-[16/9] object-cover rounded-b-[12px]" />
 

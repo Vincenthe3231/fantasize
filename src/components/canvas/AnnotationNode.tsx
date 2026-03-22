@@ -22,7 +22,6 @@ const AnnotationNode = memo(({ id, data, selected }: NodeProps) => {
 
   return (
     <FlowNodeResizeRoot
-      selected={!!selected}
       minWidth={120}
       minHeight={48}
       className="rf-node-resize-root relative min-w-0"
@@ -38,7 +37,7 @@ const AnnotationNode = memo(({ id, data, selected }: NodeProps) => {
         onDelete={() => deleteNode(id)}
         connectMenuItems={connectMenuItems}
       />
-      <NodeContentFocus nodeId={id}>
+      <NodeContentFocus nodeId={id} shellMoveCursor>
         <p className="text-[13px] text-[var(--text-muted)] leading-relaxed pt-1">
           {parts.map((part, i) => {
             if (part.startsWith('*') && part.endsWith('*')) {

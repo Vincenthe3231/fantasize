@@ -42,7 +42,6 @@ const PropsInputNode = memo(({ id, selected }: NodeProps) => {
 
   return (
     <FlowNodeResizeRoot
-      selected={!!selected}
       minWidth={320}
       minHeight={180}
       className="rf-node-resize-root relative flex flex-col min-h-0"
@@ -62,7 +61,7 @@ const PropsInputNode = memo(({ id, selected }: NodeProps) => {
         connectMenuItems={connectMenuItems}
       />
 
-      <NodeContentFocus nodeId={id}>
+      <NodeContentFocus nodeId={id} shellMoveCursor>
         <div className="px-4 py-3 text-[13px] text-[var(--node-props-hint)]" style={{ fontFamily: 'Inter, sans-serif' }}>
           👆 Replace with references of your key props to guide the look and style of each element.
         </div>

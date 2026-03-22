@@ -25,7 +25,6 @@ const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
 
   return (
     <FlowNodeResizeRoot
-      selected={!!selected}
       minWidth={320}
       minHeight={200}
       className="rf-node-resize-root relative flex flex-col min-h-0"
@@ -46,7 +45,7 @@ const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
         connectMenuItems={connectMenuItems}
       />
 
-      <NodeContentFocus nodeId={id}>
+      <NodeContentFocus nodeId={id} shellMoveCursor>
         <div className="p-3 pt-2">
         <ImageCellOverlay
           src={previewUrl}

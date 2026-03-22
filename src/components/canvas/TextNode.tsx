@@ -72,7 +72,6 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
 
   return (
     <FlowNodeResizeRoot
-      selected={!!selected}
       minWidth={200}
       minHeight={120}
       className="rf-node-resize-root relative flex flex-col min-h-0"
@@ -154,7 +153,7 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
         )}
       </AnimatePresence>
 
-      <NodeContentFocus nodeId={id}>
+      <NodeContentFocus nodeId={id} shellMoveCursor>
         <div
           className="flex flex-1 min-h-0 flex-col overflow-hidden p-3 pt-2"
           onMouseDown={(e) => e.stopPropagation()}

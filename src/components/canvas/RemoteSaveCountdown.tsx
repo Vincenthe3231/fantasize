@@ -25,7 +25,7 @@ export default function RemoteSaveCountdown() {
   return (
     <div
       className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg glass-toolbar"
-      title="Time until automatic cloud save (also saves when you leave the tab)"
+      title="Time until automatic cloud save (5 minutes after your last canvas change)"
     >
       <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono-display">
         Auto-save

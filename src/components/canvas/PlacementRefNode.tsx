@@ -32,7 +32,6 @@ const PlacementRefNode = memo(({ id, selected }: NodeProps) => {
 
   return (
     <FlowNodeResizeRoot
-      selected={!!selected}
       minWidth={220}
       minHeight={120}
       className="rf-node-resize-root relative flex flex-col min-h-0"
@@ -50,7 +49,7 @@ const PlacementRefNode = memo(({ id, selected }: NodeProps) => {
         onLock={() => lockNode(id)}
         connectMenuItems={connectMenuItems}
       />
-      <NodeContentFocus nodeId={id}>
+      <NodeContentFocus nodeId={id} shellMoveCursor>
         <div className="p-2 pt-2">
           <ImageCellOverlay src={MOCK.placement} resolution="1920 × 1080" index={0} nodeId={id} />
         </div>

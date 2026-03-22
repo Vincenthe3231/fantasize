@@ -242,8 +242,6 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
           });
           if (t != null) lastLocalWriteAtRef.current = t;
         }
-        pendingFlushReasonRef.current = 'tab_hidden';
-        void flushRemote.current();
       }
     };
 
@@ -268,8 +266,6 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
         });
         if (t != null) lastLocalWriteAtRef.current = t;
       }
-      pendingFlushReasonRef.current = 'page_hide';
-      void flushRemote.current();
     };
 
     document.addEventListener('visibilitychange', onHidden);

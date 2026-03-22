@@ -129,7 +129,6 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
 
   return (
     <FlowNodeResizeRoot
-      selected={!!selected}
       minWidth={200}
       minHeight={200}
       className="rf-node-resize-root relative flex flex-col min-h-0"
@@ -152,7 +151,7 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
         connectMenuItems={connectMenuItems}
       />
 
-      <NodeContentFocus nodeId={id}>
+      <NodeContentFocus nodeId={id} shellMoveCursor>
         <div
           className={`rounded-xl border-2 transition-colors flex flex-1 flex-col min-h-0 ${
             contentFocused
