@@ -85,6 +85,7 @@ const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
 
         <textarea
           value={prompt}
+          draggable={false}
           onChange={(e) => updateNodeData(id, { prompt: e.target.value })}
           placeholder="Describe the scene motion…"
           className={`${NODE_INTERACTIVE_CLASS} min-h-[50px] w-full flex-1 rounded-lg border border-[var(--node-control-border)] bg-[var(--node-control-bg)] p-2 text-[12px] text-[var(--text-primary)] resize-none outline-none placeholder:text-[var(--text-muted)]`}

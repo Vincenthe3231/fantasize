@@ -28,7 +28,8 @@ export type NodeType =
   | 'setDressingNode'
   | 'lightingScenarioNode'
   | 'atmosphereTestNode'
-  | 'placementRefNode';
+  | 'placementRefNode'
+  | 'group';
 
 export type SelectedTool =
   | 'select'
@@ -71,6 +72,8 @@ export interface WorkflowSettings {
   edgeAnimation: boolean;
   showNodeLabels: boolean;
   canvasPattern: 'dots' | 'grid' | 'lines' | 'none';
+  /** Animated pointer trails on the canvas (can reduce distraction when off). */
+  canvasCursorTrails: boolean;
 }
 
 /** Command: execute = redo forward, undo = revert */
@@ -129,6 +132,8 @@ export interface WorkflowState {
     nextEdges: Edge[]
   ) => void;
   commitNodesAfterDrag: (nodes: Node[], deltas: Record<string, { from: XYPosition; to: XYPosition }>) => void;
+  /** Full graph undo after drag + optional group reparent (replaces commitNodesAfterDrag when used). */
+  commitNodesAfterFlowDrag: (beforeNodes: Node[], afterNodes: Node[]) => void;
   connectEdgeWithHistory: (nextEdges: Edge[], newEdge: Edge) => void;
   applyEdgeRemoval: (nextEdges: Edge[], removed: Edge[]) => void;
   removeEdgeById: (id: string) => void;
@@ -344,6 +349,109 @@ export function createVirtualProductionScoutTemplate(): { nodes: Node[]; edges: 
   return { nodes: structuredClone(defaultNodes), edges: structuredClone(defaultEdges) };
 }
 
+const DEFAULT_NODE_W = 280;
+const DEFAULT_NODE_H = 120;
+const DEFAULT_GROUP_W = 400;
+const DEFAULT_GROUP_H = 240;
+
+function nodeDragSnapshotEqual(a: Node[], b: Node[]): boolean {
+  if (a.length !== b.length) return false;
+  const mapB = new Map(b.map((n) => [n.id, n]));
+  for (const n of a) {
+    const m = mapB.get(n.id);
+    if (!m) return false;
+    if (n.position.x !== m.position.x || n.position.y !== m.position.y) return false;
+    if (n.parentId !== m.parentId) return false;
+    if (n.extent !== m.extent) return false;
+  }
+  return true;
+}
+
+/**
+ * After a drag, parent/unparent nodes into group frames using center-point containment.
+ * Only mutates clones of nodes whose ids are in draggedIds.
+ */
+export function applyGroupDropReparent(nodes: Node[], draggedIds: Set<string>): Node[] {
+  const list = nodes.map((n) => {
+    const c = { ...n, position: { ...n.position } } as Node;
+    delete (c as { positionAbsolute?: unknown }).positionAbsolute;
+    return c;
+  });
+  const byId = new Map(list.map((n) => [n.id, n]));
+
+  const absPos = (n: Node): { x: number; y: number } => {
+    const pa = (n as Node & { positionAbsolute?: XYPosition }).positionAbsolute;
+    if (pa && typeof pa.x === 'number' && typeof pa.y === 'number') {
+      return { x: pa.x, y: pa.y };
+    }
+    let x = n.position.x;
+    let y = n.position.y;
+    let pid = n.parentId;
+    while (pid) {
+      const p = byId.get(pid);
+      if (!p) break;
+      x += p.position.x;
+      y += p.position.y;
+      pid = p.parentId;
+    }
+    return { x, y };
+  };
+
+  const groupBounds = (g: Node) => {
+    const st = g.style as { width?: number; height?: number } | undefined;
+    const w = typeof st?.width === 'number' && st.width > 0 ? st.width : DEFAULT_GROUP_W;
+    const h = typeof st?.height === 'number' && st.height > 0 ? st.height : DEFAULT_GROUP_H;
+    const p = absPos(g);
+    return { x: p.x, y: p.y, w, h };
+  };
+
+  const groupArea = (g: Node) => {
+    const b = groupBounds(g);
+    return b.w * b.h;
+  };
+
+  const groups = list.filter((n) => n.type === 'group').sort((a, b) => groupArea(a) - groupArea(b));
+
+  for (const n of list) {
+    if (!draggedIds.has(n.id)) continue;
+    if (n.type === 'group') continue;
+    if (n.draggable === false) continue;
+
+    const abs = absPos(n);
+    const w = typeof n.width === 'number' && n.width > 0 ? n.width : DEFAULT_NODE_W;
+    const h = typeof n.height === 'number' && n.height > 0 ? n.height : DEFAULT_NODE_H;
+    const cx = abs.x + w / 2;
+    const cy = abs.y + h / 2;
+
+    let target: Node | null = null;
+    for (const g of groups) {
+      if (g.id === n.id) continue;
+      const b = groupBounds(g);
+      if (cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h) {
+        target = g;
+        break;
+      }
+    }
+
+    if (target) {
+      const gAbs = absPos(target);
+      if (n.parentId === target.id) continue;
+      n.parentId = target.id;
+      n.extent = 'parent';
+      n.position = { x: abs.x - gAbs.x, y: abs.y - gAbs.y };
+    } else if (n.parentId) {
+      const p = byId.get(n.parentId);
+      if (p?.type === 'group') {
+        n.position = { x: abs.x, y: abs.y };
+        n.parentId = undefined;
+        n.extent = undefined;
+      }
+    }
+  }
+
+  return list;
+}
+
 export const useWorkflowStore = create<WorkflowState>((set, get) => {
   const pushCmd = (cmd: CanvasCommand) => {
     set((s) => ({
@@ -377,6 +485,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       edgeAnimation: true,
       showNodeLabels: true,
       canvasPattern: 'dots',
+      canvasCursorTrails: true,
     },
     nodesClipboard: null,
     focusedNodeContentId: null,
@@ -452,6 +561,17 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       });
     },
 
+    commitNodesAfterFlowDrag: (beforeNodes, afterNodes) => {
+      const before = structuredClone(beforeNodes);
+      const after = structuredClone(afterNodes);
+      if (nodeDragSnapshotEqual(before, after)) return;
+      set({ nodes: after });
+      pushCmd({
+        undo: () => set({ nodes: structuredClone(before) }),
+        execute: () => set({ nodes: structuredClone(after) }),
+      });
+    },
+
     connectEdgeWithHistory: (nextEdges, newEdge) => {
       const edge = structuredClone(newEdge);
       set({ edges: nextEdges });
@@ -516,7 +636,18 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     addNode: (type, position, data = {}) => {
       const s = get();
       const id = `${type.replace('Node', '')}-${Date.now()}`;
-      const newNode: Node = { id, type, position, data };
+      const newNode: Node =
+        type === 'group'
+          ? {
+              id,
+              type: 'group',
+              position,
+              data: { labelText: 'Group', ...data },
+              style: { width: DEFAULT_GROUP_W, height: DEFAULT_GROUP_H },
+              draggable: true,
+              selectable: true,
+            }
+          : { id, type, position, data };
       set({ nodes: [...s.nodes, newNode] });
       pushCmd({
         undo: () => set((st) => ({ nodes: st.nodes.filter((n) => n.id !== id) })),

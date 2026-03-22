@@ -76,7 +76,7 @@ const allNodes: NodeEntry[] = [
   { type: 'listNode', label: 'List', icon: List, color: '#94a3b8', category: ['utilities', 'all', 'basics'], enabled: true },
   { type: 'stickyNote', label: 'Sticky Note', icon: StickyNote, color: '#fbbf24', category: ['utilities', 'all'], enabled: false, isNew: true },
   { type: 'stickers', label: 'Stickers', icon: Smile, color: '#fb923c', category: ['utilities', 'all'], enabled: false, isNew: true },
-  { type: 'group', label: 'Group', icon: Square, color: '#64748b', category: ['utilities', 'all'], enabled: false, isNew: true },
+  { type: 'group', label: 'Group', icon: Square, color: '#64748b', category: ['utilities', 'all'], enabled: true, isNew: true },
 ];
 
 /** BASICS section order (Image 2): Text, Image Generator, Video Generator, Assistant, Image Upscaler, List */

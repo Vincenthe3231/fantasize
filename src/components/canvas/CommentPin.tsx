@@ -28,10 +28,11 @@ const CommentPin = ({ comment }: CommentPinProps) => {
             initial={{ opacity: 0, scale: 0.9, y: -4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: -4 }}
-            className="absolute top-8 left-0 w-[220px] rounded-xl p-3 space-y-2 shadow-lg bg-[var(--node-inner-mid)] border border-[var(--accent-color)]/40"
+            className="comment-pin-popover absolute top-8 left-0 w-[220px] rounded-xl p-3 space-y-2 shadow-lg bg-[var(--node-inner-mid)] border border-[var(--accent-color)]/40"
           >
             <textarea
               value={comment.text}
+              draggable={false}
               onChange={(e) => updateComment(comment.id, e.target.value)}
               placeholder="Add a comment…"
               className="w-full bg-transparent text-[13px] text-[var(--text-primary)] resize-none outline-none min-h-[50px] placeholder:text-[var(--text-muted)]"

@@ -185,6 +185,7 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
               <div className="p-3 pt-0 mt-auto shrink-0">
                 <textarea
                   value={prompt}
+                  draggable={false}
                   onChange={(e) => updateNodeData(id, { prompt: e.target.value })}
                   onPointerDown={(e) => e.stopPropagation()}
                   placeholder="Describe the image you want to generate…"
@@ -284,6 +285,7 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
                   </label>
                   <textarea
                     value={negativePrompt}
+                    draggable={false}
                     onChange={(e) => updateNodeData(id, { negativePrompt: e.target.value })}
                     className="mt-2 w-full rounded-lg p-2 text-[12px] text-[var(--node-popover-text)] resize-none min-h-[72px] border border-[var(--node-control-border)] bg-[var(--node-control-bg)]"
                     placeholder="Elements to exclude…"

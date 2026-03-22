@@ -151,6 +151,12 @@ const SettingsPanel = ({ open, onClose }: SettingsPanelProps) => {
               onChange={(v) => updateSettings({ performanceMode: v })}
             />
             <Toggle
+              label="Canvas cursor trails"
+              description="Soft animated trails that follow the pointer on the canvas"
+              checked={settings.canvasCursorTrails}
+              onChange={(v) => updateSettings({ canvasCursorTrails: v })}
+            />
+            <Toggle
               label="Dark mode"
               description="Toggle light/dark canvas theme"
               checked={settings.darkMode}

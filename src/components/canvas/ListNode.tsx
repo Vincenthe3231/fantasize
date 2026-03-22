@@ -123,6 +123,7 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                     <div className="rounded-lg border border-[var(--node-control-border)] bg-[var(--node-control-bg)] p-2">
                       <input
                         autoFocus
+                        draggable={false}
                         value={textDraft}
                         onChange={(e) => setTextDraft(e.target.value)}
                         onKeyDown={(e) => {

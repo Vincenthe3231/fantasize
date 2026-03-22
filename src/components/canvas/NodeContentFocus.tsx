@@ -7,10 +7,17 @@ export function NodeContentFocus({
   nodeId,
   children,
   className,
+  /**
+   * When true, clicks on interactive children still focus this node immediately; only clicks on
+   * non-interactive shell toggle focus off (second click) so the outline can dismiss without
+   * leaving the node.
+   */
+  toggleContentFocus = false,
 }: {
   nodeId: string;
   children: React.ReactNode;
   className?: string;
+  toggleContentFocus?: boolean;
 }) {
   const setFocused = useWorkflowStore((s) => s.setFocusedNodeContentId);
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === nodeId);
@@ -23,12 +30,18 @@ export function NodeContentFocus({
         className
       )}
       onPointerDown={(e) => {
-        setFocused(nodeId);
-        // Let pointerdown bubble to the React Flow node so the node can be dragged from the
-        // focused body. Stop only for real controls (.nodrag handles the rest in RF, but we
-        // still stop for inputs/contenteditable so drag doesn't steal text selection).
-        if (isCanvasNodeInteractivePointerTarget(e.target)) {
+        const interactive = isCanvasNodeInteractivePointerTarget(e.target);
+        if (interactive) {
+          if (toggleContentFocus) {
+            setFocused(nodeId);
+          }
           e.stopPropagation();
+          return;
+        }
+        if (toggleContentFocus) {
+          setFocused(contentFocused ? null : nodeId);
+        } else {
+          setFocused(nodeId);
         }
       }}
     >

@@ -53,7 +53,12 @@ import BottomBar from '@/components/canvas/BottomBar';
 import CommentPin from '@/components/canvas/CommentPin';
 import SelectionOverlay from '@/components/canvas/SelectionOverlay';
 import GroupNode from '@/components/canvas/GroupNode';
-import { useWorkflowStore, type NodeType } from '@/stores/workflowStore';
+import { CanvasCursor } from '@/components/canvas/CanvasCursor';
+import {
+  useWorkflowStore,
+  type NodeType,
+  applyGroupDropReparent,
+} from '@/stores/workflowStore';
 
 const nodeTypes = {
   textNode: TextNode,
@@ -194,6 +199,7 @@ const CanvasInner = ({
   const applyEdgeRemoval = useWorkflowStore((s) => s.applyEdgeRemoval);
   const setEdgesSilently = useWorkflowStore((s) => s.setEdgesSilently);
   const commitNodesAfterDrag = useWorkflowStore((s) => s.commitNodesAfterDrag);
+  const commitNodesAfterFlowDrag = useWorkflowStore((s) => s.commitNodesAfterFlowDrag);
   const setIsDragging = useWorkflowStore((s) => s.setIsDragging);
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
@@ -250,6 +256,7 @@ const CanvasInner = ({
   const [addPanelOpen, setAddPanelOpen] = useState(false);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const dragStartPositions = useRef<Record<string, { x: number; y: number }>>({});
+  const dragGraphSnapshotRef = useRef<Node[] | null>(null);
   const selectionPrevRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null);
   const selectionSelectedIdsRef = useRef<{ nodeIds: Set<string>; edgeIds: Set<string> } | null>(null);
   const selectionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -380,17 +387,23 @@ const CanvasInner = ({
       if (!selectionPrevRef.current) {
         selectionPrevRef.current = { nodes: [...store.nodes], edges: [...store.edges] };
       }
-      // Only treat nodes as selected if they have measured dimensions. React Flow includes
-      // nodes without width/height in every selection (treated as "not initialized"), which
-      // caused marquee selection to select almost all nodes.
-      const validSelectedNodes = selectedNodes.filter(
+      // Prefer nodes with measured dimensions (avoids marquee phantom selections). For a
+      // single-node click, keep selection even before width/height exist so NodeResizer shows
+      // on the first click.
+      const measuredSelected = selectedNodes.filter(
         (n) =>
           typeof n.width === 'number' &&
           typeof n.height === 'number' &&
           n.width > 0 &&
           n.height > 0
       );
-      const selectedNodeIds = new Set(validSelectedNodes.map((n) => n.id));
+      const selectedNodeIds = new Set(
+        measuredSelected.length > 0
+          ? measuredSelected.map((n) => n.id)
+          : selectedNodes.length === 1
+            ? [selectedNodes[0]!.id]
+            : []
+      );
       const selectedEdgeIds = new Set(
         selectedEdges.filter(
           (e) => selectedNodeIds.has(e.source) && selectedNodeIds.has(e.target)
@@ -638,6 +651,7 @@ const CanvasInner = ({
         onAddPanelOpenChange={setAddPanelOpen}
       />
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <CanvasCursor />
 
       {(storeNodes.some((n) => n.selected) || storeEdges.some((e) => e.selected)) && (
         <SelectionOverlay
@@ -793,6 +807,7 @@ const CanvasInner = ({
         onNodeDragStart={(_, node) => {
           setIsDragging(true);
           const ns = getNodes();
+          dragGraphSnapshotRef.current = structuredClone(ns);
           const targets = ns.filter((n) => n.selected || n.id === node.id);
           dragStartPositions.current = Object.fromEntries(
             targets.map((n) => [n.id, { x: n.position.x, y: n.position.y }])
@@ -813,7 +828,16 @@ const CanvasInner = ({
               deltas[id] = { from: start[id], to: { x: en.position.x, y: en.position.y } };
             }
           }
-          commitNodesAfterDrag(end, deltas);
+          const beforeSnap = dragGraphSnapshotRef.current;
+          const draggedIds = new Set(Object.keys(start));
+          const reparented =
+            draggedIds.size > 0 ? applyGroupDropReparent(structuredClone(end), draggedIds) : end;
+          if (beforeSnap) {
+            commitNodesAfterFlowDrag(beforeSnap, reparented);
+            dragGraphSnapshotRef.current = null;
+          } else {
+            commitNodesAfterDrag(end, deltas);
+          }
           dragStartPositions.current = {};
         }}
         onNodeMouseEnter={(_, node) => setHoveredNode(node.id)}

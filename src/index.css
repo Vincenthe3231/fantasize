@@ -413,15 +413,60 @@
   transform: translateX(-50%) translateY(-4px);
 }
 
-/* Ensure node wrapper allows overflow for action bars */
+/* Ensure node wrapper allows overflow for action bars; hide RF outer border/selection ring (inner .glass-node uses .node-selected). */
 .react-flow__node {
   overflow: visible !important;
+  border: none !important;
+  outline: none !important;
+}
+
+.react-flow__node.selectable.selected,
+.react-flow__node.selectable:focus,
+.react-flow__node.selectable:focus-visible {
+  box-shadow: none !important;
+}
+
+.react-flow__node-default,
+.react-flow__node-input,
+.react-flow__node-output,
+.react-flow__node-group {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.react-flow__node-default.selectable:hover,
+.react-flow__node-input.selectable:hover,
+.react-flow__node-output.selectable:hover,
+.react-flow__node-group.selectable:hover {
+  box-shadow: none !important;
+}
+
+.react-flow__node-default.selectable.selected,
+.react-flow__node-default.selectable:focus,
+.react-flow__node-default.selectable:focus-visible,
+.react-flow__node-input.selectable.selected,
+.react-flow__node-input.selectable:focus,
+.react-flow__node-input.selectable:focus-visible,
+.react-flow__node-output.selectable.selected,
+.react-flow__node-output.selectable:focus,
+.react-flow__node-output.selectable:focus-visible,
+.react-flow__node-group.selectable.selected,
+.react-flow__node-group.selectable:focus,
+.react-flow__node-group.selectable:focus-visible {
+  box-shadow: none !important;
+  border: none !important;
 }
 
 /* Corner resize handles must receive pointer events above the node shell */
 .react-flow__resize-control {
   z-index: 25;
   pointer-events: auto !important;
+}
+
+/* Hide edge strip controls everywhere; corner handles remain (NodeResizer renders both). */
+.react-flow__node .react-flow__resize-control.line {
+  display: none !important;
+  pointer-events: none !important;
 }
 
 /* Allow shrinking below global .glass-node min-width for user-resized nodes */
@@ -473,6 +518,20 @@
 .node-content-focus-draggable select,
 .node-content-focus-draggable [contenteditable='true'] {
   cursor: text;
+}
+
+/* Text fields: I-beam cursor, no HTML5 drag ghost; node drag uses .nodrag on these targets. */
+.react-flow__node textarea,
+.react-flow__node input:not([type='file']):not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='button']):not([type='submit']):not([type='image']):not([type='range']):not([type='color']) {
+  -webkit-user-drag: none;
+  user-select: text;
+  cursor: text !important;
+}
+
+.comment-pin-popover textarea {
+  -webkit-user-drag: none;
+  user-select: text;
+  cursor: text !important;
 }
 
 /* Tiptap editor styling */

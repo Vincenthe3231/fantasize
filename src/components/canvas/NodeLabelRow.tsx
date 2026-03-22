@@ -125,6 +125,7 @@ export const NodeLabelRow = memo(function NodeLabelRow({
       {editing ? (
         <input
           autoFocus
+          draggable={false}
           className="flex-1 min-w-0 rounded px-2 py-0.5 text-[13px] text-[var(--text-primary)] outline-none focus:ring-1 focus:ring-[hsl(217_91%_60%)] bg-[var(--node-control-bg)] border border-[var(--node-control-border)]"
           value={draft}
           onChange={(e) => {

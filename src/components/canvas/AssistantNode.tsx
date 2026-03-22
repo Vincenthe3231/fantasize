@@ -1,4 +1,5 @@
 import { memo, useState, useMemo, useCallback } from 'react';
+import styled from 'styled-components';
 import { type NodeProps } from 'reactflow';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
@@ -27,6 +28,75 @@ const ASSISTANT_MODELS = [
 
 const PLACEHOLDER =
   'Assistant is your creative sidekick—powered by a large language model. You can type a prompt, or even use images for context. It understands what you mean, builds on your ideas, and helps you move faster.';
+
+/**
+ * Transitioned conic rim only on the glass shell (the `glass-node` div under NodeContentFocus).
+ * Pseudos sit behind `.assistant-glass-stack` so frosted content stays visually on top.
+ */
+const AssistantGlassNode = styled.div<{ $focused: boolean }>`
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 0.35s ease;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    z-index: 0;
+    pointer-events: none;
+    background: conic-gradient(
+      from 0deg,
+      #ff6b6b,
+      #4ecdc4,
+      #45b7d1,
+      #96ceb4,
+      #feca57,
+      #ff9ff3,
+      #ff6b6b
+    );
+    filter: blur(10px);
+    transform: rotate(0deg);
+    transition:
+      opacity 0.45s ease,
+      transform 1.5s ease-in-out;
+    opacity: 0;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    z-index: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: var(--node-inner-mid);
+    filter: blur(5px);
+    opacity: 0;
+    transition: opacity 0.45s ease;
+  }
+
+  ${(p) =>
+    p.$focused
+      ? `
+    box-shadow: 0 0 24px rgba(78, 205, 196, 0.12);
+
+    &::before {
+      opacity: 1;
+    }
+
+    &::after {
+      opacity: 1;
+    }
+
+    &:hover::before {
+      transform: rotate(180deg);
+    }
+  `
+      : ''}
+`;
 
 function makeEdge(
   source: string,
@@ -130,28 +200,21 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
       className="rf-node-resize-root relative flex flex-col min-h-0"
     >
       <NodeLabelRow nodeId={id} nodeType="assistantNode" labelPrefix="Assistant" icon={<Sparkles size={12} />} />
-      <div
-        className={`glass-node relative flex w-full flex-1 flex-col min-h-0 ${isStoreRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
-        data-content-focused={contentFocused || undefined}
-      >
-      <NodeActionBar
-        variant="assistant"
-        onRun={() => runFromNode(id)}
-        onDuplicate={() => duplicateNode(id)}
-        onDelete={() => deleteNode(id)}
-        onExpand={() => {}}
-        connectMenuItems={connectMenuItems}
-      />
-
-      <NodeContentFocus nodeId={id}>
-        <div
-          className={`rounded-xl border-2 transition-colors flex flex-1 flex-col min-h-0 ${
-            contentFocused
-              ? 'border-[hsl(217_91%_60%)] shadow-[0_0_0_3px_hsla(217,91%,60%,0.15)]'
-              : 'border-transparent'
-          }`}
+      <NodeContentFocus nodeId={id} toggleContentFocus className="flex min-h-0 min-w-0 w-full flex-1 flex-col">
+        <AssistantGlassNode
+          $focused={!!contentFocused}
+          className={`glass-node relative flex w-full flex-1 flex-col min-h-0 rounded-[var(--radius-node)] ${isStoreRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
+          data-content-focused={contentFocused || undefined}
         >
-          <div className="rounded-[10px] overflow-hidden bg-[var(--node-inner-mid)] flex flex-1 flex-col min-h-0">
+          <div className="assistant-glass-stack relative z-[1] flex min-h-0 min-w-0 flex-1 flex-col">
+            <NodeActionBar
+              variant="assistant"
+              onRun={() => runFromNode(id)}
+              onDuplicate={() => duplicateNode(id)}
+              onDelete={() => deleteNode(id)}
+              onExpand={() => {}}
+              connectMenuItems={connectMenuItems}
+            />
             <div
               className={`${NODE_INTERACTIVE_CLASS} flex shrink-0 items-center gap-1 p-2 border-b border-[var(--node-panel-border)]`}
             >
@@ -190,8 +253,8 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
               {view === 'prompt' ? (
                 <textarea
                   value={prompt}
+                  draggable={false}
                   onChange={(e) => updateNodeData(id, { prompt: e.target.value })}
-                  onPointerDown={(e) => e.stopPropagation()}
                   placeholder={PLACEHOLDER}
                   className={`${NODE_INTERACTIVE_CLASS} min-h-[120px] w-full flex-1 bg-transparent text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] resize-none outline-none leading-relaxed`}
                   style={{ fontFamily: 'Inter, sans-serif' }}
@@ -282,30 +345,33 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
                 {isRunning ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} className="ml-0.5" />}
               </button>
             </div>
+
+            {contentFocused && (
+              <>
+                <div
+                  className={`${NODE_INTERACTIVE_CLASS} absolute -left-11 top-1/2 z-40 flex -translate-y-1/2 flex-col gap-2`}
+                >
+                  <FloatBtn onClick={quickAddTextLeft}>
+                    <Type size={14} />
+                  </FloatBtn>
+                  <FloatBtn onClick={quickAddImageLeft}>
+                    <ImageIcon size={14} />
+                  </FloatBtn>
+                </div>
+                <div
+                  className={`${NODE_INTERACTIVE_CLASS} absolute -right-11 top-1/2 z-40 flex -translate-y-1/2 flex-col gap-2`}
+                >
+                  <FloatBtn onClick={quickAddTextRight}>
+                    <Type size={14} />
+                  </FloatBtn>
+                </div>
+              </>
+            )}
+
+            <DefaultNodePortHandles />
           </div>
-        </div>
+        </AssistantGlassNode>
       </NodeContentFocus>
-
-      {contentFocused && (
-        <>
-          <div className={`${NODE_INTERACTIVE_CLASS} absolute -left-11 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-40`}>
-            <FloatBtn onClick={quickAddTextLeft}>
-              <Type size={14} />
-            </FloatBtn>
-            <FloatBtn onClick={quickAddImageLeft}>
-              <ImageIcon size={14} />
-            </FloatBtn>
-          </div>
-          <div className={`${NODE_INTERACTIVE_CLASS} absolute -right-11 top-1/2 -translate-y-1/2 z-40`}>
-            <FloatBtn onClick={quickAddTextRight}>
-              <Type size={14} />
-            </FloatBtn>
-          </div>
-        </>
-      )}
-
-      <DefaultNodePortHandles />
-      </div>
     </FlowNodeResizeRoot>
   );
 });

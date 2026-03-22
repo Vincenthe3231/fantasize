@@ -17,9 +17,12 @@ const ResizableNodeWrapper = memo(({ selected, minWidth = 200, minHeight = 80, c
         isVisible={selected}
         minWidth={minWidth}
         minHeight={minHeight}
-        color="#3b82f6"
-        handleStyle={{ width: 8, height: 8, borderRadius: 2 }}
-        lineStyle={{ borderColor: 'transparent' }}
+        handleStyle={{
+          width: 8,
+          height: 8,
+          borderRadius: 2,
+          backgroundColor: '#3b82f6',
+        }}
       />
       {children}
     </div>

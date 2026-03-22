@@ -27,9 +27,12 @@ const FlowNodeResizeRoot = memo(function FlowNodeResizeRoot({
         isVisible={selected}
         minWidth={minWidth}
         minHeight={minHeight}
-        color="hsl(217 91% 60%)"
-        handleStyle={{ width: 8, height: 8, borderRadius: 2 }}
-        lineStyle={{ borderColor: 'transparent' }}
+        handleStyle={{
+          width: 8,
+          height: 8,
+          borderRadius: 2,
+          backgroundColor: 'hsl(217 91% 60%)',
+        }}
       />
       {children}
     </div>
