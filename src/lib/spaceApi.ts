@@ -136,6 +136,25 @@ export interface SpaceRow {
   updated_at: string;
 }
 
+/** Accepts any canonical 8-4-4-4-12 hex id (matches Postgres `uuid` text form). */
+export function isUuidParam(value: string | undefined): value is string {
+  if (!value || typeof value !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim());
+}
+
+/**
+ * Load a space by primary key. RLS (`spaces_select_own`) restricts rows to the current session’s
+ * `auth.uid()`; we do not filter `owner_id` in the query so the session JWT is the single source
+ * of truth (avoids edge cases where client `userId` lags the Supabase session).
+ */
+export async function fetchSpaceById(_ownerId: string, spaceId: string): Promise<SpaceRow | null> {
+  const { data, error } = await supabase.from('spaces').select('*').eq('id', spaceId).maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return normalizeSpaceRow(data as Record<string, unknown>);
+}
+
 export async function fetchOrCreateSpace(ownerId: string): Promise<SpaceRow> {
   const { data: rows, error: selErr } = await supabase
     .from('spaces')

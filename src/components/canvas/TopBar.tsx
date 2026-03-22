@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import { ChevronRight, Share2, LayoutTemplate, Sun, Moon, UserPlus } from 'lucide-react';
+import { ChevronRight, Share2, LayoutTemplate, Sun, Moon, UserPlus, LogIn } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { useAuth } from '@/hooks/useAuth';
 import SignUpPrompt from '@/components/auth/SignUpPrompt';
+import SignInPrompt from '@/components/auth/SignInPrompt';
 import TemplateGallery from './TemplateGallery';
 import RemoteSavePanel from './RemoteSavePanel';
 
 const TopBar = () => {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [signUpOpen, setSignUpOpen] = useState(false);
-  const { isAnonymous, signUp } = useAuth();
+  const [signInOpen, setSignInOpen] = useState(false);
+  const { isAnonymous, signUp, signIn } = useAuth();
   const darkMode = useWorkflowStore((s) => s.settings.darkMode);
   const updateSettings = useWorkflowStore((s) => s.updateSettings);
 
@@ -41,14 +43,24 @@ const TopBar = () => {
             {darkMode ? <Sun size={16} /> : <Moon size={16} />}
           </button>
           {isAnonymous && (
-            <button
-              type="button"
-              onClick={() => setSignUpOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass-toolbar text-[12px] font-mono-display text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-            >
-              <UserPlus size={13} />
-              Create account
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setSignInOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass-toolbar text-[12px] font-mono-display text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                <LogIn size={13} />
+                Sign in
+              </button>
+              <button
+                type="button"
+                onClick={() => setSignUpOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass-toolbar text-[12px] font-mono-display text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                <UserPlus size={13} />
+                Create account
+              </button>
+            </>
           )}
           {/* Templates */}
           <button
@@ -86,6 +98,7 @@ const TopBar = () => {
       </div>
 
       <TemplateGallery open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
+      <SignInPrompt open={signInOpen} onOpenChange={setSignInOpen} signIn={signIn} />
       <SignUpPrompt open={signUpOpen} onOpenChange={setSignUpOpen} signUp={signUp} />
     </>
   );

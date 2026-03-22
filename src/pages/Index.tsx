@@ -1,6 +1,7 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchOrCreateSpace, type SpaceRow } from '@/lib/spaceApi';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { fetchOrCreateSpace, fetchSpaceById, isUuidParam, type SpaceRow } from '@/lib/spaceApi';
 import { shouldRestoreDraftFromLocal, type StoredSpaceDraft } from '@/lib/spaceDraftStorage';
 import { SpacePersistenceContext } from '@/contexts/SpacePersistenceContext';
 import { useSpaceLocalPersistence } from '@/hooks/useSpaceLocalPersistence';
@@ -910,19 +911,51 @@ const CanvasInner = ({
 
 function CanvasRoot() {
   const { userId, isLoading: authLoading } = useAuth();
+  const { spaceId: spaceIdParam } = useParams<{ spaceId: string }>();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const routeSpaceId = spaceIdParam?.trim();
+  const spaceFromQuery = searchParams.get('space')?.trim();
+  const needsSpaceRedirect =
+    !routeSpaceId && spaceFromQuery != null && spaceFromQuery.length > 0 && isUuidParam(spaceFromQuery);
+
+  useEffect(() => {
+    if (needsSpaceRedirect) {
+      navigate(`/w/${spaceFromQuery}`, { replace: true });
+    }
+  }, [needsSpaceRedirect, spaceFromQuery, navigate]);
+
+  const loadExplicitSpace = isUuidParam(routeSpaceId);
+  const explicitRouteInvalid = Boolean(routeSpaceId && !loadExplicitSpace);
+
+  const queryEnabled =
+    Boolean(userId) && !needsSpaceRedirect && !explicitRouteInvalid;
+
   const {
     data: space,
     isLoading: spaceLoading,
+    isFetching,
     isError,
     error,
+    isSuccess,
   } = useQuery({
-    queryKey: ['canvas-space', userId],
-    queryFn: () => fetchOrCreateSpace(userId!),
-    enabled: Boolean(userId),
+    queryKey: ['canvas-space', userId, loadExplicitSpace ? routeSpaceId : 'default'] as const,
+    queryFn: async () => {
+      if (!userId) throw new Error('No user');
+      if (loadExplicitSpace) {
+        return fetchSpaceById(userId, routeSpaceId);
+      }
+      return fetchOrCreateSpace(userId);
+    },
+    enabled: queryEnabled,
     staleTime: Infinity,
   });
 
-  const spacePending = spaceLoading || !space;
+  const spaceMissing = Boolean(loadExplicitSpace && isSuccess && space === null);
+  const spacePending =
+    needsSpaceRedirect ||
+    (queryEnabled && (spaceLoading || isFetching) && space === undefined && !isError);
   const holdWorkspaceFetchLoader = useMinLoadingDisplay(spacePending, WORKSPACE_LOADER_MIN_MS);
 
   if (authLoading || !userId) {
@@ -932,6 +965,22 @@ function CanvasRoot() {
       </div>
     );
   }
+
+  if (explicitRouteInvalid) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-[var(--canvas-bg)] px-6 text-center text-muted-foreground">
+        <p className="text-foreground">Invalid workspace link</p>
+        <p className="max-w-md text-sm">The URL does not contain a valid space id.</p>
+        <Link
+          to="/"
+          className="text-sm font-medium text-[var(--accent-color)] underline-offset-4 hover:underline"
+        >
+          Open default workspace
+        </Link>
+      </div>
+    );
+  }
+
   if (isError) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-2 bg-[var(--canvas-bg)] px-6 text-center text-muted-foreground">
@@ -940,10 +989,45 @@ function CanvasRoot() {
           Enable <strong>Anonymous sign-ins</strong> in Supabase Dashboard → Authentication → Providers.
         </p>
         <p className="text-xs opacity-70">{String((error as Error)?.message ?? error)}</p>
+        <Link
+          to="/"
+          className="text-sm font-medium text-[var(--accent-color)] underline-offset-4 hover:underline"
+        >
+          Try default workspace
+        </Link>
       </div>
     );
   }
+
   if (holdWorkspaceFetchLoader) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[var(--canvas-bg)]">
+        <WorkspacePyramidLoader caption={needsSpaceRedirect ? 'Opening workspace…' : 'Loading workspace…'} />
+      </div>
+    );
+  }
+
+  if (spaceMissing) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-[var(--canvas-bg)] px-6 text-center text-muted-foreground">
+        <p className="text-foreground">Workspace not found</p>
+        <p className="max-w-md text-sm">
+          No space with this id is visible to your account. The id may be wrong, or the space may
+          belong to another user. With <strong>anonymous</strong> sign-in, each browser / cleared
+          storage gets a new account, so old <code className="text-xs">/w/…</code> links stop
+          working.
+        </p>
+        <Link
+          to="/"
+          className="text-sm font-medium text-[var(--accent-color)] underline-offset-4 hover:underline"
+        >
+          Open default workspace
+        </Link>
+      </div>
+    );
+  }
+
+  if (!space) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-[var(--canvas-bg)]">
         <WorkspacePyramidLoader caption="Loading workspace…" />
