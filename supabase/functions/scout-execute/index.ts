@@ -1,0 +1,47 @@
+import { handleScoutStage } from './stageHandlers.ts';
+import type { ScoutExecutionKind } from './types.ts';
+
+const corsHeaders: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    const body = (await req.json()) as {
+      executionKind?: string;
+      context?: Record<string, unknown>;
+    };
+
+    const executionKind = body.executionKind as ScoutExecutionKind | undefined;
+    const context = body.context ?? {};
+
+    if (!executionKind) {
+      return json({ ok: false, error: 'Missing executionKind' }, 400);
+    }
+
+    const apiKey = Deno.env.get('OPENROUTER_API_KEY');
+
+    const { result, mock } = await handleScoutStage(executionKind, context, apiKey);
+
+    return json({
+      ok: true,
+      result,
+      mock,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return json({ ok: false, error: msg }, 500);
+  }
+});
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}

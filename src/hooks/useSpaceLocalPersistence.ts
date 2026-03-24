@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import type { Edge, Node } from 'reactflow';
 import { saveSpace, type SpaceRow } from '@/lib/spaceApi';
 import {
   writeSpaceDraft,
   clearSpaceDraft,
   readSpaceDraft,
+  canvasSnapshotMatchesSpaceRow,
+  canvasSnapshotPayloadParityEqual,
   type CanvasSnapshotPayload,
   type StoredSpaceDraft,
 } from '@/lib/spaceDraftStorage';
@@ -16,10 +19,7 @@ import {
 import { useWorkflowStore, type WorkflowState } from '@/stores/workflowStore';
 import { queryClient } from '@/lib/queryClient';
 
-const IDLE_FLUSH_MS = 5 * 60 * 1000;
-
 export type SpacePersistenceOpts = {
-  seedDirty?: boolean;
   /** Baseline so cross-tab detection does not fire before first paint (draft or server time ms) */
   initialLastWriteAt: number;
   onApplyExternalDraft?: (draft: StoredSpaceDraft) => void;
@@ -48,6 +48,46 @@ function graphDirty(state: WorkflowState, prev: WorkflowState) {
   );
 }
 
+/** Strip RF UI / derived geometry — excluded from “meaningful” local draft bumps. */
+function stripNodeForRemoteDirtyCompare(n: Node): Record<string, unknown> {
+  const o = { ...n } as Record<string, unknown>;
+  delete o.selected;
+  delete o.dragging;
+  delete o.resizing;
+  delete o.positionAbsolute;
+  return o;
+}
+
+function stripEdgeForRemoteDirtyCompare(e: Edge): Record<string, unknown> {
+  const o = { ...e } as Record<string, unknown>;
+  delete o.selected;
+  return o;
+}
+
+function normalizedGraphDiffers(
+  aNodes: Node[],
+  aEdges: Edge[],
+  bNodes: Node[],
+  bEdges: Edge[]
+): boolean {
+  if (aNodes.length !== bNodes.length || aEdges.length !== bEdges.length) return true;
+  const sa = JSON.stringify(aNodes.map(stripNodeForRemoteDirtyCompare));
+  const sb = JSON.stringify(bNodes.map(stripNodeForRemoteDirtyCompare));
+  if (sa !== sb) return true;
+  const sea = JSON.stringify(aEdges.map(stripEdgeForRemoteDirtyCompare));
+  const seb = JSON.stringify(bEdges.map(stripEdgeForRemoteDirtyCompare));
+  return sea !== seb;
+}
+
+/** Content changes that should bump IndexedDB draft. Excludes viewport-only and selection-only churn. */
+function meaningfulRemoteContentDirty(state: WorkflowState, prev: WorkflowState): boolean {
+  if (state.comments !== prev.comments) return true;
+  if (state.settings !== prev.settings) return true;
+  if (state.nodeGridLayouts !== prev.nodeGridLayouts) return true;
+  if (state.nodes === prev.nodes && state.edges === prev.edges) return false;
+  return normalizedGraphDiffers(state.nodes, state.edges, prev.nodes, prev.edges);
+}
+
 /** Blur + React/Zustand may commit on the next frame; snapshot too early loses e.g. labelText */
 function waitForPersistenceSettled(): Promise<void> {
   return new Promise((resolve) => {
@@ -71,23 +111,46 @@ function snapshotDiffers(a: CanvasSnapshotPayload, b: CanvasSnapshotPayload): bo
 }
 
 export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistenceOpts) {
-  const seedDirty = Boolean(opts?.seedDirty);
   const onApplyExternalDraft = opts.onApplyExternalDraft;
   const initialLastWriteAt = opts.initialLastWriteAt;
 
   const dirtyRef = useRef(false);
+  /** After saveSpace succeeds, React Query may not have refetched yet; treat local as in sync until then. */
+  const lastPushedSnapshotRef = useRef<CanvasSnapshotPayload | null>(null);
+  const spaceRowRef = useRef(space);
+  spaceRowRef.current = space;
+
   const remoteBaselineRef = useRef(space.updated_at);
   const spaceIdRef = useRef(space.id);
   spaceIdRef.current = space.id;
 
   const lastLocalWriteAtRef = useRef(initialLastWriteAt);
   const rafPendingRef = useRef(false);
-  const idleDeadlineRef = useRef(Date.now() + IDLE_FLUSH_MS);
   const pendingFlushReasonRef = useRef<RemoteFlushReason>('explicit');
 
-  const [remoteSaveCountdownSec, setRemoteSaveCountdownSec] = useState<number | null>(null);
-  const [isRemoteDirtyPending, setIsRemoteDirtyPending] = useState(seedDirty);
+  const [isRemoteDirtyPending, setIsRemoteDirtyPending] = useState(false);
   const [isSavingToRemote, setIsSavingToRemote] = useState(false);
+
+  const isInSyncWithRemote = useCallback((): boolean => {
+    const snap = snapshotFromStore();
+    if (
+      lastPushedSnapshotRef.current &&
+      canvasSnapshotPayloadParityEqual(snap, lastPushedSnapshotRef.current)
+    ) {
+      return true;
+    }
+    return canvasSnapshotMatchesSpaceRow(snap, spaceRowRef.current);
+  }, []);
+
+  const refreshParity = useCallback(() => {
+    if (isInSyncWithRemote()) {
+      dirtyRef.current = false;
+      setIsRemoteDirtyPending(false);
+    } else {
+      dirtyRef.current = true;
+      setIsRemoteDirtyPending(true);
+    }
+  }, [isInSyncWithRemote]);
 
   useEffect(() => {
     remoteBaselineRef.current = space.updated_at;
@@ -98,8 +161,9 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
   }, [space.id, initialLastWriteAt]);
 
   useEffect(() => {
-    if (seedDirty) dirtyRef.current = true;
-  }, [space.id, seedDirty]);
+    lastPushedSnapshotRef.current = null;
+    refreshParity();
+  }, [space.id, space.updated_at, refreshParity]);
 
   const syncFocusedInputToStore = () => {
     const el = document.activeElement;
@@ -119,7 +183,7 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
       logRemoteFlush('skip', { spaceId, skipReason: 'wrong_space' });
       return;
     }
-    if (!dirtyRef.current) {
+    if (isInSyncWithRemote()) {
       logRemoteFlush('skip', { spaceId, skipReason: 'not_dirty' });
       return;
     }
@@ -128,6 +192,7 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
     try {
       await waitForPersistenceSettled();
 
+      let lastCommittedSnap: CanvasSnapshotPayload | null = null;
       const MAX_SAVE_ATTEMPTS = 3;
       for (let attempt = 0; attempt < MAX_SAVE_ATTEMPTS; attempt++) {
         await waitForPersistenceSettled();
@@ -137,6 +202,7 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
         });
         if (t != null) lastLocalWriteAtRef.current = t;
         await saveSpace(spaceId, lastSnap);
+        lastCommittedSnap = lastSnap;
         await waitForPersistenceSettled();
         const after = snapshotFromStore();
         if (!snapshotDiffers(lastSnap, after)) break;
@@ -145,14 +211,15 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
       await clearSpaceDraft(spaceId);
       logLocalDraftCleared(spaceId);
 
+      if (lastCommittedSnap) {
+        lastPushedSnapshotRef.current = lastCommittedSnap;
+      }
+      refreshParity();
+
       await queryClient.invalidateQueries({ queryKey: ['canvas-space'] });
       await queryClient.refetchQueries({ queryKey: ['canvas-space'] });
 
-      dirtyRef.current = false;
-      setIsRemoteDirtyPending(false);
       remoteBaselineRef.current = new Date().toISOString();
-      idleDeadlineRef.current = Date.now() + IDLE_FLUSH_MS;
-      setRemoteSaveCountdownSec(null);
       logRemoteFlush('ok', {
         spaceId,
         reason,
@@ -182,13 +249,15 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
       if (prev.currentSpaceId !== spaceIdRef.current && state.currentSpaceId === spaceIdRef.current) {
         return;
       }
-      dirtyRef.current = true;
-      setIsRemoteDirtyPending(true);
-      idleDeadlineRef.current = Date.now() + IDLE_FLUSH_MS;
-      queueIdbWrite();
+      if (meaningfulRemoteContentDirty(state, prev)) {
+        queueIdbWrite();
+      }
+      refreshParity();
     });
-    return () => unsub();
-  }, [space.id, queueIdbWrite]);
+    return () => {
+      unsub();
+    };
+  }, [space.id, queueIdbWrite, refreshParity]);
 
   useEffect(() => {
     return registerCanvasRemoteFlush(() => {
@@ -198,45 +267,11 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
   }, [space.id]);
 
   useEffect(() => {
-    const tick = () => {
-      if (!dirtyRef.current) {
-        setRemoteSaveCountdownSec(null);
-        return;
-      }
-      const sec = Math.max(0, Math.ceil((idleDeadlineRef.current - Date.now()) / 1000));
-      setRemoteSaveCountdownSec(sec);
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [space.id]);
-
-  useEffect(() => {
-    let idleTimer: ReturnType<typeof setTimeout>;
-    const bump = () => {
-      clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => {
-        pendingFlushReasonRef.current = 'idle_5m';
-        void flushRemote.current();
-      }, IDLE_FLUSH_MS);
-    };
-    bump();
-    const unsub = useWorkflowStore.subscribe((state, prev) => {
-      if (!prev || state.currentSpaceId !== spaceIdRef.current) return;
-      if (graphDirty(state, prev)) bump();
-    });
-    return () => {
-      clearTimeout(idleTimer);
-      unsub();
-    };
-  }, [space.id]);
-
-  useEffect(() => {
     const onHidden = async () => {
       if (document.visibilityState === 'hidden') {
         syncFocusedInputToStore();
         const sid = spaceIdRef.current;
-        if (dirtyRef.current) {
+        if (!isInSyncWithRemote()) {
           const t = await writeSpaceDraft(sid, remoteBaselineRef.current, snapshotFromStore(), {
             everyWrite: true,
           });
@@ -260,7 +295,7 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
     const onPageHide = async () => {
       syncFocusedInputToStore();
       const sid = spaceIdRef.current;
-      if (dirtyRef.current) {
+      if (!isInSyncWithRemote()) {
         const t = await writeSpaceDraft(sid, remoteBaselineRef.current, snapshotFromStore(), {
           everyWrite: true,
         });
@@ -276,7 +311,7 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('pagehide', onPageHide);
     };
-  }, [space.id, onApplyExternalDraft]);
+  }, [space.id, onApplyExternalDraft, isInSyncWithRemote]);
 
   const saveToRemoteNow = useCallback(async () => {
     pendingFlushReasonRef.current = 'explicit';
@@ -290,7 +325,6 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
 
   return {
     flushRemote: () => flushRemote.current(),
-    remoteSaveCountdownSec,
     isRemoteDirtyPending,
     saveToRemoteNow,
     isSavingToRemote,

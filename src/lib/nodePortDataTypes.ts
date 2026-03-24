@@ -15,7 +15,7 @@ const NODE_PORT_TYPES: Record<string, HandleDataType[]> = {
   listNode: ['text'],
   propsInputNode: ['image'],
   annotationNode: ['text'],
-  placementRefNode: ['image'],
+  placementRefNode: ['text', 'image'],
   setDressingNode: ['text', 'image'],
   angleVariationsNode: ['image'],
   angleVariationsListNode: ['image'],

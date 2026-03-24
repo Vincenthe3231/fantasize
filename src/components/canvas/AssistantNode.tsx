@@ -16,8 +16,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { RichTextField } from '@/components/rich-text/RichTextField';
 
 const ASSISTANT_MODELS = [
+  'Auto',
   'GPT-5 Mini',
   'GPT-4.1 Mini',
   'GPT-5.2',
@@ -255,13 +257,26 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
 
             <div className="flex min-h-[140px] flex-1 flex-col overflow-hidden p-3">
               {view === 'prompt' ? (
-                <textarea
+                <RichTextField
                   value={prompt}
-                  draggable={false}
-                  onChange={(e) => updateNodeData(id, { prompt: e.target.value })}
+                  onChange={(html) => updateNodeData(id, { prompt: html })}
                   placeholder={PLACEHOLDER}
-                  className={`${NODE_INTERACTIVE_CLASS} min-h-[120px] w-full flex-1 bg-transparent text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] resize-none outline-none leading-relaxed`}
-                  style={{ fontFamily: 'Inter, sans-serif' }}
+                  excludeNodeId={id}
+                  toolbarVariant="top"
+                  className="min-h-[120px] flex-1"
+                  editorContentClassName="w-full min-h-[100px] max-h-full flex-1 overflow-y-auto text-[12px] text-[var(--text-primary)] outline-none leading-relaxed break-words [overflow-wrap:anywhere] prose prose-invert prose-sm max-w-none [&_p]:my-1 [&_*]:break-words"
+                  editorProps={{
+                    handleDOMEvents: {
+                      mousedown: (_, e) => {
+                        e.stopPropagation();
+                        return false;
+                      },
+                      keydown: (_, e) => {
+                        e.stopPropagation();
+                        return false;
+                      },
+                    },
+                  }}
                 />
               ) : (
                 <div

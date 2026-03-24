@@ -40,7 +40,7 @@ export function logLocalDraftCleared(spaceId: string) {
   });
 }
 
-export type RemoteFlushReason = 'tab_hidden' | 'page_hide' | 'idle_5m' | 'explicit';
+export type RemoteFlushReason = 'explicit';
 
 export function logRemoteFlush(
   phase: 'start' | 'ok' | 'fail' | 'skip',

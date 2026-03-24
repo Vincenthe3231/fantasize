@@ -39,6 +39,8 @@ Open the URL shown in the terminal (usually `http://localhost:5173`).
 
 ## Supabase: schema and remote migration
 
+**CLI convention:** run every Supabase CLI command with **`pnpx supabase …`** (uses the project’s CLI via pnpm; same flags as `supabase` in the official docs).
+
 Migrations live in [`supabase/migrations/`](supabase/migrations/).
 
 ### Tables (MVP)
@@ -68,8 +70,8 @@ The S3-style env vars (`VITE_SUPABASE_STORAGE_ACCESS_KEY`, etc.) are optional; t
 
 **Option A — Supabase CLI (recommended)**
 
-1. Install the [Supabase CLI](https://supabase.com/docs/guides/cli).
-2. Log in: `supabase login`
+1. Install the [Supabase CLI](https://supabase.com/docs/guides/cli) (or rely on **`pnpx`** to run it without a global install).
+2. Log in: **`pnpx supabase login`**
 3. Link this repo to your project (project ref is in the dashboard URL):
 
    ```sh
@@ -91,6 +93,16 @@ The S3-style env vars (`VITE_SUPABASE_STORAGE_ACCESS_KEY`, etc.) are optional; t
 
 If you edit the schema only in the dashboard, run **`pnpm db:types`** so [`src/integrations/supabase/types.ts`](src/integrations/supabase/types.ts) stays in sync.
 
+### Edge Function: `scout-execute` (Virtual Production Scout)
+
+Deploy the OpenRouter-backed pipeline function after linking the project:
+
+```sh
+pnpm db:deploy-scout-fn
+```
+
+Equivalent: **`pnpx supabase functions deploy scout-execute --no-verify-jwt`**. Set secrets first (e.g. `pnpx supabase secrets set OPENROUTER_API_KEY=…`). See [`docs/SCOUT_LIVE_ROLLOUT.md`](docs/SCOUT_LIVE_ROLLOUT.md).
+
 ### Security
 
 - Commit **migrations**; do **not** commit `.env`, `secret`, or the **service_role** key.
@@ -109,6 +121,7 @@ If you edit the schema only in the dashboard, run **`pnpm db:types`** so [`src/i
 | `pnpm test:watch` | Vitest watch mode |
 | `pnpm db:push-sync` | Push migrations to linked remote DB, then regenerate `types.ts` |
 | `pnpm db:types` | Regenerate `types.ts` from linked Supabase only (after `pnpx supabase link`) |
+| `pnpm db:deploy-scout-fn` | Deploy Edge Function `scout-execute` (`pnpx supabase functions deploy …`) |
 
 ## Guidelines
 

@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type NodeProps } from 'reactflow';
 import { Image, Loader2, Replace as ReplaceIcon, Upload } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
-import { toast } from 'sonner';
+import { notifyError } from '@/lib/systemNotify';
 import { uploadWorkflowMedia } from '@/lib/uploadStorage';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
@@ -12,6 +12,7 @@ import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
+import { stage1Complete } from '@/lib/scoutPipeline';
 
 function isVideoUrl(url: string): boolean {
   return /\.(mp4|mov|webm)(\?|$)/i.test(url);
@@ -82,6 +83,7 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
   const nodes = useWorkflowStore((s) => s.nodes);
+  const s1 = useMemo(() => stage1Complete(nodes), [nodes]);
   const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
   const quickOverrides = useMemo(
     () => ({
@@ -123,7 +125,7 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Upload failed';
         setUploadError(msg);
-        toast.error(msg);
+        notifyError('Upload failed', msg);
       } finally {
         setUploading(false);
       }
@@ -200,6 +202,13 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
 
         <NodeContentFocus nodeId={id} shellMoveCursor>
           <div className="flex min-h-0 flex-1 flex-col p-3 pt-2">
+            <div className="mb-1.5 flex justify-end">
+              {s1.hasLocation ? (
+                <span className="text-[9px] rounded bg-emerald-500/20 px-1.5 py-0.5 text-emerald-300">Location OK</span>
+              ) : (
+                <span className="text-[9px] rounded bg-amber-500/20 px-1.5 py-0.5 text-amber-200">Add location</span>
+              )}
+            </div>
             {mediaUrl ? (
               <div className="relative min-h-[120px] min-w-0 flex-1 overflow-hidden rounded-2xl bg-[var(--node-inner-mid)]">
                 {isVideoUrl(mediaUrl) ? (

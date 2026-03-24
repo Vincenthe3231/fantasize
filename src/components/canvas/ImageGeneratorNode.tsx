@@ -30,6 +30,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { RichTextField } from '@/components/rich-text/RichTextField';
 
 const MODES = ['Auto', 'Cinematic', 'Classic', 'Classic Fast', 'Flux.1', 'Flux.1 Fast', 'SDXL', 'Mystic'];
 
@@ -181,16 +182,27 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
               {status !== 'generating' && status !== 'success' && (
                 <div className="flex-1 min-h-0" />
               )}
-              <div className="p-3 pt-0 mt-auto shrink-0">
-                <textarea
+              <div className="mt-auto shrink-0 p-3 pt-0" onPointerDown={(e) => e.stopPropagation()}>
+                <RichTextField
                   value={prompt}
-                  draggable={false}
-                  onChange={(e) => updateNodeData(id, { prompt: e.target.value })}
-                  onPointerDown={(e) => e.stopPropagation()}
+                  onChange={(html) => updateNodeData(id, { prompt: html })}
                   placeholder="Describe the image you want to generate…"
-                  rows={2}
-                  className={`${NODE_INTERACTIVE_CLASS} w-full bg-transparent text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] resize-none outline-none leading-relaxed`}
-                  style={{ fontFamily: 'Inter, sans-serif' }}
+                  excludeNodeId={id}
+                  toolbarVariant="top"
+                  className="max-h-[140px]"
+                  editorContentClassName="w-full min-h-[48px] max-h-[120px] overflow-y-auto text-[12px] text-[var(--text-primary)] outline-none leading-relaxed prose prose-invert prose-sm max-w-none"
+                  editorProps={{
+                    handleDOMEvents: {
+                      mousedown: (_, e) => {
+                        e.stopPropagation();
+                        return false;
+                      },
+                      keydown: (_, e) => {
+                        e.stopPropagation();
+                        return false;
+                      },
+                    },
+                  }}
                 />
               </div>
             </div>
@@ -282,13 +294,28 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
                   <label className="text-[10px] font-mono-display text-[var(--node-popover-muted)] uppercase">
                     Negative prompt
                   </label>
-                  <textarea
-                    value={negativePrompt}
-                    draggable={false}
-                    onChange={(e) => updateNodeData(id, { negativePrompt: e.target.value })}
-                    className="mt-2 w-full rounded-lg p-2 text-[12px] text-[var(--node-popover-text)] resize-none min-h-[72px] border border-[var(--node-control-border)] bg-[var(--node-control-bg)]"
-                    placeholder="Elements to exclude…"
-                  />
+                  <div className="mt-2 min-h-[72px] rounded-lg border border-[var(--node-control-border)] bg-[var(--node-control-bg)] p-1">
+                    <RichTextField
+                      value={negativePrompt}
+                      onChange={(html) => updateNodeData(id, { negativePrompt: html })}
+                      placeholder="Elements to exclude…"
+                      excludeNodeId={id}
+                      toolbarVariant="top"
+                      editorContentClassName="w-full min-h-[56px] text-[12px] text-[var(--node-popover-text)] outline-none prose prose-invert prose-sm max-w-none"
+                      editorProps={{
+                        handleDOMEvents: {
+                          mousedown: (_, e) => {
+                            e.stopPropagation();
+                            return false;
+                          },
+                          keydown: (_, e) => {
+                            e.stopPropagation();
+                            return false;
+                          },
+                        },
+                      }}
+                    />
+                  </div>
                 </PopoverContent>
               </Popover>
 

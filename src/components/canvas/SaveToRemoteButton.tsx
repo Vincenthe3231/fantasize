@@ -1,7 +1,7 @@
 import { CloudUpload, Loader2 } from 'lucide-react';
 import { useSpacePersistenceUi } from '@/contexts/SpacePersistenceContext';
 
-/** Matches RemoteSaveCountdown glass-toolbar styling; saves canvas to Supabase immediately. */
+/** Saves canvas to Supabase when there are unsynced changes (manual only). */
 export default function SaveToRemoteButton() {
   const { isRemoteDirtyPending, saveToRemoteNow, isSavingToRemote } = useSpacePersistenceUi();
 

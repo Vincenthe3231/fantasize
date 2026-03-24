@@ -28,5 +28,14 @@ export const MOCK = {
   decorRef: 'https://picsum.photos/seed/vps-decor/400/300',
 } as const;
 
+/** Default prop slots when `propsInputNode.data.props` is missing or empty (matches `PropsInputNode` UI fallback). */
+export type ScoutPropSlot = { id: string; label: string; src: string };
+
+export const DEFAULT_SCOUT_PROP_SLOTS: ScoutPropSlot[] = [
+  { id: 'p1', label: 'Coffee table', src: MOCK.propTable },
+  { id: 'p2', label: 'Vintage speakers', src: MOCK.propSpeakers },
+  { id: 'p3', label: 'L-sofa', src: MOCK.propSofa },
+];
+
 export const SCENE_DESCRIPTION =
   'Open loft living room, warm oak floors, tall windows with soft daylight, minimal Scandinavian furniture, LED strip accent behind media wall, floating shelves with plants and books.';

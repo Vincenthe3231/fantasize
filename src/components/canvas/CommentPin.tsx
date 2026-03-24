@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X } from 'lucide-react';
 import { useWorkflowStore, type Comment } from '@/stores/workflowStore';
+import { RichTextField } from '@/components/rich-text/RichTextField';
 
 interface CommentPinProps {
   comment: Comment;
@@ -30,13 +31,26 @@ const CommentPin = ({ comment }: CommentPinProps) => {
             exit={{ opacity: 0, scale: 0.9, y: -4 }}
             className="comment-pin-popover absolute top-8 left-0 w-[220px] rounded-xl p-3 space-y-2 shadow-lg bg-[var(--node-inner-mid)] border border-[var(--accent-color)]/40"
           >
-            <textarea
+            <RichTextField
               value={comment.text}
-              draggable={false}
-              onChange={(e) => updateComment(comment.id, e.target.value)}
+              onChange={(html) => updateComment(comment.id, html)}
               placeholder="Add a comment…"
-              className="w-full bg-transparent text-[13px] text-[var(--text-primary)] resize-none outline-none min-h-[50px] placeholder:text-[var(--text-muted)]"
-              style={{ fontFamily: 'Inter, sans-serif' }}
+              enableMentions={false}
+              toolbarVariant="top"
+              className="max-h-[200px]"
+              editorContentClassName="w-full min-h-[50px] max-h-[160px] overflow-y-auto text-[13px] text-[var(--text-primary)] outline-none prose prose-invert prose-sm max-w-none"
+              editorProps={{
+                handleDOMEvents: {
+                  mousedown: (_, e) => {
+                    e.stopPropagation();
+                    return false;
+                  },
+                  keydown: (_, e) => {
+                    e.stopPropagation();
+                    return false;
+                  },
+                },
+              }}
             />
             <div className="flex items-center justify-between">
               <button

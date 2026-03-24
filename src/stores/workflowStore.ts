@@ -1,6 +1,27 @@
 import { create } from 'zustand';
 import { type Node, type Edge, type XYPosition } from 'reactflow';
-import { MOCK, SCENE_DESCRIPTION } from '@/lib/mockPipelineAssets';
+import { MOCK, SCENE_DESCRIPTION, DEFAULT_SCOUT_PROP_SLOTS } from '@/lib/mockPipelineAssets';
+import {
+  type ScoutPipelineState,
+  DEFAULT_SCOUT_PIPELINE,
+  applyScoutStaleOnDataChange,
+  canRunScoutNode,
+} from '@/lib/scoutPipeline';
+import { executeScoutNode, type ScoutRunOptions } from '@/lib/scoutRunCoordinator';
+import { richTextToPlainForScout } from '@/lib/richTextForScout';
+import { notifyInfo, notifySuccess } from '@/lib/systemNotify';
+export type { ScoutPipelineState } from '@/lib/scoutPipeline';
+export type { ScoutRunOptions } from '@/lib/scoutRunCoordinator';
+
+/** Node types executed via Supabase `scout-execute` + graph resolver (replaces timer-only mock). */
+const SCOUT_REMOTE_EXECUTION_TYPES = new Set<string>([
+  'assistantNode',
+  'imageGeneratorNode',
+  'setDressingNode',
+  'angleVariationsNode',
+  'lightingScenarioNode',
+  'atmosphereTestNode',
+]);
 
 /** Pending updateNodeData batches: flush after 1s idle per node */
 const UPDATE_NODE_DATA_DEBOUNCE_MS = 1000;
@@ -76,6 +97,23 @@ export interface WorkflowSettings {
   canvasCursorTrails: boolean;
 }
 
+/** Default settings for new sessions and for merging with persisted `space.settings`. */
+export const DEFAULT_WORKFLOW_SETTINGS: WorkflowSettings = {
+  helperLines: true,
+  videoAutoplay: true,
+  performanceMode: false,
+  richTooltips: true,
+  experimentalTools: false,
+  edgePathType: 'bezier',
+  mouseWheelBehavior: 'zoom',
+  darkMode: true,
+  showMinimap: false,
+  edgeAnimation: true,
+  showNodeLabels: true,
+  canvasPattern: 'dots',
+  canvasCursorTrails: true,
+};
+
 /** Command: execute = redo forward, undo = revert */
 export interface CanvasCommand {
   execute: () => void;
@@ -104,6 +142,8 @@ export interface WorkflowState {
   comments: Comment[];
   runningNodes: Set<string>;
   runningEdges: Set<string>;
+  /** Per `runFromNode` root id: edge ids for that run (unioned into `runningEdges`). */
+  runningEdgeIdsByRunSource: Record<string, string[]>;
   selectedTool: SelectedTool;
   settings: WorkflowSettings;
   pastStack: CanvasCommand[];
@@ -154,8 +194,17 @@ export interface WorkflowState {
   ) => void;
   restoreNodeLabelSnapshot: (id: string, before: { labelText?: unknown; title?: unknown }) => void;
 
-  runFromNode: (id: string) => void;
+  runFromNode: (id: string, options?: ScoutRunOptions) => void;
   runAll: () => void;
+
+  /** Virtual Production Scout pipeline orchestration */
+  scoutPipeline: ScoutPipelineState;
+  setScoutPipeline: (partial: Partial<ScoutPipelineState>) => void;
+  approveStage2Pipeline: () => void;
+  clearStage2Stale: () => void;
+  setSelectedShotCommitted: (committed: boolean) => void;
+  finalizeScoutDeliverable: (payload: NonNullable<ScoutPipelineState['finalDeliverable']>) => void;
+  clearScoutFinalDeliverable: () => void;
 
   setSelectedTool: (tool: SelectedTool) => void;
   setIsDragging: (dragging: boolean) => void;
@@ -221,6 +270,58 @@ function edgesBetweenLevels(levels: string[][], edges: Edge[]): string[] {
   return edges.filter((e) => allNodes.has(e.source) && allNodes.has(e.target)).map((e) => e.id);
 }
 
+function unionEdgeIdsByRunSource(reg: Record<string, string[]>): Set<string> {
+  const out = new Set<string>();
+  for (const ids of Object.values(reg)) {
+    for (const eid of ids) out.add(eid);
+  }
+  return out;
+}
+
+/** Scout remote nodes in topological order (sources before targets along edges). */
+function topologicalOrderScoutRemoteIds(nodes: Node[], edges: Edge[]): string[] {
+  const scoutIds = new Set(
+    nodes.filter((n) => SCOUT_REMOTE_EXECUTION_TYPES.has(n.type)).map((n) => n.id)
+  );
+  if (scoutIds.size === 0) return [];
+
+  const indeg = new Map<string, number>();
+  const adj = new Map<string, string[]>();
+  for (const id of scoutIds) {
+    indeg.set(id, 0);
+    adj.set(id, []);
+  }
+  for (const e of edges) {
+    if (!scoutIds.has(e.source) || !scoutIds.has(e.target)) continue;
+    adj.get(e.source)!.push(e.target);
+    indeg.set(e.target, (indeg.get(e.target) ?? 0) + 1);
+  }
+
+  const queue = [...scoutIds].filter((id) => indeg.get(id) === 0);
+  queue.sort();
+  const out: string[] = [];
+  while (queue.length > 0) {
+    const u = queue.shift()!;
+    out.push(u);
+    for (const v of adj.get(u) ?? []) {
+      const next = (indeg.get(v) ?? 0) - 1;
+      indeg.set(v, next);
+      if (next === 0) {
+        queue.push(v);
+        queue.sort();
+      }
+    }
+  }
+  if (out.length < scoutIds.size) {
+    for (const id of scoutIds) {
+      if (!out.includes(id)) out.push(id);
+    }
+  }
+  return out;
+}
+
+let runAllInFlight = false;
+
 const defaultNodes: Node[] = [
   {
     id: 'text-1',
@@ -238,13 +339,16 @@ const defaultNodes: Node[] = [
     id: 'placement-1',
     type: 'placementRefNode',
     position: { x: 80, y: 520 },
-    data: {},
+    data: {
+      placementText: `<p>${SCENE_DESCRIPTION}</p>`,
+      placementRefUrl: MOCK.placement,
+    },
   },
   {
     id: 'props-input-1',
     type: 'propsInputNode',
     position: { x: 80, y: 700 },
-    data: {},
+    data: { props: [...DEFAULT_SCOUT_PROP_SLOTS] },
   },
   {
     id: 'assistant-1',
@@ -291,32 +395,50 @@ const defaultNodes: Node[] = [
     id: 'lighting-1',
     type: 'lightingScenarioNode',
     position: { x: 1960, y: 400 },
-    data: {},
+    data: {
+      lightingStrings: ['Golden hour', 'Studio', 'Natural light'],
+      accumulatedLighting: [] as { id: string; label: string; src: string }[],
+      lastBatchResults: [] as { id: string; label: string; src: string }[],
+    },
   },
   {
     id: 'atmosphere-1',
     type: 'atmosphereTestNode',
     position: { x: 2400, y: 400 },
-    data: {},
+    data: {
+      moodText: '',
+      referenceUrl: '',
+      textResults: [] as { id: string; label: string; src: string }[],
+      referenceResults: [] as { id: string; label: string; src: string }[],
+      selectedBranch: null as 'text' | 'reference' | null,
+      selectedIndex: null as number | null,
+    },
   },
   {
     id: 'angle-list-1',
     type: 'angleVariationsListNode',
     position: { x: 1520, y: 700 },
-    data: {},
+    data: {
+      accumulatedAngles: [] as { id: string; src: string; resolution?: string }[],
+      selectedAngleId: null as string | null,
+    },
   },
   {
     id: 'selected-shot-1',
     type: 'selectedShotNode',
     position: { x: 1920, y: 700 },
-    data: { mediaUrl: MOCK.selectedShot, resolution: '3840 × 2133' },
+    data: {
+      mediaUrl: MOCK.selectedShot,
+      resolution: '3840 × 2133',
+      committed: false,
+    },
   },
   {
     id: 'annotation-1',
     type: 'annotationNode',
     position: { x: 1520, y: 960 },
     data: {
-      text: '💡 Pipeline: *Set dressing* → *Camera coverage* → *Lighting* → *Atmosphere*. Use *Reframe* in Angle variations to refine shots.',
+      text: '💡 Scout: Approve Stage 2 → run angles → pick in list → Commit hero shot → Lighting batch → Text/Reference atmosphere → Finalize.',
     },
     selectable: false,
     draggable: false,
@@ -328,7 +450,14 @@ const defaultEdges: Edge[] = [
   { id: 'e-upload-assistant', source: 'upload-1', target: 'assistant-1', targetHandle: 'image-in', type: 'custom' },
   { id: 'e-assistant-generator', source: 'assistant-1', target: 'generator-1', type: 'custom' },
   { id: 'e-upload-set', source: 'upload-1', target: 'set-dressing-1', targetHandle: 'location-in', type: 'custom' },
-  { id: 'e-placement-set', source: 'placement-1', target: 'set-dressing-1', targetHandle: 'placement-in', type: 'custom' },
+  {
+    id: 'e-placement-set',
+    source: 'placement-1',
+    target: 'set-dressing-1',
+    targetHandle: 'placement-in',
+    sourceHandle: 'text-out',
+    type: 'custom',
+  },
   {
     id: 'e-props-set',
     source: 'props-input-1',
@@ -339,10 +468,17 @@ const defaultEdges: Edge[] = [
   },
   { id: 'e-gen-set', source: 'generator-1', target: 'set-dressing-1', targetHandle: 'scene-in', type: 'custom' },
   { id: 'e-set-angle', source: 'set-dressing-1', target: 'angle-var-1', type: 'custom' },
-  { id: 'e-angle-light', source: 'angle-var-1', target: 'lighting-1', type: 'custom' },
+  {
+    id: 'e-shot-light',
+    source: 'selected-shot-1',
+    target: 'lighting-1',
+    targetHandle: 'image-in',
+    sourceHandle: 'image-out',
+    type: 'custom',
+  },
   { id: 'e-light-atmo', source: 'lighting-1', target: 'atmosphere-1', type: 'custom' },
   { id: 'e-angle-list', source: 'angle-var-1', target: 'angle-list-1', type: 'custom' },
-  { id: 'e-list-shot', source: 'angle-list-1', target: 'selected-shot-1', type: 'custom' },
+  { id: 'e-list-shot', source: 'angle-list-1', target: 'selected-shot-1', targetHandle: 'image-in', type: 'custom' },
 ];
 
 export function createVirtualProductionScoutTemplate(): { nodes: Node[]; edges: Edge[] } {
@@ -460,39 +596,134 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     }));
   };
 
+  const runScoutRemoteOnce = async (
+    nodeId: string,
+    options?: ScoutRunOptions,
+    batchOpts?: { suppressFailureToast?: boolean }
+  ): Promise<{ ok: boolean; reason?: string }> => {
+    const s = get();
+    const guard = canRunScoutNode(s.nodes, s.scoutPipeline, nodeId);
+    if (!guard.ok) return { ok: false, reason: guard.reason };
+    const node = s.nodes.find((n) => n.id === nodeId);
+    if (!node || !SCOUT_REMOTE_EXECUTION_TYPES.has(node.type)) {
+      return { ok: false, reason: 'Not a Scout execution node' };
+    }
+
+    const levels = bfsDownstream(nodeId, s.edges);
+    const affectedEdgeIds = edgesBetweenLevels(levels, s.edges);
+    set((st) => {
+      const reg = { ...st.runningEdgeIdsByRunSource, [nodeId]: affectedEdgeIds };
+      return {
+        runningEdgeIdsByRunSource: reg,
+        runningEdges: unionEdgeIdsByRunSource(reg),
+        runningNodes: new Set([...st.runningNodes, nodeId]),
+      };
+    });
+
+    const clearRunning = () => {
+      set((st) => {
+        const rn = new Set(st.runningNodes);
+        rn.delete(nodeId);
+        const { [nodeId]: _removed, ...rest } = st.runningEdgeIdsByRunSource;
+        return {
+          runningNodes: rn,
+          runningEdgeIdsByRunSource: rest,
+          runningEdges: unionEdgeIdsByRunSource(rest),
+        };
+      });
+    };
+
+    try {
+      const r = await executeScoutNode({
+        nodeId,
+        nodes: get().nodes,
+        edges: get().edges,
+        pipeline: get().scoutPipeline,
+        getGridLayout: (nid) => get().nodeGridLayouts[nid] ?? '2x2',
+        updateNodeData: (nid, data) => get().updateNodeData(nid, data),
+        options,
+      });
+
+      if (!r.ok && !batchOpts?.suppressFailureToast) {
+        notifyInfo('Scout run failed', r.reason ?? 'Scout run failed');
+      }
+      return r;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!batchOpts?.suppressFailureToast) notifyInfo('Scout run failed', msg);
+      return { ok: false, reason: msg };
+    } finally {
+      clearRunning();
+    }
+  };
+
   return {
     nodes: defaultNodes,
     edges: defaultEdges,
     comments: [],
     runningNodes: new Set(),
     runningEdges: new Set(),
+    runningEdgeIdsByRunSource: {},
     selectedTool: 'select',
     isDragging: false,
     hoveredNodeId: null,
     hoveredImageCell: null,
     nodeGridLayouts: {},
     contextMenu: null,
-    settings: {
-      helperLines: true,
-      videoAutoplay: true,
-      performanceMode: false,
-      richTooltips: true,
-      experimentalTools: false,
-      edgePathType: 'bezier',
-      mouseWheelBehavior: 'zoom',
-      darkMode: true,
-      showMinimap: false,
-      edgeAnimation: true,
-      showNodeLabels: true,
-      canvasPattern: 'dots',
-      canvasCursorTrails: true,
-    },
+    settings: DEFAULT_WORKFLOW_SETTINGS,
     nodesClipboard: null,
     focusedNodeContentId: null,
     currentSpaceId: null,
     lastViewport: { x: 0, y: 0, zoom: 1 },
     pastStack: [],
     futureStack: [],
+
+    scoutPipeline: { ...DEFAULT_SCOUT_PIPELINE },
+
+    setScoutPipeline: (partial) =>
+      set((s) => ({ scoutPipeline: { ...s.scoutPipeline, ...partial } })),
+
+    approveStage2Pipeline: () =>
+      set((s) => ({
+        scoutPipeline: {
+          ...s.scoutPipeline,
+          stage2Approved: true,
+          stage2Stale: false,
+        },
+      })),
+
+    clearStage2Stale: () =>
+      set((s) => ({ scoutPipeline: { ...s.scoutPipeline, stage2Stale: false } })),
+
+    setSelectedShotCommitted: (committed) =>
+      set((s) => ({
+        scoutPipeline: {
+          ...s.scoutPipeline,
+          selectedShotCommitted: committed,
+          ...(committed
+            ? {}
+            : { stage4Stale: false, stage5Stale: false, finalAtmosphereSelected: false }),
+        },
+      })),
+
+    finalizeScoutDeliverable: (payload) =>
+      set((s) => ({
+        scoutPipeline: {
+          ...s.scoutPipeline,
+          finalDeliverable: payload,
+          finalAtmosphereSelected: true,
+          stage5Stale: false,
+        },
+      })),
+
+    clearScoutFinalDeliverable: () =>
+      set((s) => ({
+        scoutPipeline: {
+          ...s.scoutPipeline,
+          finalDeliverable: null,
+          finalAtmosphereSelected: false,
+        },
+      })),
 
     setFocusedNodeContentId: (id) => set({ focusedNodeContentId: id }),
     setLastViewport: (v) => set({ lastViewport: v }),
@@ -516,7 +747,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         futureStack: [],
         runningNodes: new Set(),
         runningEdges: new Set(),
+        runningEdgeIdsByRunSource: {},
         focusedNodeContentId: null,
+        scoutPipeline: { ...DEFAULT_SCOUT_PIPELINE },
       });
       document.body.setAttribute('data-theme', merged.darkMode ? 'dark' : 'light');
       document.body.setAttribute('data-performance', String(merged.performanceMode));
@@ -852,11 +1085,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       if (!n) return;
       const keys = Object.keys(data) as string[];
 
-      // Apply immediately so UI stays responsive
-      set({
-        nodes: s.nodes.map((x) =>
+      // Apply immediately so UI stays responsive; update Scout stale flags
+      set((st) => {
+        const nextNodes = st.nodes.map((x) =>
           x.id === id ? { ...x, data: { ...x.data, ...data } } : x
-        ),
+        );
+        const scoutPipeline = applyScoutStaleOnDataChange(st.scoutPipeline, n.type, keys);
+        return { nodes: nextNodes, scoutPipeline };
       });
 
       const existing = pendingNodeDataUpdates.get(id);
@@ -925,10 +1160,16 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     updateNodeDataSilent: (id, data) => {
       const s = get();
       if (!s.nodes.some((x) => x.id === id)) return;
-      set({
-        nodes: s.nodes.map((x) =>
+      const n = s.nodes.find((x) => x.id === id);
+      const keys = Object.keys(data) as string[];
+      set((st) => {
+        const nextNodes = st.nodes.map((x) =>
           x.id === id ? { ...x, data: { ...x.data, ...data } } : x
-        ),
+        );
+        const scoutPipeline = n
+          ? applyScoutStaleOnDataChange(st.scoutPipeline, n.type, keys)
+          : st.scoutPipeline;
+        return { nodes: nextNodes, scoutPipeline };
       });
     },
 
@@ -989,11 +1230,28 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       }));
     },
 
-    runFromNode: (id) => {
+    runFromNode: (id, options) => {
       const s = get();
+      const guard = canRunScoutNode(s.nodes, s.scoutPipeline, id);
+      if (!guard.ok) {
+        notifyInfo('Run blocked', guard.reason ?? 'Cannot run this node yet.');
+        return;
+      }
+      const node = s.nodes.find((n) => n.id === id);
+      if (node && SCOUT_REMOTE_EXECUTION_TYPES.has(node.type)) {
+        void runScoutRemoteOnce(id, options);
+        return;
+      }
+
       const levels = bfsDownstream(id, s.edges);
       const affectedEdgeIds = edgesBetweenLevels(levels, s.edges);
-      set({ runningEdges: new Set(affectedEdgeIds) });
+      set((st) => {
+        const reg = { ...st.runningEdgeIdsByRunSource, [id]: affectedEdgeIds };
+        return {
+          runningEdgeIdsByRunSource: reg,
+          runningEdges: unionEdgeIdsByRunSource(reg),
+        };
+      });
       levels.forEach((level, depth) => {
         setTimeout(() => {
           set((state) => ({
@@ -1004,7 +1262,15 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
               const next = new Set(state.runningNodes);
               level.forEach((nid) => next.delete(nid));
               const isLast = depth === levels.length - 1;
-              return { runningNodes: next, runningEdges: isLast ? new Set() : state.runningEdges };
+              if (!isLast) {
+                return { runningNodes: next, runningEdges: state.runningEdges };
+              }
+              const { [id]: _removed, ...rest } = state.runningEdgeIdsByRunSource;
+              return {
+                runningNodes: next,
+                runningEdgeIdsByRunSource: rest,
+                runningEdges: unionEdgeIdsByRunSource(rest),
+              };
             });
           }, 1500);
         }, depth * 600);
@@ -1012,10 +1278,92 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     },
 
     runAll: () => {
-      const s = get();
-      const targets = new Set(s.edges.map((e) => e.target));
-      const roots = s.nodes.filter((n) => !targets.has(n.id));
-      roots.forEach((r) => get().runFromNode(r.id));
+      console.log('[RunAll] invoked');
+      if (runAllInFlight) {
+        notifyInfo('Run All', 'A Run All is already in progress.');
+        return;
+      }
+      runAllInFlight = true;
+      void (async () => {
+        try {
+          const order = topologicalOrderScoutRemoteIds(get().nodes, get().edges);
+          console.debug('[RunAll] topological order:', order);
+          let succeeded = 0;
+          let failed = 0;
+          let skipped = 0;
+
+          for (const id of order) {
+            const node = get().nodes.find((n) => n.id === id);
+            if (!node || !SCOUT_REMOTE_EXECUTION_TYPES.has(node.type)) continue;
+
+            if (node.type === 'atmosphereTestNode') {
+              const d = node.data as { moodText?: string; referenceUrl?: string };
+              const mood = richTextToPlainForScout(String(d?.moodText ?? '')).trim();
+              const ref = String(d?.referenceUrl ?? '').trim();
+              if (!mood && !ref) {
+                skipped++;
+                continue;
+              }
+              if (mood) {
+                const g = canRunScoutNode(get().nodes, get().scoutPipeline, id);
+                if (!g.ok) {
+                  skipped++;
+                } else {
+                  const r = await runScoutRemoteOnce(id, { atmosphereBranch: 'text' }, { suppressFailureToast: true });
+                  if (r.ok) succeeded++;
+                  else failed++;
+                }
+              }
+              if (ref) {
+                const g = canRunScoutNode(get().nodes, get().scoutPipeline, id);
+                if (!g.ok) {
+                  skipped++;
+                } else {
+                  const r = await runScoutRemoteOnce(
+                    id,
+                    { atmosphereBranch: 'reference' },
+                    { suppressFailureToast: true }
+                  );
+                  if (r.ok) succeeded++;
+                  else failed++;
+                }
+              }
+              continue;
+            }
+
+            const guard = canRunScoutNode(get().nodes, get().scoutPipeline, id);
+            if (!guard.ok) {
+              console.debug('[RunAll] skipping', id, 'guard:', guard.reason);
+              skipped++;
+              continue;
+            }
+            console.debug('[RunAll] executing', id, node.type);
+            const r = await runScoutRemoteOnce(id, undefined, { suppressFailureToast: true });
+            console.debug('[RunAll] result', id, r.ok, r.reason);
+            if (r.ok) succeeded++;
+            else failed++;
+          }
+
+          if (succeeded === 0 && failed === 0) {
+            notifyInfo(
+              'Run All',
+              'No Scout steps ran — add or complete Stage 1 (location, placement, props), approve Stage 2 where required, and satisfy downstream gates (hero shot, lighting batch).'
+            );
+          } else if (succeeded === 0 && failed > 0) {
+            notifyInfo(
+              'Run All',
+              `${failed} Scout step(s) could not complete. Run a single node to see the error.`
+            );
+          } else {
+            const parts = [`Completed ${succeeded} Scout step(s).`];
+            if (failed > 0) parts.push(`${failed} failed.`);
+            if (skipped > 0) parts.push(`${skipped} skipped (gates).`);
+            notifySuccess('Run All', parts.join(' '));
+          }
+        } finally {
+          runAllInFlight = false;
+        }
+      })();
     },
 
     setSelectedTool: (tool) => set({ selectedTool: tool }),
@@ -1130,6 +1478,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         comments: [],
         runningNodes: new Set(),
         runningEdges: new Set(),
+        runningEdgeIdsByRunSource: {},
+        scoutPipeline: { ...DEFAULT_SCOUT_PIPELINE },
       });
       pushCmd({
         undo: () =>
@@ -1139,6 +1489,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
             comments: structuredClone(before.comments),
             runningNodes: new Set(),
             runningEdges: new Set(),
+            runningEdgeIdsByRunSource: {},
+            scoutPipeline: { ...DEFAULT_SCOUT_PIPELINE },
           }),
         execute: () =>
           set({
@@ -1147,6 +1499,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
             comments: [],
             runningNodes: new Set(),
             runningEdges: new Set(),
+            runningEdgeIdsByRunSource: {},
+            scoutPipeline: { ...DEFAULT_SCOUT_PIPELINE },
           }),
       });
     },

@@ -53,6 +53,9 @@
     --handle-icon-text: #a5e0ff;
     --handle-icon-image: #ffe066;
     --handle-icon-video: #fbcfe8;
+    --mention-text: color-mix(in srgb, var(--accent-color) 88%, white);
+    --mention-bg: color-mix(in srgb, var(--accent-color) 22%, transparent);
+    --mention-border: color-mix(in srgb, var(--accent-color) 55%, transparent);
     --text-primary: rgba(255, 255, 255, 0.92);
     --text-muted: rgba(255, 255, 255, 0.38);
     --shadow-node: 0 8px 32px rgba(0, 0, 0, 0.45);
@@ -147,6 +150,18 @@
     rgba(255, 255, 255, 0.04) 27px,
     rgba(255, 255, 255, 0.04) 28px
   );
+}
+
+/* Rich-text mention token styling follows theme variables. */
+.vf-mention {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0.375rem;
+  padding: 0 0.25rem;
+  border: 1px solid var(--mention-border);
+  background: var(--mention-bg);
+  color: var(--mention-text);
+  font-weight: 500;
 }
 .canvas-plain {
   background-color: var(--canvas-bg);
@@ -719,6 +734,9 @@
   --node-divider: rgba(0, 0, 0, 0.1);
   --node-tab-active-bg: rgba(0, 0, 0, 0.08);
   --node-tab-inactive: rgba(0, 0, 0, 0.45);
+  --mention-text: color-mix(in srgb, var(--accent-color) 85%, black);
+  --mention-bg: color-mix(in srgb, var(--accent-color) 16%, transparent);
+  --mention-border: color-mix(in srgb, var(--accent-color) 42%, transparent);
   --node-props-chrome-bg: rgba(255, 252, 245, 0.96);
   --node-props-hint: rgba(120, 85, 30, 0.88);
   --canvas-modal-scrim: rgba(0, 0, 0, 0.28);

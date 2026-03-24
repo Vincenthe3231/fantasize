@@ -11,6 +11,7 @@ import { EnhancedHandle } from './EnhancedHandle';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
+import { RichTextField } from '@/components/rich-text/RichTextField';
 
 const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
@@ -82,14 +83,29 @@ const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
           </div>
         </div>
 
-        <textarea
-          value={prompt}
-          draggable={false}
-          onChange={(e) => updateNodeData(id, { prompt: e.target.value })}
-          placeholder="Describe the scene motion…"
-          className={`${NODE_INTERACTIVE_CLASS} min-h-[50px] w-full flex-1 rounded-lg border border-[var(--node-control-border)] bg-[var(--node-control-bg)] p-2 text-[12px] text-[var(--text-primary)] resize-none outline-none placeholder:text-[var(--text-muted)]`}
-          style={{ fontFamily: 'Inter, sans-serif' }}
-        />
+        <div className="min-h-[50px] w-full flex-1 rounded-lg border border-[var(--node-control-border)] bg-[var(--node-control-bg)] p-1">
+          <RichTextField
+            value={prompt}
+            onChange={(html) => updateNodeData(id, { prompt: html })}
+            placeholder="Describe the scene motion…"
+            excludeNodeId={id}
+            toolbarVariant="top"
+            className="min-h-[40px]"
+            editorContentClassName="w-full min-h-[40px] text-[12px] text-[var(--text-primary)] outline-none prose prose-invert prose-sm max-w-none"
+            editorProps={{
+              handleDOMEvents: {
+                mousedown: (_, e) => {
+                  e.stopPropagation();
+                  return false;
+                },
+                keydown: (_, e) => {
+                  e.stopPropagation();
+                  return false;
+                },
+              },
+            }}
+          />
+        </div>
 
         <AnimatePresence>
           {status === 'success' && (

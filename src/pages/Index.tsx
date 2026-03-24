@@ -56,14 +56,15 @@ import SelectionOverlay from '@/components/canvas/SelectionOverlay';
 import GroupNode from '@/components/canvas/GroupNode';
 import { WorkspacePyramidLoader } from '@/components/canvas/WorkspacePyramidLoader';
 import { SystemNotificationToast } from '@/components/SystemNotificationToast';
-import { toast } from 'sonner';
 import { CanvasCursor } from '@/components/canvas/CanvasCursor';
 import { useMinLoadingDisplay } from '@/hooks/useMinLoadingDisplay';
+import { useSystemNotificationStore } from '@/stores/systemNotificationStore';
 import {
   useWorkflowStore,
   type NodeType,
   applyGroupDropReparent,
 } from '@/stores/workflowStore';
+import { validateScoutConnection } from '@/lib/scoutPipeline';
 
 const nodeTypes = {
   textNode: TextNode,
@@ -188,12 +189,10 @@ const CanvasInner = ({
   space,
   resolvedDraft,
   initialLastWriteAt,
-  restoredFromLocalDraft,
 }: {
   space: SpaceRow;
   resolvedDraft: StoredSpaceDraft | null;
   initialLastWriteAt: number;
-  restoredFromLocalDraft: boolean;
 }) => {
   const storeNodes = useWorkflowStore((s) => s.nodes);
   const storeEdges = useWorkflowStore((s) => s.edges);
@@ -262,7 +261,8 @@ const CanvasInner = ({
   const [edges, setEdges] = useEdgesState(storeEdges);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addPanelOpen, setAddPanelOpen] = useState(false);
-  const [showSystemNotification, setShowSystemNotification] = useState(true);
+  const notifications = useSystemNotificationStore((s) => s.notifications);
+  const dismissNotification = useSystemNotificationStore((s) => s.dismiss);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const dragStartPositions = useRef<Record<string, { x: number; y: number }>>({});
   const dragGraphSnapshotRef = useRef<Node[] | null>(null);
@@ -308,7 +308,6 @@ const CanvasInner = ({
   );
 
   const persistence = useSpaceLocalPersistence(space, {
-    seedDirty: restoredFromLocalDraft,
     initialLastWriteAt,
     onApplyExternalDraft,
   });
@@ -362,8 +361,16 @@ const CanvasInner = ({
     setEdges(storeEdges);
   }, [storeEdges, setEdges]);
 
+  const isValidConnection = useCallback((connection: Connection) => {
+    const store = useWorkflowStore.getState();
+    return validateScoutConnection(connection, store.edges).ok;
+  }, []);
+
   const onConnect = useCallback(
     (connection: Connection) => {
+      const store = useWorkflowStore.getState();
+      const v = validateScoutConnection(connection, store.edges);
+      if (!v.ok) return;
       setEdges((eds) => {
         const next = addEdge({ ...connection, type: 'custom' }, eds);
         const added = next.find((e) => !eds.some((oe) => oe.id === e.id));
@@ -640,7 +647,6 @@ const CanvasInner = ({
   return (
     <SpacePersistenceContext.Provider
       value={{
-        remoteSaveCountdownSec: persistence.remoteSaveCountdownSec,
         isRemoteDirtyPending: persistence.isRemoteDirtyPending,
         saveToRemoteNow: persistence.saveToRemoteNow,
         isSavingToRemote: persistence.isSavingToRemote,
@@ -813,6 +819,7 @@ const CanvasInner = ({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChangeTracked}
         onConnect={onConnect}
+        isValidConnection={isValidConnection}
         onNodeDragStart={(_, node) => {
           setIsDragging(true);
           const ns = getNodes();
@@ -894,14 +901,17 @@ const CanvasInner = ({
         )}
       </ReactFlow>
       <BottomBar />
-      {showSystemNotification ? (
-        <div className="fixed bottom-24 right-4 z-[55] w-[min(280px,calc(100vw-2rem))] max-w-[280px] max-sm:right-3">
-          <SystemNotificationToast
-            onOpen={() =>
-              toast.info('Notifications', { description: 'No new items yet (placeholder).' })
-            }
-            onDismiss={() => setShowSystemNotification(false)}
-          />
+      {notifications.length > 0 ? (
+        <div className="fixed bottom-24 right-4 z-[55] flex w-[min(300px,calc(100vw-2rem))] max-w-[300px] flex-col gap-2 max-sm:right-3">
+          {notifications.map((n) => (
+            <SystemNotificationToast
+              key={n.id}
+              title={n.title}
+              subtitle={n.subtitle}
+              level={n.level}
+              onDismiss={() => dismissNotification(n.id)}
+            />
+          ))}
         </div>
       ) : null}
     </div>
@@ -1047,7 +1057,7 @@ function CanvasRootWithDraft({ space }: { space: SpaceRow }) {
   useEffect(() => {
     setDraftBoot({ draft: null, ready: false });
     let cancelled = false;
-    void shouldRestoreDraftFromLocal(space.id, space.updated_at).then((d) => {
+    void shouldRestoreDraftFromLocal(space.id, space.updated_at, space).then((d) => {
       if (!cancelled) setDraftBoot({ draft: d, ready: true });
     });
     return () => {
@@ -1075,7 +1085,6 @@ function CanvasRootWithDraft({ space }: { space: SpaceRow }) {
       space={space}
       resolvedDraft={draftBoot.draft}
       initialLastWriteAt={initialLastWriteAt}
-      restoredFromLocalDraft={draftBoot.draft !== null}
     />
   );
 }

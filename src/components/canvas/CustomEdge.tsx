@@ -6,6 +6,20 @@ import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 
 const HOVER_LEAVE_MS = 140;
 
+function pointerToSvgPoint(
+  e: React.PointerEvent<SVGPathElement>
+): { x: number; y: number } | null {
+  const svg = e.currentTarget.ownerSVGElement;
+  if (!svg) return null;
+  const pt = svg.createSVGPoint();
+  pt.x = e.clientX;
+  pt.y = e.clientY;
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return null;
+  const local = pt.matrixTransform(ctm.inverse());
+  return { x: local.x, y: local.y };
+}
+
 const CustomEdge = memo(({
   id,
   sourceX,
@@ -21,6 +35,7 @@ const CustomEdge = memo(({
   const selectedTool = useWorkflowStore((s) => s.selectedTool);
   const removeEdgeById = useWorkflowStore((s) => s.removeEdgeById);
   const [hovered, setHovered] = useState(false);
+  const [hoverPoint, setHoverPoint] = useState<{ x: number; y: number } | null>(null);
   const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearLeaveTimer = useCallback(() => {
@@ -30,15 +45,23 @@ const CustomEdge = memo(({
     }
   }, []);
 
-  const onEdgePointerEnter = useCallback(() => {
+  const onEdgePointerEnter = useCallback((e: React.PointerEvent<SVGPathElement>) => {
     clearLeaveTimer();
+    const p = pointerToSvgPoint(e);
+    if (p) setHoverPoint(p);
     setHovered(true);
   }, [clearLeaveTimer]);
+
+  const onEdgePointerMove = useCallback((e: React.PointerEvent<SVGPathElement>) => {
+    const p = pointerToSvgPoint(e);
+    if (p) setHoverPoint(p);
+  }, []);
 
   const onEdgePointerLeave = useCallback(() => {
     clearLeaveTimer();
     leaveTimerRef.current = setTimeout(() => {
       setHovered(false);
+      setHoverPoint(null);
       leaveTimerRef.current = null;
     }, HOVER_LEAVE_MS);
   }, [clearLeaveTimer]);
@@ -84,6 +107,8 @@ const CustomEdge = memo(({
   /** foreignObject top-left so button is centered on midpoint */
   const foSize = 32;
   const foHalf = foSize / 2;
+  const anchorX = hovered && hoverPoint ? hoverPoint.x : midX;
+  const anchorY = hovered && hoverPoint ? hoverPoint.y : midY;
 
   return (
     <>
@@ -96,6 +121,7 @@ const CustomEdge = memo(({
         strokeLinejoin="round"
         style={{ touchAction: 'none' }}
         onPointerEnter={onEdgePointerEnter}
+        onPointerMove={onEdgePointerMove}
         onPointerLeave={onEdgePointerLeave}
         onPointerDown={handleInteractionPointerDown}
         className={`custom-edge-hit-area ${selectedTool === 'cut' ? 'cursor-scissors' : 'cursor-pointer'}`}
@@ -111,8 +137,8 @@ const CustomEdge = memo(({
       />
       {showSnipControl && (
         <foreignObject
-          x={midX - foHalf}
-          y={midY - foHalf}
+          x={anchorX - foHalf}
+          y={anchorY - foHalf}
           width={foSize}
           height={foSize}
           className="overflow-visible"
