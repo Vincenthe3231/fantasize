@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { type Node, type Edge, type XYPosition } from 'reactflow';
-import { MOCK, SCENE_DESCRIPTION, DEFAULT_SCOUT_PROP_SLOTS } from '@/lib/mockPipelineAssets';
 import {
   type ScoutPipelineState,
   DEFAULT_SCOUT_PIPELINE,
@@ -10,21 +9,26 @@ import {
 import { executeScoutNode, type ScoutRunOptions } from '@/lib/scoutRunCoordinator';
 import { richTextToPlainForScout } from '@/lib/richTextForScout';
 import { notifyInfo, notifySuccess } from '@/lib/systemNotify';
+import { computeReactivePatchesFromSources } from '@/lib/nodeDataflow';
+import {
+  DEFAULT_GROUP_H,
+  DEFAULT_GROUP_W,
+  MAX_STACK,
+  SCOUT_REMOTE_EXECUTION_TYPES,
+  UPDATE_NODE_DATA_DEBOUNCE_MS,
+} from '@/stores/workflowStore.constants';
+import {
+  applyGroupDropReparent,
+  bfsDownstream,
+  capStack,
+  edgesBetweenLevels,
+  nodeDragSnapshotEqual,
+  topologicalOrderIdsForTypes,
+  unionEdgeIdsByRunSource,
+} from '@/stores/workflowGraphUtils';
+import { createVirtualProductionScoutTemplate } from '@/stores/workflowScoutTemplate';
 export type { ScoutPipelineState } from '@/lib/scoutPipeline';
 export type { ScoutRunOptions } from '@/lib/scoutRunCoordinator';
-
-/** Node types executed via Supabase `scout-execute` + graph resolver (replaces timer-only mock). */
-const SCOUT_REMOTE_EXECUTION_TYPES = new Set<string>([
-  'assistantNode',
-  'imageGeneratorNode',
-  'setDressingNode',
-  'angleVariationsNode',
-  'lightingScenarioNode',
-  'atmosphereTestNode',
-]);
-
-/** Pending updateNodeData batches: flush after 1s idle per node */
-const UPDATE_NODE_DATA_DEBOUNCE_MS = 1000;
 const pendingNodeDataUpdates = new Map<
   string,
   { timeoutId: number; before: Record<string, unknown>; keys: string[] }
@@ -230,370 +234,45 @@ export interface WorkflowState {
   pasteClipboard: (offset?: XYPosition) => void;
 }
 
-const MAX_STACK = 50;
-
-function capStack<T>(arr: T[]): T[] {
-  return arr.length > MAX_STACK ? arr.slice(-MAX_STACK) : arr;
-}
-
 const GRID_CYCLE: GridLayout[] = ['1x1', '2x2', '3x3'];
-
-function bfsDownstream(startId: string, edges: Edge[]): string[][] {
-  const adj: Record<string, string[]> = {};
-  edges.forEach((e) => {
-    if (!adj[e.source]) adj[e.source] = [];
-    adj[e.source].push(e.target);
-  });
-  const levels: string[][] = [[startId]];
-  const visited = new Set<string>([startId]);
-  let frontier = [startId];
-  while (frontier.length > 0) {
-    const nextFrontier: string[] = [];
-    for (const nodeId of frontier) {
-      for (const neighbor of adj[nodeId] || []) {
-        if (!visited.has(neighbor)) {
-          visited.add(neighbor);
-          nextFrontier.push(neighbor);
-        }
-      }
-    }
-    if (nextFrontier.length > 0) {
-      levels.push(nextFrontier);
-      frontier = nextFrontier;
-    } else break;
-  }
-  return levels;
-}
-
-function edgesBetweenLevels(levels: string[][], edges: Edge[]): string[] {
-  const allNodes = new Set(levels.flat());
-  return edges.filter((e) => allNodes.has(e.source) && allNodes.has(e.target)).map((e) => e.id);
-}
-
-function unionEdgeIdsByRunSource(reg: Record<string, string[]>): Set<string> {
-  const out = new Set<string>();
-  for (const ids of Object.values(reg)) {
-    for (const eid of ids) out.add(eid);
-  }
-  return out;
-}
-
-/** Scout remote nodes in topological order (sources before targets along edges). */
-function topologicalOrderScoutRemoteIds(nodes: Node[], edges: Edge[]): string[] {
-  const scoutIds = new Set(
-    nodes.filter((n) => SCOUT_REMOTE_EXECUTION_TYPES.has(n.type)).map((n) => n.id)
-  );
-  if (scoutIds.size === 0) return [];
-
-  const indeg = new Map<string, number>();
-  const adj = new Map<string, string[]>();
-  for (const id of scoutIds) {
-    indeg.set(id, 0);
-    adj.set(id, []);
-  }
-  for (const e of edges) {
-    if (!scoutIds.has(e.source) || !scoutIds.has(e.target)) continue;
-    adj.get(e.source)!.push(e.target);
-    indeg.set(e.target, (indeg.get(e.target) ?? 0) + 1);
-  }
-
-  const queue = [...scoutIds].filter((id) => indeg.get(id) === 0);
-  queue.sort();
-  const out: string[] = [];
-  while (queue.length > 0) {
-    const u = queue.shift()!;
-    out.push(u);
-    for (const v of adj.get(u) ?? []) {
-      const next = (indeg.get(v) ?? 0) - 1;
-      indeg.set(v, next);
-      if (next === 0) {
-        queue.push(v);
-        queue.sort();
-      }
-    }
-  }
-  if (out.length < scoutIds.size) {
-    for (const id of scoutIds) {
-      if (!out.includes(id)) out.push(id);
-    }
-  }
-  return out;
-}
-
 let runAllInFlight = false;
-
-const defaultNodes: Node[] = [
-  {
-    id: 'text-1',
-    type: 'textNode',
-    position: { x: 80, y: 80 },
-    data: { content: `<p>${SCENE_DESCRIPTION}</p>` },
-  },
-  {
-    id: 'upload-1',
-    type: 'uploadNode',
-    position: { x: 80, y: 280 },
-    data: { mediaUrl: MOCK.location1, label: 'Location reference', labelText: 'Location reference' },
-  },
-  {
-    id: 'placement-1',
-    type: 'placementRefNode',
-    position: { x: 80, y: 520 },
-    data: {
-      placementText: `<p>${SCENE_DESCRIPTION}</p>`,
-      placementRefUrl: MOCK.placement,
-    },
-  },
-  {
-    id: 'props-input-1',
-    type: 'propsInputNode',
-    position: { x: 80, y: 700 },
-    data: { props: [...DEFAULT_SCOUT_PROP_SLOTS] },
-  },
-  {
-    id: 'assistant-1',
-    type: 'assistantNode',
-    position: { x: 400, y: 200 },
-    data: {
-      refinedPrompt: '',
-      prompt: '',
-      view: 'prompt',
-      result: '',
-      assistantModel: 'GPT-5 Mini',
-      labelText: 'Assistant',
-    },
-  },
-  {
-    id: 'generator-1',
-    type: 'imageGeneratorNode',
-    position: { x: 720, y: 200 },
-    data: {
-      model: 'mystic',
-      mode: 'Auto',
-      aspect: '16:9',
-      images: 1,
-      prompt: '',
-      negativePrompt: '',
-      status: 'idle',
-      generatedUrl: MOCK.setDressing,
-      labelText: 'Image Generator',
-    },
-  },
-  {
-    id: 'set-dressing-1',
-    type: 'setDressingNode',
-    position: { x: 1060, y: 180 },
-    data: { previewUrl: MOCK.setDressing },
-  },
-  {
-    id: 'angle-var-1',
-    type: 'angleVariationsNode',
-    position: { x: 1520, y: 400 },
-    data: {},
-  },
-  {
-    id: 'lighting-1',
-    type: 'lightingScenarioNode',
-    position: { x: 1960, y: 400 },
-    data: {
-      lightingStrings: ['Golden hour', 'Studio', 'Natural light'],
-      accumulatedLighting: [] as { id: string; label: string; src: string }[],
-      lastBatchResults: [] as { id: string; label: string; src: string }[],
-    },
-  },
-  {
-    id: 'atmosphere-1',
-    type: 'atmosphereTestNode',
-    position: { x: 2400, y: 400 },
-    data: {
-      moodText: '',
-      referenceUrl: '',
-      textResults: [] as { id: string; label: string; src: string }[],
-      referenceResults: [] as { id: string; label: string; src: string }[],
-      selectedBranch: null as 'text' | 'reference' | null,
-      selectedIndex: null as number | null,
-    },
-  },
-  {
-    id: 'angle-list-1',
-    type: 'angleVariationsListNode',
-    position: { x: 1520, y: 700 },
-    data: {
-      accumulatedAngles: [] as { id: string; src: string; resolution?: string }[],
-      selectedAngleId: null as string | null,
-    },
-  },
-  {
-    id: 'selected-shot-1',
-    type: 'selectedShotNode',
-    position: { x: 1920, y: 700 },
-    data: {
-      mediaUrl: MOCK.selectedShot,
-      resolution: '3840 × 2133',
-      committed: false,
-    },
-  },
-  {
-    id: 'annotation-1',
-    type: 'annotationNode',
-    position: { x: 1520, y: 960 },
-    data: {
-      text: '💡 Scout: Approve Stage 2 → run angles → pick in list → Commit hero shot → Lighting batch → Text/Reference atmosphere → Finalize.',
-    },
-    selectable: false,
-    draggable: false,
-  },
-];
-
-const defaultEdges: Edge[] = [
-  { id: 'e-text-assistant', source: 'text-1', target: 'assistant-1', targetHandle: 'text-in', type: 'custom' },
-  { id: 'e-upload-assistant', source: 'upload-1', target: 'assistant-1', targetHandle: 'image-in', type: 'custom' },
-  { id: 'e-assistant-generator', source: 'assistant-1', target: 'generator-1', type: 'custom' },
-  { id: 'e-upload-set', source: 'upload-1', target: 'set-dressing-1', targetHandle: 'location-in', type: 'custom' },
-  {
-    id: 'e-placement-set',
-    source: 'placement-1',
-    target: 'set-dressing-1',
-    targetHandle: 'placement-in',
-    sourceHandle: 'text-out',
-    type: 'custom',
-  },
-  {
-    id: 'e-props-set',
-    source: 'props-input-1',
-    target: 'set-dressing-1',
-    targetHandle: 'props-in',
-    sourceHandle: 'image-out',
-    type: 'custom',
-  },
-  { id: 'e-gen-set', source: 'generator-1', target: 'set-dressing-1', targetHandle: 'scene-in', type: 'custom' },
-  { id: 'e-set-angle', source: 'set-dressing-1', target: 'angle-var-1', type: 'custom' },
-  {
-    id: 'e-shot-light',
-    source: 'selected-shot-1',
-    target: 'lighting-1',
-    targetHandle: 'image-in',
-    sourceHandle: 'image-out',
-    type: 'custom',
-  },
-  { id: 'e-light-atmo', source: 'lighting-1', target: 'atmosphere-1', type: 'custom' },
-  { id: 'e-angle-list', source: 'angle-var-1', target: 'angle-list-1', type: 'custom' },
-  { id: 'e-list-shot', source: 'angle-list-1', target: 'selected-shot-1', targetHandle: 'image-in', type: 'custom' },
-];
-
-export function createVirtualProductionScoutTemplate(): { nodes: Node[]; edges: Edge[] } {
-  return { nodes: structuredClone(defaultNodes), edges: structuredClone(defaultEdges) };
-}
-
-const DEFAULT_NODE_W = 280;
-const DEFAULT_NODE_H = 120;
-const DEFAULT_GROUP_W = 400;
-const DEFAULT_GROUP_H = 240;
-
-function nodeDragSnapshotEqual(a: Node[], b: Node[]): boolean {
-  if (a.length !== b.length) return false;
-  const mapB = new Map(b.map((n) => [n.id, n]));
-  for (const n of a) {
-    const m = mapB.get(n.id);
-    if (!m) return false;
-    if (n.position.x !== m.position.x || n.position.y !== m.position.y) return false;
-    if (n.parentId !== m.parentId) return false;
-    if (n.extent !== m.extent) return false;
-  }
-  return true;
-}
-
-/**
- * After a drag, parent/unparent nodes into group frames using center-point containment.
- * Only mutates clones of nodes whose ids are in draggedIds.
- */
-export function applyGroupDropReparent(nodes: Node[], draggedIds: Set<string>): Node[] {
-  const list = nodes.map((n) => {
-    const c = { ...n, position: { ...n.position } } as Node;
-    delete (c as { positionAbsolute?: unknown }).positionAbsolute;
-    return c;
-  });
-  const byId = new Map(list.map((n) => [n.id, n]));
-
-  const absPos = (n: Node): { x: number; y: number } => {
-    const pa = (n as Node & { positionAbsolute?: XYPosition }).positionAbsolute;
-    if (pa && typeof pa.x === 'number' && typeof pa.y === 'number') {
-      return { x: pa.x, y: pa.y };
-    }
-    let x = n.position.x;
-    let y = n.position.y;
-    let pid = n.parentId;
-    while (pid) {
-      const p = byId.get(pid);
-      if (!p) break;
-      x += p.position.x;
-      y += p.position.y;
-      pid = p.parentId;
-    }
-    return { x, y };
-  };
-
-  const groupBounds = (g: Node) => {
-    const st = g.style as { width?: number; height?: number } | undefined;
-    const w = typeof st?.width === 'number' && st.width > 0 ? st.width : DEFAULT_GROUP_W;
-    const h = typeof st?.height === 'number' && st.height > 0 ? st.height : DEFAULT_GROUP_H;
-    const p = absPos(g);
-    return { x: p.x, y: p.y, w, h };
-  };
-
-  const groupArea = (g: Node) => {
-    const b = groupBounds(g);
-    return b.w * b.h;
-  };
-
-  const groups = list.filter((n) => n.type === 'group').sort((a, b) => groupArea(a) - groupArea(b));
-
-  for (const n of list) {
-    if (!draggedIds.has(n.id)) continue;
-    if (n.type === 'group') continue;
-    if (n.draggable === false) continue;
-
-    const abs = absPos(n);
-    const w = typeof n.width === 'number' && n.width > 0 ? n.width : DEFAULT_NODE_W;
-    const h = typeof n.height === 'number' && n.height > 0 ? n.height : DEFAULT_NODE_H;
-    const cx = abs.x + w / 2;
-    const cy = abs.y + h / 2;
-
-    let target: Node | null = null;
-    for (const g of groups) {
-      if (g.id === n.id) continue;
-      const b = groupBounds(g);
-      if (cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h) {
-        target = g;
-        break;
-      }
-    }
-
-    if (target) {
-      const gAbs = absPos(target);
-      if (n.parentId === target.id) continue;
-      n.parentId = target.id;
-      n.extent = 'parent';
-      n.position = { x: abs.x - gAbs.x, y: abs.y - gAbs.y };
-    } else if (n.parentId) {
-      const p = byId.get(n.parentId);
-      if (p?.type === 'group') {
-        n.position = { x: abs.x, y: abs.y };
-        n.parentId = undefined;
-        n.extent = undefined;
-      }
-    }
-  }
-
-  return list;
-}
+export { createVirtualProductionScoutTemplate } from '@/stores/workflowScoutTemplate';
+export { applyGroupDropReparent } from '@/stores/workflowGraphUtils';
 
 export const useWorkflowStore = create<WorkflowState>((set, get) => {
+  const initialTemplate = createVirtualProductionScoutTemplate();
+
   const pushCmd = (cmd: CanvasCommand) => {
     set((s) => ({
-      pastStack: capStack([...s.pastStack, cmd]),
+      pastStack: capStack([...s.pastStack, cmd], MAX_STACK),
       futureStack: [],
     }));
+  };
+
+  const applyReactiveDataflow = (changedSourceIds: string[], fullRecompute = false) => {
+    const s = get();
+    const sourceIds =
+      fullRecompute ? s.nodes.map((n) => n.id) : [...new Set(changedSourceIds.filter(Boolean))];
+    if (sourceIds.length === 0) return;
+    const patches = computeReactivePatchesFromSources(sourceIds, s.nodes, s.edges);
+    if (Object.keys(patches).length === 0) return;
+    set((st) => {
+      let changed = false;
+      let nextPipeline = st.scoutPipeline;
+      const nextNodes = st.nodes.map((node) => {
+        const patch = patches[node.id];
+        if (!patch) return node;
+        if (st.runningNodes.has(node.id)) return node;
+        const keys = Object.keys(patch);
+        const hasAnyChange = keys.some((k) => node.data?.[k] !== patch[k]);
+        if (!hasAnyChange) return node;
+        changed = true;
+        nextPipeline = applyScoutStaleOnDataChange(nextPipeline, node.type, keys);
+        return { ...node, data: { ...node.data, ...patch } };
+      });
+      if (!changed) return st;
+      return { nodes: nextNodes, scoutPipeline: nextPipeline };
+    });
   };
 
   const runScoutRemoteOnce = async (
@@ -658,8 +337,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
   };
 
   return {
-    nodes: defaultNodes,
-    edges: defaultEdges,
+    nodes: initialTemplate.nodes,
+    edges: initialTemplate.edges,
     comments: [],
     runningNodes: new Set(),
     runningEdges: new Set(),
@@ -755,8 +434,14 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       document.body.setAttribute('data-performance', String(merged.performanceMode));
     },
 
-    setNodesSilently: (nodes) => set({ nodes }),
-    setEdgesSilently: (edges) => set({ edges }),
+    setNodesSilently: (nodes) => {
+      set({ nodes });
+      applyReactiveDataflow([], true);
+    },
+    setEdgesSilently: (edges) => {
+      set({ edges });
+      applyReactiveDataflow([], true);
+    },
 
     pushSelectionCommand: (prevNodes, prevEdges, nextNodes, nextEdges) => {
       const prev = {
@@ -808,6 +493,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     connectEdgeWithHistory: (nextEdges, newEdge) => {
       const edge = structuredClone(newEdge);
       set({ edges: nextEdges });
+      applyReactiveDataflow([edge.source]);
       pushCmd({
         undo: () => set((st) => ({ edges: st.edges.filter((e) => e.id !== edge.id) })),
         execute: () => set((st) => ({ edges: [...st.edges, structuredClone(edge)] })),
@@ -821,6 +507,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       }
       const clones = removed.map((e) => structuredClone(e));
       set({ edges: nextEdges });
+      applyReactiveDataflow([], true);
       pushCmd({
         undo: () => set((st) => ({ edges: [...st.edges, ...clones.map((c) => structuredClone(c))] })),
         execute: () =>
@@ -836,6 +523,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       if (!edge) return;
       const clone = structuredClone(edge);
       set({ edges: s.edges.filter((e) => e.id !== id) });
+      applyReactiveDataflow([], true);
       pushCmd({
         undo: () => set((st) => ({ edges: [...st.edges, structuredClone(clone)] })),
         execute: () => set((st) => ({ edges: st.edges.filter((e) => e.id !== id) })),
@@ -882,6 +570,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
             }
           : { id, type, position, data };
       set({ nodes: [...s.nodes, newNode] });
+      applyReactiveDataflow([id]);
       pushCmd({
         undo: () => set((st) => ({ nodes: st.nodes.filter((n) => n.id !== id) })),
         execute: () => set((st) => ({ nodes: [...st.nodes, structuredClone(newNode)] })),
@@ -1028,6 +717,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       const nextEdges = s.edges.filter((e) => e.source !== id && e.target !== id);
 
       set({ nodes: structuredClone(nextNodes), edges: structuredClone(nextEdges) });
+      applyReactiveDataflow([], true);
       pushCmd({
         undo: () => set({ nodes: beforeNodes, edges: beforeEdges }),
         execute: () => set({ nodes: structuredClone(nextNodes), edges: structuredClone(nextEdges) }),
@@ -1093,6 +783,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         const scoutPipeline = applyScoutStaleOnDataChange(st.scoutPipeline, n.type, keys);
         return { nodes: nextNodes, scoutPipeline };
       });
+      applyReactiveDataflow([id]);
 
       const existing = pendingNodeDataUpdates.get(id);
       if (existing) {
@@ -1171,6 +862,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
           : st.scoutPipeline;
         return { nodes: nextNodes, scoutPipeline };
       });
+      applyReactiveDataflow([id]);
     },
 
     commitNodeLabelRename: (id, nextTrimmed, before) => {
@@ -1286,7 +978,11 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       runAllInFlight = true;
       void (async () => {
         try {
-          const order = topologicalOrderScoutRemoteIds(get().nodes, get().edges);
+          const order = topologicalOrderIdsForTypes(
+            get().nodes,
+            get().edges,
+            SCOUT_REMOTE_EXECUTION_TYPES
+          );
           console.debug('[RunAll] topological order:', order);
           let succeeded = 0;
           let failed = 0;
@@ -1448,7 +1144,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       cmd.undo();
       set({
         pastStack: s.pastStack.slice(0, -1),
-        futureStack: capStack([...s.futureStack, cmd]),
+        futureStack: capStack([...s.futureStack, cmd], MAX_STACK),
       });
     },
 
@@ -1459,7 +1155,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       cmd.execute();
       set({
         futureStack: s.futureStack.slice(0, -1),
-        pastStack: capStack([...s.pastStack, cmd]),
+        pastStack: capStack([...s.pastStack, cmd], MAX_STACK),
       });
     },
 

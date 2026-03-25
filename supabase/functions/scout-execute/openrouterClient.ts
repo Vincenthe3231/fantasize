@@ -4,7 +4,7 @@ import { OpenRouter } from '@openrouter/sdk';
 import type { Stage2MultimodalPart } from './stage2Multimodal.ts';
 
 const SYSTEM_DEFAULT =
-  'You write a single precise image generation prompt for virtual production set dressing. Use the placement text, location media, and prop reference images. Include spatial layout, prop styles, and lighting intent. Output only the prompt text, no preamble.';
+  'You write a detailed, precise, rich and lively image generation prompt for virtual production set dressing. Use the placement text, location media, and prop reference images. Include spatial layout, prop styles, and lighting intent. Output only the prompt text, no preamble.';
 
 function toUserContent(parts: Stage2MultimodalPart[]) {
   return parts.map((p) => {
@@ -39,7 +39,7 @@ export async function streamOpenRouterAuto(params: {
     httpReferer,
     xTitle,
     chatGenerationParams: {
-      model: 'openrouter/auto',
+      model: 'openrouter/auto:free',
       messages: [
         { role: 'system', content: params.systemPrompt ?? SYSTEM_DEFAULT },
         { role: 'user', content: toUserContent(params.userContentParts) },
