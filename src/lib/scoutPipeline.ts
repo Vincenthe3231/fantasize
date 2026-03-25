@@ -33,28 +33,43 @@ export const DEFAULT_SCOUT_PIPELINE: ScoutPipelineState = {
 };
 
 /** Map React Flow handle id → logical port kind for compatibility checks. */
-const HANDLE_KIND: Record<string, 'text' | 'image' | 'generic'> = {
+const HANDLE_KIND: Record<string, 'text' | 'image' | 'video' | 'generic'> = {
   'text-in': 'text',
   'text-out': 'text',
   'image-in': 'image',
   'image-out': 'image',
+  'video-in': 'video',
+  'video-out': 'video',
   'location-in': 'image',
   'placement-in': 'text',
   'props-in': 'image',
   'scene-in': 'generic',
+  'group-in-text': 'text',
+  'group-out-text': 'text',
+  'group-in-image': 'image',
+  'group-out-image': 'image',
+  'group-in-video': 'video',
+  'group-out-video': 'video',
 };
 
-export function handleKind(handleId: string | null | undefined): 'text' | 'image' | 'generic' {
+export function handleKind(handleId: string | null | undefined): 'text' | 'image' | 'video' | 'generic' {
   if (!handleId) return 'generic';
   return HANDLE_KIND[handleId] ?? 'generic';
 }
 
-/** Same kind or generic accepts anything; text↔image rejected. */
+/** Same kind or generic accepts anything; text must match text; image↔video allowed for mixed media ports. */
 export function handlesCompatible(sourceHandle?: string | null, targetHandle?: string | null): boolean {
   const s = handleKind(sourceHandle);
   const t = handleKind(targetHandle);
   if (s === 'generic' || t === 'generic') return true;
-  return s === t;
+  if (s === t) return true;
+  if (
+    (s === 'video' && t === 'image') ||
+    (s === 'image' && t === 'video')
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export function isTargetHandleOccupied(
@@ -207,8 +222,7 @@ export function canRunScoutNode(
 
   if (node.type === 'imageGeneratorNode') {
     if (!s1.ok) return { ok: false, reason: stage1MissingReason(s1) };
-    if (!pipeline.stage2Approved) return { ok: false, reason: 'Approve Stage 2 before running the image generator.' };
-    if (pipeline.stage2Stale) return { ok: false, reason: 'Stage 2 is stale — approve again after upstream changes.' };
+    // Image generator may run once Stage 1 is complete; Stage 2 approval still gates set dressing / downstream stages.
     return { ok: true };
   }
 
@@ -281,7 +295,16 @@ export function applyScoutStaleOnDataChange(
     pipeline.stage2Approved &&
     (t === 'assistantNode' || t === 'imageGeneratorNode') &&
     keys.some((k) =>
-      ['prompt', 'result', 'refinedPrompt', 'generatedUrl', 'status', 'negativePrompt', 'mode'].includes(k)
+      [
+        'prompt',
+        'wiredTextFromEdges',
+        'result',
+        'refinedPrompt',
+        'generatedUrl',
+        'status',
+        'negativePrompt',
+        'mode',
+      ].includes(k)
     )
   ) {
     next.stage2Stale = true;

@@ -1,5 +1,7 @@
 import type { HandleDataType } from '@/components/canvas/EnhancedHandle';
 import type { Node } from 'reactflow';
+import { aggregateGroupOutputPacket, mergeTextPartsDedupe } from '@/lib/graphUpstreamPayload';
+import { richTextToPlainForScout } from '@/lib/richTextForScout';
 
 /** Order handles consistently on group nodes. */
 export const PORT_TYPE_ORDER: HandleDataType[] = ['text', 'image', 'video', 'generic'];
@@ -59,9 +61,12 @@ export interface NodeHandleInputContract {
   apply: (target: Node, merged: NodeDataflowPacket) => Partial<Record<string, unknown>> | null;
 }
 
+/** Passed to `read` when the source needs the full graph (e.g. `group` aggregating children). */
+export type NodeOutputReadContext = { nodes: Node[] };
+
 export interface NodeHandleOutputContract {
   dataType: HandleDataType;
-  read: (source: Node) => NodeDataflowPacket | null;
+  read: (source: Node, ctx?: NodeOutputReadContext) => NodeDataflowPacket | null;
 }
 
 export interface NodeDataflowContract {
@@ -90,6 +95,20 @@ function textPacketFromNode(source: Node): NodeDataflowPacket | null {
   if (placementText) return { kind: 'text', value: plainTextFromHtml(placementText) };
   const content = String(d.content ?? '').trim();
   if (content) return { kind: 'text', value: plainTextFromHtml(content) };
+  return null;
+}
+
+/** Assistant: user-owned `prompt` + graph `wiredTextFromEdges`; refined/result win for downstream. */
+function assistantTextPacketFromNode(source: Node): NodeDataflowPacket | null {
+  const d = (source.data ?? {}) as Record<string, unknown>;
+  const refined = String(d.refinedPrompt ?? '').trim();
+  if (refined) return { kind: 'text', value: refined };
+  const result = String(d.result ?? '').trim();
+  if (result) return { kind: 'text', value: result };
+  const wired = String(d.wiredTextFromEdges ?? '').trim();
+  const promptPlain = richTextToPlainForScout(String(d.prompt ?? '')).trim();
+  const merged = mergeTextPartsDedupe([wired, promptPlain].filter(Boolean));
+  if (merged) return { kind: 'text', value: merged };
   return null;
 }
 
@@ -145,11 +164,12 @@ const CONTRACTS: Record<string, NodeDataflowContract> = {
   },
   assistantNode: {
     inputs: {
-      'text-in': { dataType: 'text', merge: 'textConcatDedupe', apply: textInputApply('prompt') },
+      // Keep user `prompt` separate from graph-fed text so runs + feedback edges cannot overwrite the draft.
+      'text-in': { dataType: 'text', merge: 'textConcatDedupe', apply: textInputApply('wiredTextFromEdges') },
       'image-in': { dataType: 'image', merge: 'imageListByUrl', apply: imageInputApply('referenceUrl') },
     },
     outputs: {
-      'text-out': { dataType: 'text', read: textPacketFromNode },
+      'text-out': { dataType: 'text', read: assistantTextPacketFromNode },
     },
   },
   imageGeneratorNode: {
@@ -182,6 +202,26 @@ const CONTRACTS: Record<string, NodeDataflowContract> = {
       'image-out': { dataType: 'image', read: imagePacketFromNode },
       'video-out': { dataType: 'video', read: videoPacketFromNode },
       'text-out': { dataType: 'text', read: textPacketFromNode },
+    },
+  },
+  group: {
+    inputs: {},
+    outputs: {
+      'group-out-text': {
+        dataType: 'text',
+        read: (source, ctx) =>
+          ctx ? aggregateGroupOutputPacket(source, ctx.nodes, 'text') : null,
+      },
+      'group-out-image': {
+        dataType: 'image',
+        read: (source, ctx) =>
+          ctx ? aggregateGroupOutputPacket(source, ctx.nodes, 'image') : null,
+      },
+      'group-out-video': {
+        dataType: 'video',
+        read: (source, ctx) =>
+          ctx ? aggregateGroupOutputPacket(source, ctx.nodes, 'video') : null,
+      },
     },
   },
 };
@@ -233,5 +273,48 @@ export function outputContractForHandle(
   if (explicit) return explicit;
   if (id.includes('text')) return DEFAULT_TEXT_OUTPUT;
   if (id.includes('image') || id.includes('location') || id.includes('props')) return DEFAULT_IMAGE_OUTPUT;
+  return null;
+}
+
+/**
+ * Resolves source output contract for an edge. When `sourceHandle` is missing or `default`,
+ * picks `text-out` / `image-out` / `video-out` based on the target input handle so quick-connect
+ * edges without an explicit source handle still propagate data.
+ */
+export function resolveOutputContractForEdge(
+  sourceType: string | undefined,
+  sourceHandle: string | null | undefined,
+  targetNodeType: string | undefined,
+  targetHandle: string | null | undefined
+): NodeHandleOutputContract | null {
+  const sid = sourceHandle ?? 'default';
+  let resolved = outputContractForHandle(sourceType, sid);
+  if (resolved) return resolved;
+  if (sid !== 'default') return null;
+
+  const inContract = inputContractForHandle(targetNodeType, targetHandle);
+  if (!inContract) return null;
+
+  const tryHandles: string[] = [];
+  switch (inContract.dataType) {
+    case 'text':
+      tryHandles.push('text-out');
+      break;
+    case 'image':
+      tryHandles.push('image-out');
+      break;
+    case 'video':
+      tryHandles.push('video-out');
+      break;
+    case 'generic':
+    default:
+      tryHandles.push('text-out', 'image-out', 'video-out');
+      break;
+  }
+
+  for (const h of tryHandles) {
+    resolved = outputContractForHandle(sourceType, h);
+    if (resolved) return resolved;
+  }
   return null;
 }

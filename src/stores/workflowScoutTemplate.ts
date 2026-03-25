@@ -20,7 +20,15 @@ const defaultNodes: Node[] = [
     id: 'assistant-1',
     type: 'assistantNode',
     position: { x: 400, y: 200 },
-    data: { refinedPrompt: '', prompt: '', view: 'prompt', result: '', assistantModel: 'GPT-5 Mini', labelText: 'Assistant' },
+    data: {
+      refinedPrompt: '',
+      prompt: '',
+      wiredTextFromEdges: '',
+      view: 'prompt',
+      result: '',
+      assistantModel: 'GPT-5 Mini',
+      labelText: 'Assistant',
+    },
   },
   {
     id: 'generator-1',

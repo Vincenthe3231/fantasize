@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildStage2InstructionsContent,
+  getStage2ContentLimits,
   isPlacementRefImageUrl,
 } from '../../supabase/functions/scout-execute/stage2Multimodal.ts';
 
@@ -11,7 +12,7 @@ describe('scoutStage2Multimodal (edge)', () => {
     expect(isPlacementRefImageUrl('https://x.com/board.jpg')).toBe(true);
   });
 
-  it('buildStage2InstructionsContent orders text, media, and operator notes', () => {
+  it('buildStage2InstructionsContent orders edge inputs, Stage 1, and operator notes', () => {
     const parts = buildStage2InstructionsContent({
       placementAndNotes: 'Room layout',
       userPrompt: 'Warm light',
@@ -26,8 +27,32 @@ describe('scoutStage2Multimodal (edge)', () => {
     expect(types.filter((t) => t === 'text').length).toBeGreaterThanOrEqual(3);
     expect(types.includes('image_url')).toBe(true);
     const texts = parts.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text);
+    expect(texts.some((t) => t.includes('Stage 1 placement'))).toBe(true);
     expect(texts.some((t) => t.includes('Operator notes'))).toBe(true);
     expect(texts.some((t) => t.includes('Warm light'))).toBe(true);
+  });
+
+  it('buildStage2InstructionsContent renders edgeInputs first and dedupes Stage 1 location URL', () => {
+    const sharedUrl = 'https://example.com/shared.jpg';
+    const parts = buildStage2InstructionsContent({
+      edgeInputs: [
+        {
+          kind: 'image',
+          edgeId: 'e1',
+          sourceNodeId: 'u1',
+          sourceType: 'uploadNode',
+          url: sharedUrl,
+          label: 'From edge',
+        },
+      ],
+      placementAndNotes: 'Placement',
+      userPrompt: '',
+      locationImages: [{ url: sharedUrl, label: 'Main', mediaKind: 'image' }],
+      props: [],
+    });
+    const texts = parts.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text);
+    expect(texts[0]).toContain('Connected image');
+    expect(texts.some((t) => t.includes('Location'))).toBe(false);
   });
 
   it('uses video_url for location video', () => {
@@ -38,5 +63,69 @@ describe('scoutStage2Multimodal (edge)', () => {
       props: [],
     });
     expect(parts.some((p) => p.type === 'video_url')).toBe(true);
+  });
+
+  it('uses low image detail by default (slimmer vision payload)', () => {
+    const parts = buildStage2InstructionsContent({
+      placementAndNotes: 'x',
+      userPrompt: '',
+      placementRefImageUrl: 'https://example.com/ref.png',
+      locationImages: [],
+      props: [],
+    });
+    const imgs = parts.filter((p) => p.type === 'image_url');
+    expect(imgs.length).toBe(1);
+    expect(imgs[0].type === 'image_url' && imgs[0].imageUrl.detail).toBe('low');
+  });
+
+  it('dedupes same image URL across edge inputs (second edge skipped)', () => {
+    const shared = 'https://example.com/once.jpg';
+    const parts = buildStage2InstructionsContent({
+      edgeInputs: [
+        {
+          kind: 'image',
+          edgeId: 'e1',
+          sourceNodeId: 'a',
+          sourceType: 'uploadNode',
+          url: shared,
+        },
+        {
+          kind: 'image',
+          edgeId: 'e2',
+          sourceNodeId: 'b',
+          sourceType: 'uploadNode',
+          url: shared,
+        },
+      ],
+      placementAndNotes: 'x',
+      userPrompt: '',
+    });
+    expect(parts.filter((p) => p.type === 'image_url').length).toBe(1);
+  });
+
+  it('dedupes location URL when same URL appears in props (props skipped)', () => {
+    const shared = 'https://example.com/shared-prop.jpg';
+    const parts = buildStage2InstructionsContent({
+      placementAndNotes: 'x',
+      userPrompt: '',
+      locationImages: [{ url: shared, label: 'Loc', mediaKind: 'image' }],
+      props: [{ label: 'Chair', imageUrl: shared }],
+    });
+    expect(parts.filter((p) => p.type === 'image_url').length).toBe(1);
+  });
+
+  it('caps total image parts (props) when over STAGE2_MAX_IMAGE_PARTS default', () => {
+    const max = getStage2ContentLimits().maxImageParts;
+    const props = Array.from({ length: max + 5 }, (_, i) => ({
+      label: `P${i}`,
+      imageUrl: `https://example.com/p${i}.jpg`,
+    }));
+    const parts = buildStage2InstructionsContent({
+      placementAndNotes: 'x',
+      userPrompt: '',
+      props,
+    });
+    const n = parts.filter((p) => p.type === 'image_url').length;
+    expect(n).toBe(max);
   });
 });

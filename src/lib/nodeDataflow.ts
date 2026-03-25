@@ -1,7 +1,7 @@
 import type { Edge, Node } from 'reactflow';
 import {
   inputContractForHandle,
-  outputContractForHandle,
+  resolveOutputContractForEdge,
   type NodeDataflowMergeMode,
   type NodeDataflowPacket,
 } from '@/lib/nodePortDataTypes';
@@ -83,12 +83,17 @@ export function computeNodeInputPatch(node: Node, nodes: Node[], edges: Edge[]):
     const targetHandle = e.targetHandle ?? 'default';
     const src = nodesById.get(e.source);
     if (!src) continue;
-    const outContract = outputContractForHandle(src.type, e.sourceHandle ?? 'default');
+    const outContract = resolveOutputContractForEdge(
+      src.type,
+      e.sourceHandle,
+      node.type,
+      e.targetHandle
+    );
     if (!outContract) continue;
     const inContract = inputContractForHandle(node.type, targetHandle);
     if (!inContract) continue;
     if (inContract.dataType !== 'generic' && outContract.dataType !== inContract.dataType) continue;
-    const packet = outContract.read(src);
+    const packet = outContract.read(src, { nodes });
     if (!packet) continue;
     const list = byHandle.get(targetHandle) ?? [];
     list.push(packet);

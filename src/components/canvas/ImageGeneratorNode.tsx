@@ -82,17 +82,17 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
 
   const quickTextLeft = useCallback(() => {
     const nid = addNode('textNode', { x: selfPos.x - 300, y: selfPos.y });
-    wireEdge(makeEdge(nid, id, undefined, 'text-in'));
+    wireEdge(makeEdge(nid, id, 'text-out', 'text-in'));
   }, [addNode, selfPos, id, wireEdge]);
 
   const quickImageLeft = useCallback(() => {
     const nid = addNode('imageGeneratorNode', { x: selfPos.x - 320, y: selfPos.y + 20 });
-    wireEdge(makeEdge(nid, id, undefined, 'image-in'));
+    wireEdge(makeEdge(nid, id, 'image-out', 'image-in'));
   }, [addNode, selfPos, id, wireEdge]);
 
   const quickImageRight = useCallback(() => {
     const nid = addNode('imageGeneratorNode', { x: selfPos.x + 340, y: selfPos.y });
-    wireEdge(makeEdge(id, nid, undefined, 'text-in'));
+    wireEdge(makeEdge(id, nid, 'text-out', 'text-in'));
   }, [addNode, selfPos, id, wireEdge]);
 
   const { connectMenuItems } = useQuickConnect(id, selfPos);

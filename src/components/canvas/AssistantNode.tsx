@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, useCallback } from 'react';
+import { memo, useMemo, useCallback } from 'react';
 import styled from 'styled-components';
 import { type NodeProps } from 'reactflow';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
@@ -117,7 +117,6 @@ function makeEdge(
 }
 
 const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
-  const [isRunning, setIsRunning] = useState(false);
   const isStoreRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -145,33 +144,20 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
 
   const quickAddTextLeft = useCallback(() => {
     const nid = addNode('textNode', { x: selfPos.x - 300, y: selfPos.y });
-    wireEdge(makeEdge(nid, id, undefined, 'text-in'));
+    wireEdge(makeEdge(nid, id, 'text-out', 'text-in'));
   }, [addNode, selfPos.x, selfPos.y, id, wireEdge]);
 
   const quickAddImageLeft = useCallback(() => {
     const nid = addNode('imageGeneratorNode', { x: selfPos.x - 320, y: selfPos.y + 24 });
-    wireEdge(makeEdge(nid, id, undefined, 'image-in'));
+    wireEdge(makeEdge(nid, id, 'image-out', 'image-in'));
   }, [addNode, selfPos, id, wireEdge]);
 
   const quickAddTextRight = useCallback(() => {
     const nid = addNode('textNode', { x: selfPos.x + 320, y: selfPos.y });
-    wireEdge(makeEdge(id, nid, undefined, 'text-in'));
+    wireEdge(makeEdge(id, nid, 'text-out', 'text-in'));
   }, [addNode, selfPos, id, wireEdge]);
 
   const { connectMenuItems } = useQuickConnect(id, selfPos);
-
-  const handleRun = useCallback(() => {
-    setIsRunning(true);
-    setTimeout(() => {
-      updateNodeData(id, {
-        result:
-          prompt.trim() ||
-          'Refined output: expanded creative direction based on your prompt and any connected context.',
-        view: 'result',
-      });
-      setIsRunning(false);
-    }, 1200);
-  }, [id, prompt, updateNodeData]);
 
   const FloatBtn = ({
     children,
@@ -356,14 +342,15 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
               </DropdownMenu>
               <button
                 type="button"
-                disabled={isRunning}
+                disabled={isStoreRunning}
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleRun();
+                  void runFromNode(id);
                 }}
                 className="w-10 h-10 rounded-full bg-[var(--accent-color)] text-[var(--node-on-accent)] flex items-center justify-center hover:bg-[var(--accent-hover)] disabled:opacity-50 shadow-lg shrink-0"
+                title="Run Scout (same as toolbar Run)"
               >
-                {isRunning ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} className="ml-0.5" />}
+                {isStoreRunning ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} className="ml-0.5" />}
               </button>
             </div>
 

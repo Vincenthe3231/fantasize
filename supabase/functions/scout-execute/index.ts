@@ -26,12 +26,13 @@ Deno.serve(async (req) => {
 
     const apiKey = Deno.env.get('OPENROUTER_API_KEY');
 
-    const { result, mock } = await handleScoutStage(executionKind, context, apiKey);
+    const { result, mock, meta } = await handleScoutStage(executionKind, context, apiKey);
 
     return json({
       ok: true,
       result,
       mock,
+      ...(meta ? { meta } : {}),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

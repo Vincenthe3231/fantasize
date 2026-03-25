@@ -1,4 +1,5 @@
-import { streamOpenRouterAuto } from './openrouterClient.ts';
+import { getOpenRouterStage2Model, streamOpenRouterAuto } from './openrouterClient.ts';
+import { generateStage2ImageViaOpenRouter } from './stage2ImageOpenRouter.ts';
 import { buildStage2InstructionsContent } from './stage2Multimodal.ts';
 import type { ScoutExecutionKind } from './types.ts';
 
@@ -10,43 +11,52 @@ export async function handleScoutStage(
   kind: ScoutExecutionKind,
   context: Record<string, unknown>,
   apiKey: string | undefined
-): Promise<{ result: Record<string, unknown>; mock: boolean }> {
-  const useLlm = Boolean(apiKey);
+): Promise<{ result: Record<string, unknown>; mock: boolean; meta?: Record<string, unknown> }> {
+  const useLlm = Boolean(apiKey?.trim());
 
   switch (kind) {
     case 'stage2_instructions': {
-      const placementAndNotes = String(context.placementAndNotes ?? '');
-      const userPrompt = String(context.userPrompt ?? '');
-
-      let refinedPrompt: string;
-      if (useLlm) {
-        const userContentParts = buildStage2InstructionsContent(context);
-        refinedPrompt = await streamOpenRouterAuto({
-          apiKey: apiKey!,
-          userContentParts,
-        });
-      } else {
-        refinedPrompt = [
-          '[Mock — set OPENROUTER_API_KEY] Photorealistic interior set dressing.',
-          placementAndNotes.slice(0, 1200),
-          userPrompt ? `Notes: ${userPrompt}` : '',
-        ]
-          .filter(Boolean)
-          .join('\n');
+      if (!useLlm) {
+        throw new Error(
+          'OPENROUTER_API_KEY is not set on scout-execute — Stage 2 instructions require a real model call.'
+        );
       }
+      const userContentParts = buildStage2InstructionsContent(context);
+      const refinedPrompt = await streamOpenRouterAuto({
+        apiKey: apiKey!.trim(),
+        userContentParts,
+      });
+
+      console.log(
+        `[scout-execute] stage2_instructions refinedPromptLen=${refinedPrompt.length} parts=${userContentParts.length} model=${getOpenRouterStage2Model()}`
+      );
 
       return {
-        mock: !useLlm,
+        mock: false,
         result: { kind: 'stage2_instructions', refinedPrompt },
+        meta: {
+          executionKind: 'stage2_instructions',
+          model: getOpenRouterStage2Model(),
+          refinedPromptLength: refinedPrompt.length,
+          userContentPartsCount: userContentParts.length,
+        },
       };
     }
 
     case 'stage2_image_generator': {
-      const prompt = String(context.prompt ?? '');
-      const url = picsum(`img-${prompt.slice(0, 20)}-${Date.now()}`);
+      if (!useLlm) {
+        throw new Error(
+          'OPENROUTER_API_KEY is not set on scout-execute — Stage 2 image generator requires OpenRouter.'
+        );
+      }
+      const { generatedUrl, meta: imageGenMeta } = await generateStage2ImageViaOpenRouter(
+        context,
+        apiKey!.trim()
+      );
       return {
-        mock: true,
-        result: { kind: 'stage2_image_generator', generatedUrl: url, status: 'success' as const },
+        mock: false,
+        result: { kind: 'stage2_image_generator', generatedUrl, status: 'success' as const },
+        meta: imageGenMeta,
       };
     }
 
@@ -115,9 +125,6 @@ export async function handleScoutStage(
     }
 
     default:
-      return {
-        mock: true,
-        result: { kind: 'stage2_instructions', refinedPrompt: '[Mock] Unknown stage' },
-      };
+      throw new Error(`Unsupported scout execution kind: ${String(kind)}`);
   }
 }

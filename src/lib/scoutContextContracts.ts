@@ -38,6 +38,41 @@ export const Stage1ContextSchema = z.object({
 
 export type Stage1Context = z.infer<typeof Stage1ContextSchema>;
 
+/** One incoming edge → assistant, resolved to typed payload for multimodal build (edge-first). */
+export const AssistantEdgeInputSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('text'),
+    edgeId: z.string(),
+    sourceNodeId: z.string(),
+    sourceType: z.string(),
+    targetHandle: z.string().optional(),
+    sourceHandle: z.string().optional(),
+    text: z.string(),
+  }),
+  z.object({
+    kind: z.literal('image'),
+    edgeId: z.string(),
+    sourceNodeId: z.string(),
+    sourceType: z.string(),
+    targetHandle: z.string().optional(),
+    sourceHandle: z.string().optional(),
+    url: z.string().min(1),
+    label: z.string().optional(),
+  }),
+  z.object({
+    kind: z.literal('video'),
+    edgeId: z.string(),
+    sourceNodeId: z.string(),
+    sourceType: z.string(),
+    targetHandle: z.string().optional(),
+    sourceHandle: z.string().optional(),
+    url: z.string().min(1),
+    label: z.string().optional(),
+  }),
+]);
+
+export type AssistantEdgeInput = z.infer<typeof AssistantEdgeInputSchema>;
+
 // ── Stage 2 ────────────────────────────────────────────────────────────────
 
 export const Stage2InstructionsContextSchema = z.object({
@@ -45,8 +80,10 @@ export const Stage2InstructionsContextSchema = z.object({
   assistantNodeId: z.string(),
   /** Optional user prompt on the assistant node */
   userPrompt: z.string(),
-  /** Aggregated text from connected text/placement sources */
+  /** Stage 1 placement plain text only (not duplicated edge-sourced text). */
   placementAndNotes: z.string(),
+  /** Structured inputs per incoming edge to the assistant (handle-aware). */
+  edgeInputs: z.array(AssistantEdgeInputSchema).default([]),
   /** Optional placement board image URL (HTTPS, non-video) for vision */
   placementRefImageUrl: z.string().optional(),
   locationImages: z.array(Stage1LocationImageSchema),
@@ -55,16 +92,25 @@ export const Stage2InstructionsContextSchema = z.object({
 
 export type Stage2InstructionsContext = z.infer<typeof Stage2InstructionsContextSchema>;
 
-export const Stage2ImageGeneratorContextSchema = z.object({
-  kind: z.literal('stage2_image_generator'),
-  imageGeneratorNodeId: z.string(),
-  prompt: z.string().min(1),
-  negativePrompt: z.string().optional(),
-  mode: z.string().optional(),
-  aspect: z.string().optional(),
-  /** Anchor location image from upstream upload connection */
-  anchorImageUrl: z.string().optional(),
-});
+export const Stage2ImageGeneratorContextSchema = z
+  .object({
+    kind: z.literal('stage2_image_generator'),
+    imageGeneratorNodeId: z.string(),
+    /** Rich-text prompt on the image generator node (plain). */
+    prompt: z.string(),
+    /** Merged plain text from all `text-in` edges (handle-aware; groups aggregated). */
+    wiredTextFromEdges: z.string().optional(),
+    /** Image URLs from `image-in` edges, deduped, stable order. */
+    anchorImageUrls: z.array(z.string()).default([]),
+    /** Video URLs from `video-in` / video sources on image-in when applicable. */
+    anchorVideoUrls: z.array(z.string()).default([]),
+    negativePrompt: z.string().optional(),
+    mode: z.string().optional(),
+    aspect: z.string().optional(),
+  })
+  .refine((d) => d.prompt.trim().length > 0 || (d.wiredTextFromEdges?.trim().length ?? 0) > 0, {
+    message: 'Image generator needs a prompt on the node or non-empty text from a connected edge.',
+  });
 
 export type Stage2ImageGeneratorContext = z.infer<typeof Stage2ImageGeneratorContextSchema>;
 
@@ -217,6 +263,8 @@ export const ScoutExecuteResponseSchema = z.object({
   error: z.string().optional(),
   result: ScoutExecutionResultSchema.optional(),
   mock: z.boolean().optional(),
+  /** Optional diagnostics from scout-execute (model id, lengths, etc.). */
+  meta: z.record(z.unknown()).optional(),
 });
 
 export type ScoutExecuteResponse = z.infer<typeof ScoutExecuteResponseSchema>;

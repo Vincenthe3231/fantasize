@@ -15,6 +15,7 @@ import {
 import { runScoutComplianceChecks } from '@/lib/scoutComplianceChecks';
 import type { ScoutPipelineState } from '@/lib/scoutPipeline';
 import { scoutDebugLog, summarizeForScoutLog } from '@/lib/scoutDebugLog';
+import { notifyInfo } from '@/lib/systemNotify';
 
 export interface ScoutRunOptions {
   /** Required for `atmosphereTestNode` — which branch to execute */
@@ -30,91 +31,8 @@ export interface ScoutCoordinatorDeps {
   getGridLayout: (nodeId: string) => ScoutGridLayout;
   updateNodeData: (id: string, data: Partial<Record<string, unknown>>) => void;
   options?: ScoutRunOptions;
-}
-
-function picsum(seed: string, w = 800, h = 450): string {
-  const s = encodeURIComponent(seed.slice(0, 40));
-  return `https://picsum.photos/seed/${s}/${w}/${h}`;
-}
-
-function buildMockResult(kind: ScoutExecutionKind, ctx: ScoutRemoteContext): ScoutExecutionResult {
-  const ts = Date.now();
-  switch (kind) {
-    case 'stage2_instructions':
-      return {
-        kind: 'stage2_instructions',
-        refinedPrompt: [
-          '[Mock] Set dressing instructions based on placement and references.',
-          'Layout: preserve spatial relationships from the placement brief.',
-          'Style: match prop references; lighting intent: neutral studio key.',
-          ctx && 'placementAndNotes' in ctx ? `Notes: ${String(ctx.placementAndNotes).slice(0, 500)}` : '',
-        ]
-          .filter(Boolean)
-          .join('\n'),
-      };
-    case 'stage2_image_generator':
-      return {
-        kind: 'stage2_image_generator',
-        generatedUrl: picsum(`gen-${ts}`),
-        status: 'success',
-      };
-    case 'stage2_set_dressing':
-      return {
-        kind: 'stage2_set_dressing',
-        previewUrl: picsum(`set-${ts}`),
-      };
-    case 'stage3_angle_variations': {
-      const c = ctx as { count?: number };
-      const n = Math.min(9, Math.max(1, c.count ?? 4));
-      return {
-        kind: 'stage3_angle_variations',
-        angles: Array.from({ length: n }, (_, i) => ({
-          id: `ang-mock-${ts}-${i}`,
-          src: picsum(`ang-${ts}-${i}`),
-          resolution: '4K',
-        })),
-      };
-    }
-    case 'stage4_lighting_batch': {
-      const labels = (ctx as { lightingLabels?: string[] }).lightingLabels ?? [];
-      return {
-        kind: 'stage4_lighting_batch',
-        results: labels.map((label, i) => ({
-          id: `lit-mock-${ts}-${i}`,
-          label,
-          src: picsum(`lit-${label}-${i}`),
-        })),
-      };
-    }
-    case 'stage5_atmosphere_text': {
-      const mood = (ctx as { moodText?: string }).moodText ?? 'mood';
-      const vars = (ctx as { lightingVariants?: { id: string; label: string; src: string }[] }).lightingVariants ?? [];
-      return {
-        kind: 'stage5_atmosphere_text',
-        results: vars.map((v, i) => ({
-          id: `atm-t-mock-${ts}-${i}`,
-          label: `${mood.slice(0, 40)} · ${v.label}`,
-          src: picsum(`atm-t-${ts}-${i}`),
-        })),
-      };
-    }
-    case 'stage5_atmosphere_reference': {
-      const vars = (ctx as { lightingVariants?: { id: string; label: string; src: string }[] }).lightingVariants ?? [];
-      return {
-        kind: 'stage5_atmosphere_reference',
-        results: vars.map((v, i) => ({
-          id: `atm-r-mock-${ts}-${i}`,
-          label: `Ref look · ${v.label}`,
-          src: picsum(`atm-r-${ts}-${i}`),
-        })),
-      };
-    }
-    default:
-      return {
-        kind: 'stage2_instructions',
-        refinedPrompt: '[Mock] Unsupported stage.',
-      };
-  }
+  /** When true (e.g. Settings → Experimental tools), emit UI toasts for Scout steps. */
+  experimentalDebug?: boolean;
 }
 
 function targetsFor(
@@ -200,7 +118,7 @@ function resolveContextAndKind(
 
 /**
  * Execute a Scout pipeline node: resolve graph context → edge function → map results into node data.
- * Falls back to deterministic mock output if the edge function fails (local dev / missing key).
+ * On invoke failure or missing result, returns `{ ok: false }` and does not mutate nodes with placeholder output.
  */
 export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok: boolean; reason?: string }> {
   const node = deps.nodes.find((n) => n.id === deps.nodeId);
@@ -235,16 +153,19 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
   });
   const targets = targetsFor(kind, node.id, context);
 
-  const api = await invokeScoutExecute(kind, context as unknown as Record<string, unknown>);
-  let result: ScoutExecutionResult | undefined = api.ok ? api.result : undefined;
-  let usedMock = Boolean(api.mock);
-
-  if (!api.ok || !result) {
-    result = buildMockResult(kind, context);
-    usedMock = true;
-  } else if (api.mock) {
-    usedMock = true;
+  const api = await invokeScoutExecute(kind, context as unknown as Record<string, unknown>, {
+    experimentalDebug: deps.experimentalDebug,
+  });
+  if (!api.ok || !api.result) {
+    if (node.type === 'imageGeneratorNode') deps.updateNodeData(node.id, { status: 'idle' });
+    return {
+      ok: false,
+      reason: api.error ?? 'scout-execute returned no result',
+    };
   }
+
+  const result = api.result;
+  const usedMock = Boolean(api.mock);
 
   /* Merge accumulators (list + lighting) */
   if (result.kind === 'stage3_angle_variations' && targets.angleListNodeId) {
@@ -273,6 +194,13 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
     const patches = mapScoutResultToNodePatches(result, targets);
     for (const [nid, data] of Object.entries(patches)) {
       deps.updateNodeData(nid, data);
+    }
+    if (deps.experimentalDebug && result.kind === 'stage2_instructions') {
+      const rp = 'refinedPrompt' in result ? String(result.refinedPrompt ?? '') : '';
+      notifyInfo(
+        'Scout · Stage 2 instructions',
+        `Applied to assistant node · ${rp.length} chars refined prompt`
+      );
     }
   }
 

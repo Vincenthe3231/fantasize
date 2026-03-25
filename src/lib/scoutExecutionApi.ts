@@ -7,6 +7,7 @@ import {
   type ScoutExecutionKind,
 } from '@/lib/scoutContextContracts';
 import { scoutDebugLog, scoutDebugTime, summarizeForScoutLog } from '@/lib/scoutDebugLog';
+import { notifyInfo } from '@/lib/systemNotify';
 
 const DEFAULT_TIMEOUT_MS: Record<ScoutExecutionKind, number> = {
   stage2_instructions: 90_000,
@@ -21,6 +22,8 @@ const DEFAULT_TIMEOUT_MS: Record<ScoutExecutionKind, number> = {
 export interface InvokeScoutExecuteOptions {
   timeoutMs?: number;
   signal?: AbortSignal;
+  /** Mirror key facts to system toasts when Settings → Experimental tools is on. */
+  experimentalDebug?: boolean;
 }
 
 /**
@@ -32,6 +35,7 @@ export async function invokeScoutExecute(
   context: Record<string, unknown>,
   options: InvokeScoutExecuteOptions = {}
 ): Promise<ScoutExecuteResponse> {
+  const experimentalDebug = Boolean(options.experimentalDebug);
   const body: ScoutExecuteRequest = ScoutExecuteRequestSchema.parse({
     executionKind,
     context,
@@ -65,6 +69,14 @@ export async function invokeScoutExecute(
 
     if (error) {
       endTimer();
+      const fromBody = ScoutExecuteResponseSchema.safeParse(data);
+      if (fromBody.success && fromBody.data.error) {
+        scoutDebugLog('invoke scout-execute ← error (body)', {
+          message: error.message,
+          bodyError: fromBody.data.error,
+        });
+        return fromBody.data;
+      }
       scoutDebugLog('invoke scout-execute ← error', { message: error.message });
       return {
         ok: false,
@@ -85,7 +97,19 @@ export async function invokeScoutExecute(
       error: parsed.data.error,
       resultKind: parsed.data.result?.kind,
       result: parsed.data.result ? summarizeForScoutLog(parsed.data.result) : undefined,
+      meta: parsed.data.meta,
     });
+    if (experimentalDebug && parsed.data.ok && parsed.data.meta && typeof parsed.data.meta === 'object') {
+      const r = parsed.data.result;
+      const meta = parsed.data.meta as Record<string, unknown>;
+      const extra = Object.entries(meta)
+        .map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
+        .join(', ');
+      notifyInfo(
+        'Scout · scout-execute',
+        `${r?.kind ?? 'ok'}${parsed.data.mock ? ' (mock)' : ''} · ${extra}`
+      );
+    }
     return parsed.data;
   } catch (e: unknown) {
     endTimer();

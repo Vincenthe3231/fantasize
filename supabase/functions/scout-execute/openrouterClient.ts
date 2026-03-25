@@ -1,10 +1,32 @@
-/** OpenRouter via @openrouter/sdk — `openrouter/auto`, streaming aggregated server-side (Deno). */
+/// <reference path="./env.d.ts" />
+/** OpenRouter via @openrouter/sdk — Stage 2 instructions, streaming aggregated server-side (Deno). */
 
 import { OpenRouter } from '@openrouter/sdk';
 import type { Stage2MultimodalPart } from './stage2Multimodal.ts';
 
+/**
+ * Default: fast vision model. `openrouter/auto` often routes through heavy paths and is prone to
+ * Cloudflare 503 "Worker exceeded resource limits" on large multimodal requests.
+ * Override with `OPENROUTER_STAGE2_MODEL` on the edge function (e.g. back to `openrouter/auto`).
+ */
+/** Exported for response `meta` and logs (same default as chat `model`). */
+export function getOpenRouterStage2Model(): string {
+  return Deno.env.get('OPENROUTER_STAGE2_MODEL') ?? 'google/gemini-2.0-flash-001';
+}
+
+function stage2Model(): string {
+  return getOpenRouterStage2Model();
+}
+
+function stage2MaxTokens(): number {
+  const raw = Deno.env.get('OPENROUTER_STAGE2_MAX_TOKENS');
+  const n = raw != null ? parseInt(raw, 10) : 4096;
+  return Number.isFinite(n) && n > 0 ? n : 4096;
+}
+
+/** Output shape only; graph content is in the user multimodal message. */
 const SYSTEM_DEFAULT =
-  'You write a detailed, precise, rich and lively image generation prompt for virtual production set dressing. Use the placement text, location media, and prop reference images. Include spatial layout, prop styles, and lighting intent. Output only the prompt text, no preamble.';
+  'Reply with a single image-generation prompt only. No preamble, no markdown fences, no bullet lists unless they are part of the prompt text.';
 
 function toUserContent(parts: Stage2MultimodalPart[]) {
   return parts.map((p) => {
@@ -21,7 +43,7 @@ function openRouterMeta() {
 }
 
 /**
- * Stream chat completion with `openrouter/auto`, concatenate assistant text deltas.
+ * Stream chat completion for Stage 2 instructions; concatenate assistant text deltas.
  */
 export async function streamOpenRouterAuto(params: {
   apiKey: string;
@@ -39,23 +61,33 @@ export async function streamOpenRouterAuto(params: {
     httpReferer,
     xTitle,
     chatGenerationParams: {
-      model: 'openrouter/auto:free',
+      model: stage2Model(),
       messages: [
         { role: 'system', content: params.systemPrompt ?? SYSTEM_DEFAULT },
         { role: 'user', content: toUserContent(params.userContentParts) },
       ],
       stream: true,
       temperature: 0.4,
+      maxTokens: stage2MaxTokens(),
     },
   });
 
   let out = '';
+  let chunkCount = 0;
+  let deltaChunks = 0;
   for await (const chunk of stream) {
+    chunkCount += 1;
     const delta = chunk.choices?.[0]?.delta?.content;
-    if (typeof delta === 'string' && delta.length > 0) out += delta;
+    if (typeof delta === 'string' && delta.length > 0) {
+      deltaChunks += 1;
+      out += delta;
+    }
   }
 
   const trimmed = out.trim();
+  console.log(
+    `[scout-execute] stage2 OpenRouter stream model=${stage2Model()} chunks=${chunkCount} deltaChunks=${deltaChunks} outLen=${trimmed.length}`
+  );
   if (!trimmed) throw new Error('OpenRouter returned empty content');
   return trimmed;
 }

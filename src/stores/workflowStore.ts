@@ -8,7 +8,7 @@ import {
 } from '@/lib/scoutPipeline';
 import { executeScoutNode, type ScoutRunOptions } from '@/lib/scoutRunCoordinator';
 import { richTextToPlainForScout } from '@/lib/richTextForScout';
-import { notifyInfo, notifySuccess } from '@/lib/systemNotify';
+import { notifyError, notifyInfo, notifySuccess } from '@/lib/systemNotify';
 import { computeReactivePatchesFromSources } from '@/lib/nodeDataflow';
 import {
   DEFAULT_GROUP_H,
@@ -256,6 +256,15 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     if (sourceIds.length === 0) return;
     const patches = computeReactivePatchesFromSources(sourceIds, s.nodes, s.edges);
     if (Object.keys(patches).length === 0) return;
+    if (get().settings.experimentalTools) {
+      for (const [nid, patch] of Object.entries(patches)) {
+        const n = s.nodes.find((x) => x.id === nid);
+        if (n?.type === 'imageGeneratorNode' && patch.prompt != null) {
+          const plen = String(patch.prompt).length;
+          notifyInfo('Dataflow', `Image generator prompt updated (${plen} chars)`);
+        }
+      }
+    }
     set((st) => {
       let changed = false;
       let nextPipeline = st.scoutPipeline;
@@ -321,15 +330,22 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         getGridLayout: (nid) => get().nodeGridLayouts[nid] ?? '2x2',
         updateNodeData: (nid, data) => get().updateNodeData(nid, data),
         options,
+        experimentalDebug: get().settings.experimentalTools,
       });
 
       if (!r.ok && !batchOpts?.suppressFailureToast) {
-        notifyInfo('Scout run failed', r.reason ?? 'Scout run failed');
+        const sub = r.reason ?? 'Scout run failed';
+        notifyError(
+          'Scout run failed',
+          sub.length > 800 ? `${sub.slice(0, 800)}…` : sub
+        );
       }
       return r;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (!batchOpts?.suppressFailureToast) notifyInfo('Scout run failed', msg);
+      if (!batchOpts?.suppressFailureToast) {
+        notifyError('Scout run failed', msg.length > 800 ? `${msg.slice(0, 800)}…` : msg);
+      }
       return { ok: false, reason: msg };
     } finally {
       clearRunning();
@@ -783,7 +799,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         const scoutPipeline = applyScoutStaleOnDataChange(st.scoutPipeline, n.type, keys);
         return { nodes: nextNodes, scoutPipeline };
       });
-      applyReactiveDataflow([id]);
+      const reactiveSources = [id, n.parentId].filter((x): x is string => Boolean(x));
+      applyReactiveDataflow(reactiveSources);
 
       const existing = pendingNodeDataUpdates.get(id);
       if (existing) {

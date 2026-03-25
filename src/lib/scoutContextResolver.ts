@@ -1,6 +1,7 @@
 import type { Edge, Node } from 'reactflow';
 import {
   effectiveScoutPropSlots,
+  handleKind,
   pickStage1PlacementNode,
   pickStage1UploadNode,
   plainTextFromHtml,
@@ -8,7 +9,17 @@ import {
 } from '@/lib/scoutPipeline';
 import { richTextToPlainForScout } from '@/lib/richTextForScout';
 import {
+  isVideoUrl,
+  mergeTextPartsDedupe,
+  upstreamImageItemsFromNode,
+  upstreamPrimaryMediaLikeAssistant,
+  upstreamTextFromNode,
+  upstreamVideoItemsFromNode,
+} from '@/lib/graphUpstreamPayload';
+import {
   Stage1ContextSchema,
+  Stage2ImageGeneratorContextSchema,
+  type AssistantEdgeInput,
   type Stage1Context,
   type Stage2InstructionsContext,
   type Stage2ImageGeneratorContext,
@@ -112,18 +123,65 @@ export function resolveStage1Context(nodes: Node[]): ResolveResult<Stage1Context
   return ok(parsed.data);
 }
 
-/** Plain text from any connected text-like node. */
-function textFromNode(n: Node | undefined): string {
-  if (!n) return '';
-  if (n.type === 'textNode') {
-    const c = String((n.data as { content?: string })?.content ?? '');
-    return plainTextFromHtml(c);
+function edgeInputMeta(edge: Edge, src: Node): {
+  edgeId: string;
+  sourceNodeId: string;
+  sourceType: string;
+  targetHandle?: string;
+  sourceHandle?: string;
+} {
+  return {
+    edgeId: edge.id,
+    sourceNodeId: src.id,
+    sourceType: String(src.type ?? 'node'),
+    targetHandle: edge.targetHandle ?? undefined,
+    sourceHandle: edge.sourceHandle ?? undefined,
+  };
+}
+
+/**
+ * Resolve one incoming edge to the assistant into a structured edge input (handle-aware).
+ * Uses the same handle kind semantics as `validateScoutConnection` / DefaultNodePortHandles.
+ */
+export function resolveAssistantEdgeInput(edge: Edge, nodes: Node[]): AssistantEdgeInput | null {
+  const src = nodes.find((n) => n.id === edge.source);
+  if (!src) return null;
+  const meta = edgeInputMeta(edge, src);
+  const th = edge.targetHandle ?? 'default';
+  const tk = handleKind(th);
+
+  if (tk === 'image') {
+    const media = upstreamPrimaryMediaLikeAssistant(src, nodes);
+    if (!media) return null;
+    if (isVideoUrl(media.url)) {
+      return { kind: 'video', ...meta, url: media.url, label: media.label };
+    }
+    return { kind: 'image', ...meta, url: media.url, label: media.label };
   }
-  if (n.type === 'placementRefNode') {
-    const html = String((n.data as { placementText?: string })?.placementText ?? '');
-    return plainTextFromHtml(html);
+
+  if (tk === 'video') {
+    const vids = upstreamVideoItemsFromNode(src, nodes);
+    const first = vids[0];
+    if (!first) return null;
+    return { kind: 'video', ...meta, url: first.url, label: first.label };
   }
-  return '';
+
+  if (tk === 'text') {
+    const t = upstreamTextFromNode(src, nodes);
+    if (!t) return null;
+    return { kind: 'text', ...meta, text: t };
+  }
+
+  const media = upstreamPrimaryMediaLikeAssistant(src, nodes);
+  if (media) {
+    if (isVideoUrl(media.url)) {
+      return { kind: 'video', ...meta, url: media.url, label: media.label };
+    }
+    return { kind: 'image', ...meta, url: media.url, label: media.label };
+  }
+  const t = upstreamTextFromNode(src, nodes);
+  if (!t) return null;
+  return { kind: 'text', ...meta, text: t };
 }
 
 function incomingSources(edges: Edge[], targetId: string): Edge[] {
@@ -143,10 +201,6 @@ function uploadLabelText(n: Node): string {
 function isLikelyLocationLabel(label: string): boolean {
   const l = label.toLowerCase();
   return l.includes('location') || /^image\s*\d*$/i.test(label);
-}
-
-function isVideoUrl(url: string): boolean {
-  return /\.(mp4|mov|webm)(\?|$)/i.test(url);
 }
 
 /** HTTPS placement reference suitable as an image part (not a video file). */
@@ -173,14 +227,15 @@ export function resolveStage2InstructionsContext(
 
   const userPrompt = richTextToPlainForScout(String((assistant.data as { prompt?: string })?.prompt ?? ''));
 
-  const extraTextParts: string[] = [];
-  for (const e of incomingSources(edges, assistantNodeId)) {
-    const src = nodes.find((n) => n.id === e.source);
-    const t = textFromNode(src);
-    if (t) extraTextParts.push(t);
+  const incoming = incomingSources(edges, assistantNodeId).sort((a, b) => a.id.localeCompare(b.id));
+  const edgeInputs: AssistantEdgeInput[] = [];
+  for (const e of incoming) {
+    const item = resolveAssistantEdgeInput(e, nodes);
+    if (item) edgeInputs.push(item);
   }
 
-  const placementAndNotes = [s1.value.placementPlain, ...extraTextParts].filter(Boolean).join('\n\n');
+  /** Stage 1 placement only — edge-sourced text/media live in `edgeInputs`. */
+  const placementAndNotes = s1.value.placementPlain;
 
   const placementNode = nodes.find((n) => n.type === 'placementRefNode');
   const placementRefUrl = String(
@@ -194,6 +249,7 @@ export function resolveStage2InstructionsContext(
     assistantNodeId,
     userPrompt,
     placementAndNotes,
+    edgeInputs,
     placementRefImageUrl,
     locationImages: s1.value.locationImages,
     props: s1.value.props,
@@ -201,7 +257,7 @@ export function resolveStage2InstructionsContext(
 }
 
 /**
- * Stage 2 — Image generator: prompt + optional anchor image from an incoming upload connection.
+ * Stage 2 — Image generator: node prompt plus handle-aware `incomingSources` (text / image / video / generic).
  */
 export function resolveStage2ImageGeneratorContext(
   nodes: Node[],
@@ -211,33 +267,107 @@ export function resolveStage2ImageGeneratorContext(
   const n = nodes.find((x) => x.id === imageGeneratorNodeId && x.type === 'imageGeneratorNode');
   if (!n) return fail('Image generator node not found.');
 
-  const prompt = richTextToPlainForScout(String((n.data as { prompt?: string })?.prompt ?? '')).trim();
-  if (!prompt) return fail('Image generator needs a non-empty prompt.');
-
+  const basePrompt = richTextToPlainForScout(String((n.data as { prompt?: string })?.prompt ?? '')).trim();
   const negativePrompt = richTextToPlainForScout(String((n.data as { negativePrompt?: string })?.negativePrompt ?? ''));
   const mode = String((n.data as { mode?: string })?.mode ?? '');
   const aspect = String((n.data as { aspect?: string })?.aspect ?? '');
 
-  let anchorImageUrl: string | undefined;
-  const imgIn = incomingSources(edges, imageGeneratorNodeId).find(
-    (e) => e.targetHandle === 'image-in' || e.targetHandle === undefined
-  );
-  if (imgIn) {
-    const srcNode = nodes.find((x) => x.id === imgIn.source);
-    if (srcNode?.type === 'uploadNode') {
-      anchorImageUrl = String((srcNode.data as { mediaUrl?: string })?.mediaUrl ?? '').trim() || undefined;
+  const incoming = incomingSources(edges, imageGeneratorNodeId).sort((a, b) => a.id.localeCompare(b.id));
+  const wiredParts: string[] = [];
+  const anchorImageUrls: string[] = [];
+  const anchorVideoUrls: string[] = [];
+  const seenImg = new Set<string>();
+  const seenVid = new Set<string>();
+
+  const pushImages = (src: Node) => {
+    for (const it of upstreamImageItemsFromNode(src, nodes)) {
+      const u = it.url.trim();
+      if (!u || seenImg.has(u)) continue;
+      seenImg.add(u);
+      anchorImageUrls.push(u);
+    }
+  };
+
+  const pushVideos = (src: Node) => {
+    for (const it of upstreamVideoItemsFromNode(src, nodes)) {
+      const u = it.url.trim();
+      if (!u || seenVid.has(u)) continue;
+      seenVid.add(u);
+      anchorVideoUrls.push(u);
+    }
+  };
+
+  const pushVideoFromPrimaryIfNeeded = (src: Node) => {
+    const primary = upstreamPrimaryMediaLikeAssistant(src, nodes);
+    if (!primary || !isVideoUrl(primary.url)) return;
+    const u = primary.url.trim();
+    if (!u || seenVid.has(u)) return;
+    seenVid.add(u);
+    anchorVideoUrls.push(u);
+  };
+
+  for (const e of incoming) {
+    const src = nodes.find((x) => x.id === e.source);
+    if (!src) continue;
+    const tk = handleKind(e.targetHandle);
+
+    if (tk === 'text') {
+      const t = upstreamTextFromNode(src, nodes).trim();
+      if (t) wiredParts.push(t);
+      continue;
+    }
+
+    if (tk === 'image') {
+      const img0 = anchorImageUrls.length;
+      pushImages(src);
+      if (anchorImageUrls.length === img0) {
+        pushVideoFromPrimaryIfNeeded(src);
+      }
+      continue;
+    }
+
+    if (tk === 'video') {
+      pushVideos(src);
+      pushVideoFromPrimaryIfNeeded(src);
+      continue;
+    }
+
+    const img0 = anchorImageUrls.length;
+    const vid0 = anchorVideoUrls.length;
+    pushImages(src);
+    if (anchorImageUrls.length === img0) {
+      pushVideos(src);
+      if (anchorVideoUrls.length === vid0) {
+        pushVideoFromPrimaryIfNeeded(src);
+      }
+    }
+    const gotMedia = anchorImageUrls.length > img0 || anchorVideoUrls.length > vid0;
+    if (!gotMedia) {
+      const t = upstreamTextFromNode(src, nodes).trim();
+      if (t) wiredParts.push(t);
     }
   }
 
-  return ok({
-    kind: 'stage2_image_generator',
-    imageGeneratorNodeId: imageGeneratorNodeId,
-    prompt,
+  const wiredTextFromEdges = mergeTextPartsDedupe(wiredParts);
+
+  const raw = {
+    kind: 'stage2_image_generator' as const,
+    imageGeneratorNodeId,
+    prompt: basePrompt,
+    wiredTextFromEdges: wiredTextFromEdges || undefined,
+    anchorImageUrls,
+    anchorVideoUrls,
     negativePrompt: negativePrompt || undefined,
     mode: mode || undefined,
     aspect: aspect || undefined,
-    anchorImageUrl,
-  });
+  };
+
+  const parsed = Stage2ImageGeneratorContextSchema.safeParse(raw);
+  if (!parsed.success) {
+    return fail(parsed.error.issues.map((x) => x.message).join('; ') || 'Invalid image generator context.');
+  }
+
+  return ok(parsed.data);
 }
 
 /**
