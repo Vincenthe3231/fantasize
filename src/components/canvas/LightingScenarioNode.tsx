@@ -74,17 +74,13 @@ const LightingScenarioNode = memo(({ id, selected, data }: NodeProps) => {
   }, [id, updateNodeData]);
 
   const runBatch = useCallback(() => {
-    if (!scoutPipeline.selectedShotCommitted) {
-      notifyInfo('Lighting scenario', 'Commit a hero shot in Selected shot first.');
-      return;
-    }
     const trimmed = lightingStrings.map((s) => s.trim()).filter(Boolean);
     if (trimmed.length === 0) {
       notifyInfo('Lighting scenario', 'Add at least one non-empty lighting condition.');
       return;
     }
     runFromNode(id);
-  }, [scoutPipeline.selectedShotCommitted, lightingStrings, runFromNode, id]);
+  }, [lightingStrings, runFromNode, id]);
 
   const rawPreview = (data as { activeLightingPreviewSrc?: string | null }).activeLightingPreviewSrc;
   const activePreview = typeof rawPreview === 'string' ? rawPreview : null;
@@ -120,9 +116,9 @@ const LightingScenarioNode = memo(({ id, selected, data }: NodeProps) => {
 
         <NodeContentFocus nodeId={id} shellMoveCursor>
           {!scoutPipeline.selectedShotCommitted && (
-            <div className="mx-3 mt-2 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-100">
+            <div className="mx-3 mt-2 flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-2 py-1.5 text-[10px] text-amber-100/90">
               <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-              <span>Connect and commit a hero shot before running lighting.</span>
+              <span>Optional: commit a hero shot in Selected shot when you want pipeline milestones aligned.</span>
             </div>
           )}
           {scoutPipeline.stage5Stale && scoutPipeline.selectedShotCommitted && (

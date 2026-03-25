@@ -18,6 +18,7 @@ import {
 } from '@/lib/graphUpstreamPayload';
 import {
   ASPECT_RATIOS,
+  GRID_SIZES,
   getPerspectiveLabel,
   normalizeResolution,
   resolvePerspectiveIds,
@@ -420,9 +421,13 @@ export function resolveStage2SetDressingContext(
   });
 }
 
-function isHttpImageUrl(url: string): boolean {
+/** Stage 3 anchor: HTTPS, HTTP, or inline data:image (not blob: — edge cannot fetch blob URLs). */
+function isUsableStage3ReferenceUrl(url: string): boolean {
   const u = url.trim();
-  return u.length > 0 && !u.startsWith('blob:') && /^https?:\/\//i.test(u);
+  if (!u || u.startsWith('blob:')) return false;
+  if (/^https?:\/\//i.test(u)) return true;
+  if (u.startsWith('data:image/')) return true;
+  return false;
 }
 
 /**
@@ -434,12 +439,18 @@ export function resolveStage3Context(
   angleVariationsNodeId: string,
   gridLayout: ScoutGridLayout
 ): ResolveResult<Stage3AngleVariationsContext> {
-  const av = nodes.find((n) => n.id === angleVariationsNodeId && n.type === 'angleVariationsNode');
-  if (!av) return fail('Angle variations node not found.');
+  const av = nodes.find(
+    (n) =>
+      n.id === angleVariationsNodeId &&
+      (n.type === 'angleVariationsNode' || n.type === 'imageVariationsNode')
+  );
+  if (!av) return fail('Variations node not found.');
 
   const inc = incomingSources(edges, angleVariationsNodeId);
   if (inc.length === 0) {
-    return fail('Connect upstream nodes (e.g. Set dressing, upload, image generator) into Angle variations.');
+    return fail(
+      'Connect upstream nodes (e.g. Set dressing, upload, image generator) into this Variations node.'
+    );
   }
 
   let sourceImageUrl = '';
@@ -447,7 +458,7 @@ export function resolveStage3Context(
     const src = nodes.find((n) => n.id === e.source);
     if (src?.type === 'setDressingNode') {
       const url = String((src.data as { previewUrl?: string })?.previewUrl ?? '').trim();
-      if (isHttpImageUrl(url)) sourceImageUrl = url;
+      if (isUsableStage3ReferenceUrl(url)) sourceImageUrl = url;
     }
   }
   if (!sourceImageUrl) {
@@ -456,7 +467,7 @@ export function resolveStage3Context(
       if (!src) continue;
       const items = upstreamImageItemsFromNode(src, nodes);
       for (const it of items) {
-        if (isHttpImageUrl(it.url)) {
+        if (isUsableStage3ReferenceUrl(it.url)) {
           sourceImageUrl = it.url.trim();
           break;
         }
@@ -466,7 +477,7 @@ export function resolveStage3Context(
   }
   if (!sourceImageUrl) {
     return fail(
-      'No usable HTTPS reference image from upstream — connect Set dressing (after run), upload, or image generator with a public image URL.'
+      'No usable reference image from upstream — use an https image URL, or a data:image/… preview from the generator. Blob URLs cannot be used from the server.'
     );
   }
 
@@ -475,11 +486,17 @@ export function resolveStage3Context(
   );
   const listNodeId = listEdge?.target;
 
+  const gsFromData = String((av.data as { gridSize?: string })?.gridSize ?? '').trim();
+  const gridFromNode: ScoutGridLayout =
+    (GRID_SIZES as readonly string[]).includes(gsFromData) ? (gsFromData as ScoutGridLayout) : gridLayout;
+
   const avData = av.data as {
     prompt?: string;
     perspectives?: unknown;
     angleAspectRatio?: string;
     angleResolution?: unknown;
+    aspect?: string;
+    resolution?: unknown;
   };
   const perspectiveIds = resolvePerspectiveIds(avData.perspectives);
   if (perspectiveIds.length === 0) {
@@ -489,9 +506,14 @@ export function resolveStage3Context(
   const count = Math.min(9, perspectiveIds.length);
   const ids = perspectiveIds.slice(0, count);
 
-  const aspectRaw = String(avData.angleAspectRatio ?? '').trim();
+  const aspectRaw =
+    av.type === 'imageVariationsNode' ?
+      String(avData.aspect ?? '').trim()
+    : String(avData.angleAspectRatio ?? '').trim();
   const aspectRatio = (ASPECT_RATIOS as readonly string[]).includes(aspectRaw) ? aspectRaw : '16:9';
-  const resolutionLabel = normalizeResolution(avData.angleResolution);
+  const resolutionLabel = normalizeResolution(
+    av.type === 'imageVariationsNode' ? avData.resolution : avData.angleResolution
+  );
 
   const localPrompt = richTextToPlainForScout(String(avData.prompt ?? '')).trim();
   const textParts: string[] = [];
@@ -509,8 +531,9 @@ export function resolveStage3Context(
 
   if (import.meta.env.DEV) {
     console.debug('[Scout][Stage3] resolveStage3Context', {
+      nodeType: av.type,
       angleVariationsNodeId,
-      gridLayout,
+      gridLayout: gridFromNode,
       perspectiveCount: ids.length,
       sourceImageUrl: sourceImageUrl.slice(0, 80),
       sceneContextTextLen: sceneContextText.length,
@@ -524,7 +547,7 @@ export function resolveStage3Context(
     angleVariationsNodeId,
     listNodeId,
     sourceImageUrl,
-    gridLayout,
+    gridLayout: gridFromNode,
     perspectiveIds: ids,
     perspectiveLabels,
     preferences: {
@@ -634,6 +657,7 @@ export function scoutExecutionKindForNodeType(
     case 'setDressingNode':
       return 'stage2_set_dressing';
     case 'angleVariationsNode':
+    case 'imageVariationsNode':
       return 'stage3_angle_variations';
     case 'lightingScenarioNode':
       return 'stage4_lighting_batch';

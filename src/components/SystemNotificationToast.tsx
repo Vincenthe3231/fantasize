@@ -13,6 +13,8 @@ export type SystemNotificationToastProps = {
   /** Override the default bell icon inside the gradient square. */
   icon?: ReactNode;
   level?: SystemNotificationLevel;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 };
 
 export function SystemNotificationToast({
@@ -23,6 +25,8 @@ export function SystemNotificationToast({
   className,
   icon,
   level = 'info',
+  onMouseEnter,
+  onMouseLeave,
 }: SystemNotificationToastProps) {
   const accentClass =
     level === 'success' ? 'from-emerald-400 to-emerald-600'
@@ -41,7 +45,7 @@ export function SystemNotificationToast({
     : 'text-sky-400/80';
 
   return (
-    <div className={cn('group relative', className)}>
+    <div className={cn('group relative', className)} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       <button
         type="button"
         aria-label="Dismiss notification"

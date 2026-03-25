@@ -4,6 +4,7 @@ import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import {
   Clapperboard,
+  Download,
   Loader2,
   Play,
   Type,
@@ -32,6 +33,34 @@ import {
 } from '@/components/ui/popover';
 import { RichTextField } from '@/components/rich-text/RichTextField';
 import { IMAGE_GENERATOR_MODES } from '@/lib/imageGeneratorModes';
+import { notifyInfo } from '@/lib/systemNotify';
+
+function downloadFromImageUrl(url: string, basename: string) {
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  try {
+    if (trimmed.startsWith('data:')) {
+      const a = document.createElement('a');
+      a.href = trimmed;
+      const ext =
+        trimmed.startsWith('data:image/png') ? 'png'
+        : trimmed.startsWith('data:image/jpeg') || trimmed.startsWith('data:image/jpg') ? 'jpg'
+        : trimmed.startsWith('data:image/webp') ? 'webp'
+        : trimmed.startsWith('data:image/gif') ? 'gif'
+        : 'png';
+      a.download = `${basename}.${ext}`;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return true;
+    }
+    window.open(trimmed, '_blank', 'noopener,noreferrer');
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function makeEdge(
   source: string,
@@ -96,6 +125,18 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
 
   const { connectMenuItems } = useQuickConnect(id, selfPos);
 
+  const handleDownloadImage = useCallback(() => {
+    const url = generatedUrl.trim();
+    if (!url) {
+      notifyInfo('No image to download', 'Generate or load an image on this node first.');
+      return;
+    }
+    const base = `image-${id.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 12) || 'export'}`;
+    if (!downloadFromImageUrl(url, base)) {
+      notifyInfo('Download failed', 'Could not start a download for this image.');
+    }
+  }, [generatedUrl, id]);
+
   const handleRun = () => {
     if (!prompt.trim()) return;
     updateNodeData(id, { status: 'generating' });
@@ -149,6 +190,8 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
         onDuplicate={() => duplicateNode(id)}
         onDelete={() => deleteNode(id)}
         connectMenuItems={connectMenuItems}
+        showDownload
+        onDownload={handleDownloadImage}
       />
 
       <NodeContentFocus nodeId={id} shellMoveCursor>
@@ -320,6 +363,18 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
                   </div>
                 </PopoverContent>
               </Popover>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDownloadImage();
+                }}
+                className="p-2 rounded-lg text-[var(--node-control-muted)] hover:text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
+                title="Download image"
+              >
+                <Download size={14} />
+              </button>
 
               <div className="flex-1 min-w-[4px]" />
 

@@ -28,6 +28,15 @@ export function isUsableHttpImageUrl(url: string): boolean {
   return t.startsWith('https://') || t.startsWith('http://');
 }
 
+/** HTTP(S) or inline `data:image/...` for multimodal anchors (blob: URLs are not usable server-side). */
+export function isUsableMultimodalImageUrl(url: string): boolean {
+  const t = url.trim();
+  if (!t || t.startsWith('blob:')) return false;
+  if (t.startsWith('https://') || t.startsWith('http://')) return true;
+  if (t.startsWith('data:image/')) return true;
+  return false;
+}
+
 export function buildStage2ImageGenFinalPrompt(context: Record<string, unknown>): string {
   const prompt = String(context.prompt ?? '').trim();
   const wired = String(context.wiredTextFromEdges ?? '').trim();
@@ -49,7 +58,7 @@ export function filterAnchorImageUrls(urls: unknown): string[] {
   const seen = new Set<string>();
   for (const u of urls) {
     const s = String(u ?? '').trim();
-    if (!isUsableHttpImageUrl(s) || seen.has(s)) continue;
+    if (!isUsableMultimodalImageUrl(s) || seen.has(s)) continue;
     seen.add(s);
     out.push(s);
     if (out.length >= MAX_STAGE2_IMAGE_GEN_ANCHORS) break;

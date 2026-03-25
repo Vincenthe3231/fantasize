@@ -3,6 +3,7 @@ export const SCOUT_REMOTE_EXECUTION_TYPES = new Set<string>([
   'imageGeneratorNode',
   'setDressingNode',
   'angleVariationsNode',
+  'imageVariationsNode',
   'lightingScenarioNode',
   'atmosphereTestNode',
 ]);

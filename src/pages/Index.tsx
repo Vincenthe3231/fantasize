@@ -263,6 +263,8 @@ const CanvasInner = ({
   const [addPanelOpen, setAddPanelOpen] = useState(false);
   const notifications = useSystemNotificationStore((s) => s.notifications);
   const dismissNotification = useSystemNotificationStore((s) => s.dismiss);
+  const pauseNotificationAutoDismiss = useSystemNotificationStore((s) => s.pauseAutoDismiss);
+  const resumeNotificationAutoDismiss = useSystemNotificationStore((s) => s.resumeAutoDismiss);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const dragStartPositions = useRef<Record<string, { x: number; y: number }>>({});
   const dragGraphSnapshotRef = useRef<Node[] | null>(null);
@@ -910,6 +912,8 @@ const CanvasInner = ({
               subtitle={n.subtitle}
               level={n.level}
               onDismiss={() => dismissNotification(n.id)}
+              onMouseEnter={() => pauseNotificationAutoDismiss(n.id)}
+              onMouseLeave={() => resumeNotificationAutoDismiss(n.id)}
             />
           ))}
         </div>

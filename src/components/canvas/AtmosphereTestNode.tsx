@@ -75,24 +75,16 @@ const AtmosphereTestNode = memo(({ id, selected, data }: NodeProps) => {
       notifyInfo('Atmosphere test', 'Enter a mood / colour description for the text pipeline.');
       return;
     }
-    if (lightingAccumulated.length === 0) {
-      notifyInfo('Atmosphere test', 'Run lighting batch first to produce variants.');
-      return;
-    }
     runFromNode(id, { atmosphereBranch: 'text' });
-  }, [moodText, lightingAccumulated, id, runFromNode]);
+  }, [moodText, id, runFromNode]);
 
   const runReferenceBatch = useCallback(() => {
     if (!referenceUrl.trim()) {
       notifyInfo('Atmosphere test', 'Upload a look-reference still for the reference pipeline.');
       return;
     }
-    if (lightingAccumulated.length === 0) {
-      notifyInfo('Atmosphere test', 'Run lighting batch first.');
-      return;
-    }
     runFromNode(id, { atmosphereBranch: 'reference' });
-  }, [referenceUrl, lightingAccumulated, id, runFromNode]);
+  }, [referenceUrl, id, runFromNode]);
 
   const pickCell = useCallback(
     (branch: 'text' | 'reference', index: number) => {

@@ -14,6 +14,8 @@ type SystemNotificationState = {
   notifications: SystemNotificationItem[];
   push: (item: Omit<SystemNotificationItem, 'id' | 'createdAt'>) => void;
   dismiss: (id: string) => void;
+  pauseAutoDismiss: (id: string) => void;
+  resumeAutoDismiss: (id: string) => void;
   clear: () => void;
 };
 
@@ -23,6 +25,24 @@ const MAX_NOTIFICATIONS = 5;
 export const AUTO_DISMISS_MS = 1500;
 
 const dismissTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const dismissDueAt = new Map<string, number>();
+const dismissRemainingMs = new Map<string, number>();
+
+function scheduleDismiss(id: string, ms: number, dismiss: (id: string) => void) {
+  if (ms <= 0) {
+    dismiss(id);
+    return;
+  }
+  dismissDueAt.set(id, Date.now() + ms);
+  dismissRemainingMs.set(id, ms);
+  const t = setTimeout(() => {
+    dismissTimers.delete(id);
+    dismissDueAt.delete(id);
+    dismissRemainingMs.delete(id);
+    dismiss(id);
+  }, ms);
+  dismissTimers.set(id, t);
+}
 
 function clearDismissTimer(id: string) {
   const t = dismissTimers.get(id);
@@ -41,25 +61,42 @@ export const useSystemNotificationStore = create<SystemNotificationState>((set, 
       const next = [{ id, createdAt, ...item }, ...state.notifications].slice(0, MAX_NOTIFICATIONS);
       const nextIds = new Set(next.map((n) => n.id));
       for (const n of state.notifications) {
-        if (!nextIds.has(n.id)) clearDismissTimer(n.id);
+        if (!nextIds.has(n.id)) {
+          clearDismissTimer(n.id);
+          dismissDueAt.delete(n.id);
+          dismissRemainingMs.delete(n.id);
+        }
       }
       return { notifications: next };
     });
-    const t = setTimeout(() => {
-      dismissTimers.delete(id);
-      get().dismiss(id);
-    }, AUTO_DISMISS_MS);
-    dismissTimers.set(id, t);
+    scheduleDismiss(id, AUTO_DISMISS_MS, get().dismiss);
   },
   dismiss: (id) => {
     clearDismissTimer(id);
+    dismissDueAt.delete(id);
+    dismissRemainingMs.delete(id);
     set((state) => ({
       notifications: state.notifications.filter((n) => n.id !== id),
     }));
   },
+  pauseAutoDismiss: (id) => {
+    const dueAt = dismissDueAt.get(id);
+    if (dueAt !== undefined) {
+      dismissRemainingMs.set(id, Math.max(0, dueAt - Date.now()));
+    }
+    clearDismissTimer(id);
+  },
+  resumeAutoDismiss: (id) => {
+    const exists = get().notifications.some((n) => n.id === id);
+    if (!exists || dismissTimers.has(id)) return;
+    const remaining = dismissRemainingMs.get(id) ?? AUTO_DISMISS_MS;
+    scheduleDismiss(id, remaining, get().dismiss);
+  },
   clear: () => {
     for (const t of dismissTimers.values()) clearTimeout(t);
     dismissTimers.clear();
+    dismissDueAt.clear();
+    dismissRemainingMs.clear();
     set({ notifications: [] });
   },
 }));

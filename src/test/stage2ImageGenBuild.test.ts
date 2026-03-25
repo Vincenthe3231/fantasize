@@ -5,6 +5,7 @@ import {
   buildStage2ImageGenUserContentParts,
   filterAnchorImageUrls,
   isUsableHttpImageUrl,
+  isUsableMultimodalImageUrl,
   MAX_STAGE2_IMAGE_GEN_ANCHORS,
 } from '../../supabase/functions/scout-execute/stage2ImageGenBuild.ts';
 
@@ -33,6 +34,13 @@ describe('stage2ImageGenBuild', () => {
     expect(urls.length).toBeLessThanOrEqual(MAX_STAGE2_IMAGE_GEN_ANCHORS);
     expect(urls[0]).toBe(u);
     expect(isUsableHttpImageUrl('blob:x')).toBe(false);
+    expect(isUsableMultimodalImageUrl('blob:x')).toBe(false);
+  });
+
+  it('allows data:image URLs as multimodal anchors', () => {
+    const data = 'data:image/png;base64,AAAA';
+    expect(isUsableMultimodalImageUrl(data)).toBe(true);
+    expect(filterAnchorImageUrls(['blob:x', data])).toEqual([data]);
   });
 
   it('maps aspect to OpenRouter image_config when allowed', () => {

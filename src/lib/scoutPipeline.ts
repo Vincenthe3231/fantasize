@@ -207,7 +207,7 @@ export function findFirstNodeId(nodes: Node[], type: string): string | undefined
 
 export function canRunScoutNode(
   nodes: Node[],
-  pipeline: ScoutPipelineState,
+  _pipeline: ScoutPipelineState,
   nodeId: string
 ): { ok: boolean; reason?: string } {
   const node = nodes.find((n) => n.id === nodeId);
@@ -228,45 +228,7 @@ export function canRunScoutNode(
 
   if (node.type === 'setDressingNode') {
     if (!s1.ok) return { ok: false, reason: stage1MissingReason(s1) };
-    if (!pipeline.stage2Approved) return { ok: false, reason: 'Approve Stage 2 before regenerating composite.' };
-    if (pipeline.stage2Stale) return { ok: false, reason: 'Stage 2 is stale — approve again after upstream changes.' };
     return { ok: true };
-  }
-
-  if (node.type === 'angleVariationsNode' || node.type === 'angleVariationsListNode') {
-    if (!pipeline.stage2Approved || pipeline.stage2Stale) {
-      return { ok: false, reason: 'Set dressing must be approved and current.' };
-    }
-  }
-
-  if (node.type === 'selectedShotNode') {
-    if (!pipeline.stage2Approved || pipeline.stage2Stale) {
-      return { ok: false, reason: 'Complete Stage 2 first.' };
-    }
-  }
-
-  if (node.type === 'lightingScenarioNode') {
-    if (!pipeline.selectedShotCommitted) {
-      return { ok: false, reason: 'Commit a hero shot in Selected shot before lighting.' };
-    }
-    if (pipeline.stage4Stale || pipeline.stage5Stale) {
-      /* allow lighting run if only stage5 stale - actually allow */
-    }
-  }
-
-  if (node.type === 'atmosphereTestNode') {
-    if (!pipeline.selectedShotCommitted) {
-      return { ok: false, reason: 'Commit a hero shot first.' };
-    }
-    const ln = nodes.find((n) => n.type === 'lightingScenarioNode');
-    const d = ln?.data as { accumulatedLighting?: unknown[]; lastBatchResults?: unknown[] };
-    const acc = d?.accumulatedLighting;
-    const batch = d?.lastBatchResults;
-    const hasLighting =
-      (Array.isArray(acc) && acc.length > 0) || (Array.isArray(batch) && batch.length > 0);
-    if (!hasLighting) {
-      return { ok: false, reason: 'Run lighting batch to produce variants first.' };
-    }
   }
 
   return { ok: true };
