@@ -146,6 +146,9 @@ importers:
       '@tiptap/suggestion':
         specifier: 2.11.5
         version: 2.11.5(@tiptap/core@2.27.2(@tiptap/pm@2.11.5))(@tiptap/pm@2.11.5)
+      '@toon-format/toon':
+        specifier: ^2.1.0
+        version: 2.1.0
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -1899,6 +1902,9 @@ packages:
     peerDependencies:
       '@tiptap/core': ^2.7.0
       '@tiptap/pm': ^2.7.0
+
+  '@toon-format/toon@2.1.0':
+    resolution: {integrity: sha512-JwWptdF5eOA0HaQxbKAzkpQtR4wSWTEfDlEy/y3/4okmOAX1qwnpLZMmtEWr+ncAhTTY1raCKH0kteHhSXnQqg==}
 
   '@tootallnate/once@2.0.0':
     resolution: {integrity: sha512-XCuKFP5PS55gnMVu3dty8KPatLqUoy/ZYzDzAGCQ8JNFCkLXzmI7vNHCR+XpbZaMWQK/vQubr7PkYq8g470J/A==}
@@ -5477,6 +5483,8 @@ snapshots:
     dependencies:
       '@tiptap/core': 2.27.2(@tiptap/pm@2.11.5)
       '@tiptap/pm': 2.11.5
+
+  '@toon-format/toon@2.1.0': {}
 
   '@tootallnate/once@2.0.0': {}
 

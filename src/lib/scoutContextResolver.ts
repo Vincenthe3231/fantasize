@@ -421,12 +421,13 @@ export function resolveStage2SetDressingContext(
   });
 }
 
-/** Stage 3 anchor: HTTPS, HTTP, or inline data:image (not blob: — edge cannot fetch blob URLs). */
+/** Stage 3 anchor candidate: URL that can be normalized client-side before edge execution. */
 function isUsableStage3ReferenceUrl(url: string): boolean {
   const u = url.trim();
-  if (!u || u.startsWith('blob:')) return false;
+  if (!u) return false;
   if (/^https?:\/\//i.test(u)) return true;
   if (u.startsWith('data:image/')) return true;
+  if (u.startsWith('blob:')) return true;
   return false;
 }
 
@@ -477,7 +478,7 @@ export function resolveStage3Context(
   }
   if (!sourceImageUrl) {
     return fail(
-      'No usable reference image from upstream — use an https image URL, or a data:image/… preview from the generator. Blob URLs cannot be used from the server.'
+      'No usable reference image from upstream — connect an image output (http/https, data:image, or blob). Non-HTTP(S) URLs are normalized via upload before execution; if that fails, check storage/upload permissions.'
     );
   }
 
@@ -497,6 +498,7 @@ export function resolveStage3Context(
     angleResolution?: unknown;
     aspect?: string;
     resolution?: unknown;
+    splitImages?: unknown;
   };
   const perspectiveIds = resolvePerspectiveIds(avData.perspectives);
   if (perspectiveIds.length === 0) {
@@ -514,6 +516,7 @@ export function resolveStage3Context(
   const resolutionLabel = normalizeResolution(
     av.type === 'imageVariationsNode' ? avData.resolution : avData.angleResolution
   );
+  const splitImages = Boolean(avData.splitImages);
 
   const localPrompt = richTextToPlainForScout(String(avData.prompt ?? '')).trim();
   const textParts: string[] = [];
@@ -553,6 +556,7 @@ export function resolveStage3Context(
     preferences: {
       aspectRatio,
       resolutionLabel,
+      splitImages,
     },
     sceneContextText,
     count: ids.length,
@@ -599,7 +603,20 @@ export function resolveStage5Context(
   edges: Edge[],
   atmosphereNodeId: string,
   branch: 'text' | 'reference'
-): ResolveResult<Extract<ScoutRemoteContext, { kind: 'stage5_atmosphere_text' | 'stage5_atmosphere_reference' }>> {
+): ResolveResult<
+  | {
+      kind: 'stage5_atmosphere_text';
+      atmosphereNodeId: string;
+      moodText: string;
+      lightingVariants: { id: string; label: string; src: string }[];
+    }
+  | {
+      kind: 'stage5_atmosphere_reference';
+      atmosphereNodeId: string;
+      referenceImageUrl: string;
+      lightingVariants: { id: string; label: string; src: string }[];
+    }
+> {
   const at = nodes.find((n) => n.id === atmosphereNodeId && n.type === 'atmosphereTestNode');
   if (!at) return fail('Atmosphere node not found.');
 

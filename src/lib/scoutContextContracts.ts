@@ -132,6 +132,7 @@ export type Stage2SetDressingContext = z.infer<typeof Stage2SetDressingContextSc
 export const Stage3AnglePreferencesSchema = z.object({
   aspectRatio: z.string().min(1),
   resolutionLabel: z.string().min(1),
+  splitImages: z.boolean().optional(),
 });
 
 export const Stage3AngleVariationsContextSchema = z.object({

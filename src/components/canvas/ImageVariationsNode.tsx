@@ -19,6 +19,7 @@ import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
+import ImageCellOverlay from './ImageCellOverlay';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +53,14 @@ const MODE_ICON: Record<string, LucideIcon> = {
 const BUSINESS_COPY =
   'You can adjust or add new camera angles using Reframe mode. Open Perspectives in the bar to refine the shot for this stage of your project.';
 
+type Stage3AngleLike = {
+  id: string;
+  src: string;
+  resolution?: string;
+  perspectiveId?: string;
+  label?: string;
+};
+
 const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -82,6 +91,14 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
   const localPrompt = String((data.prompt as string) ?? '');
 
   const modeLabel = VARIATION_MODES.find((m) => m.id === variationMode)?.label ?? 'Reframe';
+
+  const lastAngles: Stage3AngleLike[] = Array.isArray((data as { lastAngles?: unknown })?.lastAngles)
+    ? (((data as { lastAngles: unknown[] }).lastAngles as unknown[]) as Stage3AngleLike[]).filter(
+        (a) => a && typeof a === 'object' && typeof (a as { src?: unknown }).src === 'string'
+      )
+    : [];
+
+  const cols = gridSize === '1x1' ? 1 : gridSize === '2x2' ? 2 : 3;
 
   const runAndAccumulate = useCallback(() => {
     if (import.meta.env.DEV) {
@@ -149,15 +166,33 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
                 <p className="text-[9px] leading-snug opacity-90">{BUSINESS_COPY}</p>
               </div>
 
-              <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 py-6 text-center min-h-[100px]">
-                <div className="rounded-2xl bg-[var(--node-inner-mid)] p-4 text-[var(--node-control-muted)]">
-                  <Layers size={40} strokeWidth={1.25} />
+              {lastAngles.length > 0 ? (
+                <div
+                  className={`${NODE_INTERACTIVE_CLASS} custom-scrollbar grid min-h-0 flex-1 gap-2 overflow-auto p-3`}
+                  style={{ gridTemplateColumns: `repeat(${Math.min(cols, Math.max(1, lastAngles.length))}, 1fr)` }}
+                >
+                  {lastAngles.map((a, i) => (
+                    <ImageCellOverlay
+                      key={a.id ?? `${i}`}
+                      src={a.src}
+                      label={a.label}
+                      index={i}
+                      nodeId={id}
+                      resolution={a.resolution ?? resolution}
+                    />
+                  ))}
                 </div>
-                <p className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
-                  Explore new possibilities
-                </p>
-                <p className="text-[12px] text-[var(--text-muted)]">Generate variations from your images</p>
-              </div>
+              ) : (
+                <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 py-6 text-center min-h-[100px]">
+                  <div className="rounded-2xl bg-[var(--node-inner-mid)] p-4 text-[var(--node-control-muted)]">
+                    <Layers size={40} strokeWidth={1.25} />
+                  </div>
+                  <p className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
+                    Explore new possibilities
+                  </p>
+                  <p className="text-[12px] text-[var(--text-muted)]">Generate variations from your images</p>
+                </div>
+              )}
 
               <div className="px-3 pb-2" onPointerDown={(e) => e.stopPropagation()}>
                 <RichTextField

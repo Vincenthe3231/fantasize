@@ -3,7 +3,10 @@ import type {
   ScoutExecutionKind,
   ScoutExecutionResult,
   ScoutRemoteContext,
+  Stage2ImageGeneratorContext,
   Stage3AngleVariationsContext,
+  Stage4LightingBatchContext,
+  Stage5AtmosphereContext,
 } from '@/lib/scoutContextContracts';
 import { invokeScoutExecute } from '@/lib/scoutExecutionApi';
 import { mapScoutResultToNodePatches, type StageResultTargets } from '@/lib/scoutResultMappers';
@@ -20,6 +23,8 @@ import {
 import { runScoutComplianceChecks } from '@/lib/scoutComplianceChecks';
 import type { ScoutPipelineState } from '@/lib/scoutPipeline';
 import { scoutDebugLog, summarizeForScoutLog } from '@/lib/scoutDebugLog';
+import { normalizeImageReferenceUrl, normalizeImageReferenceUrls } from '@/lib/scoutMediaUrlNormalizer';
+import { notifySuccess, notifyWarning } from '@/lib/systemNotify';
 
 export interface ScoutRunOptions {
   /** Required for `atmosphereTestNode` — which branch to execute */
@@ -88,35 +93,87 @@ function resolveContextAndKind(
   switch (kind) {
     case 'stage2_instructions': {
       const r = resolveStage2InstructionsContext(nodes, edges, node.id);
-      return r.ok ? { kind, context: r.value } : { error: r.reason };
+      if ('reason' in r) return { error: r.reason };
+      return { kind, context: r.value };
     }
     case 'stage2_image_generator': {
       const r = resolveStage2ImageGeneratorContext(nodes, edges, node.id);
-      return r.ok ? { kind, context: r.value } : { error: r.reason };
+      if ('reason' in r) return { error: r.reason };
+      return { kind, context: r.value };
     }
     case 'stage2_set_dressing': {
       const r = resolveStage2SetDressingContext(nodes, edges, node.id);
-      return r.ok ? { kind, context: r.value } : { error: r.reason };
+      if ('reason' in r) return { error: r.reason };
+      return { kind, context: r.value };
     }
     case 'stage3_angle_variations': {
       const layout = getGridLayout(node.id);
       const r = resolveStage3Context(nodes, edges, node.id, layout);
-      return r.ok ? { kind, context: r.value } : { error: r.reason };
+      if ('reason' in r) return { error: r.reason };
+      return { kind, context: r.value };
     }
     case 'stage4_lighting_batch': {
       const r = resolveStage4Context(nodes, edges, node.id);
-      return r.ok ? { kind, context: r.value } : { error: r.reason };
+      if ('reason' in r) return { error: r.reason };
+      return { kind, context: r.value };
     }
     case 'stage5_atmosphere_text': {
       const r = resolveStage5Context(nodes, edges, node.id, 'text');
-      return r.ok ? { kind, context: r.value } : { error: r.reason };
+      if ('reason' in r) return { error: r.reason };
+      return { kind, context: r.value };
     }
     case 'stage5_atmosphere_reference': {
       const r = resolveStage5Context(nodes, edges, node.id, 'reference');
-      return r.ok ? { kind, context: r.value } : { error: r.reason };
+      if ('reason' in r) return { error: r.reason };
+      return { kind, context: r.value };
     }
     default:
       return null;
+  }
+}
+
+async function normalizeContextImageReferences(
+  kind: ScoutExecutionKind,
+  context: ScoutRemoteContext
+): Promise<ScoutRemoteContext> {
+  switch (kind) {
+    case 'stage2_image_generator': {
+      const c = context as Stage2ImageGeneratorContext;
+      const normalizedAnchors = await normalizeImageReferenceUrls(c.anchorImageUrls ?? []);
+      return { ...c, anchorImageUrls: normalizedAnchors };
+    }
+    case 'stage3_angle_variations': {
+      const c = context as Stage3AngleVariationsContext;
+      const normalizedSource = await normalizeImageReferenceUrl(c.sourceImageUrl);
+      return { ...c, sourceImageUrl: normalizedSource };
+    }
+    case 'stage4_lighting_batch': {
+      const c = context as Stage4LightingBatchContext;
+      const normalizedSelectedShot = await normalizeImageReferenceUrl(c.selectedShotUrl);
+      return { ...c, selectedShotUrl: normalizedSelectedShot };
+    }
+    case 'stage5_atmosphere_reference': {
+      const c = context as {
+        kind: 'stage5_atmosphere_reference';
+        atmosphereNodeId: string;
+        referenceImageUrl: string;
+        lightingVariants: Array<{ id: string; label: string; src: string }>;
+      };
+      const normalizedReference = await normalizeImageReferenceUrl(c.referenceImageUrl);
+      const normalizedLighting = await Promise.all(
+        c.lightingVariants.map(async (v) => ({
+          ...v,
+          src: await normalizeImageReferenceUrl(v.src),
+        }))
+      );
+      return {
+        ...c,
+        referenceImageUrl: normalizedReference,
+        lightingVariants: normalizedLighting,
+      };
+    }
+    default:
+      return context;
   }
 }
 
@@ -151,12 +208,20 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
   }
 
   const { kind, context } = resolved;
+  let normalizedContext: ScoutRemoteContext;
+  try {
+    normalizedContext = await normalizeContextImageReferences(kind, context);
+  } catch (e: unknown) {
+    if (node.type === 'imageGeneratorNode') deps.updateNodeData(node.id, { status: 'idle' });
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, reason: `Image reference normalization failed: ${msg}` };
+  }
   scoutDebugLog('executeScoutNode context', {
     kind,
-    context: summarizeForScoutLog(context),
+    context: summarizeForScoutLog(normalizedContext),
   });
   if (kind === 'stage3_angle_variations' && import.meta.env.DEV) {
-    const c = context as Stage3AngleVariationsContext;
+    const c = normalizedContext as Stage3AngleVariationsContext;
     console.debug('[Scout][Stage3] resolved context', {
       count: c.count,
       perspectiveIds: c.perspectiveIds,
@@ -164,9 +229,9 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
       aspect: c.preferences.aspectRatio,
     });
   }
-  const targets = targetsFor(kind, node.id, context);
+  const targets = targetsFor(kind, node.id, normalizedContext);
 
-  const api = await invokeScoutExecute(kind, context as unknown as Record<string, unknown>, {
+  const api = await invokeScoutExecute(kind, normalizedContext as unknown as Record<string, unknown>, {
     experimentalDebug: deps.experimentalDebug,
   });
   if (!api.ok || !api.result) {
@@ -180,7 +245,25 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
   const result = api.result;
   const usedMock = Boolean(api.mock);
 
+  if (kind === 'stage3_angle_variations' && result.kind === 'stage3_angle_variations') {
+    const requested = normalizedContext.kind === 'stage3_angle_variations' ? normalizedContext.count : 0;
+    const returned = result.angles.length;
+    const subtitle = `Requested ${requested} angle${requested === 1 ? '' : 's'} • Returned ${returned} angle${returned === 1 ? '' : 's'}${usedMock ? ' • mock response' : ''}`;
+    if (requested !== returned) {
+      notifyWarning('Stage 3 angle mismatch', subtitle);
+    } else {
+      notifySuccess('Stage 3 angles generated', subtitle);
+    }
+  }
+
   /* Merge accumulators (list + lighting) */
+  if (result.kind === 'stage3_angle_variations') {
+    deps.updateNodeData(node.id, {
+      lastAngles: result.angles,
+      lastAngleRunAt: Date.now(),
+    });
+  }
+
   if (result.kind === 'stage3_angle_variations' && targets.angleListNodeId) {
     const listId = targets.angleListNodeId;
     const prevNode = deps.nodes.find((n) => n.id === listId);
@@ -228,7 +311,7 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
 
   runScoutComplianceChecks({
     executionKind: kind,
-    context,
+    context: normalizedContext,
     result,
     usedMock,
   });

@@ -43,7 +43,10 @@ export function runScoutComplianceChecks(input: ComplianceCheckInput): void {
   }
 
   if (executionKind === 'stage3_angle_variations' && result.kind === 'stage3_angle_variations') {
-    if (context.kind === 'stage3_angle_variations' && result.angles.length !== context.count) {
+    if (
+      context.kind === 'stage3_angle_variations' &&
+      result.angles.length !== context.count
+    ) {
       console.warn('[Scout compliance] Stage 3 angle count mismatch.', {
         expected: context.count,
         got: result.angles.length,

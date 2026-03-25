@@ -35,7 +35,7 @@ export const PERSPECTIVE_CHOICES: { id: string; label: string }[] = [
   { id: 'aerial', label: 'Aerial' },
   { id: 'back-view', label: 'Back View' },
   { id: 'closeup', label: 'Closeup' },
-  { id: 'ext-long-shot', label: 'Ext. Long Shot' },
+  { id: 'extreme-long-shot', label: 'Extreme Long Shot' },
   { id: 'extreme-closeup', label: 'Extreme Closeup' },
   { id: 'eye-level', label: 'Eye Level' },
   { id: 'high-angle', label: 'High Angle' },
