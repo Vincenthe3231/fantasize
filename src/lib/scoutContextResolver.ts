@@ -17,6 +17,12 @@ import {
   upstreamVideoItemsFromNode,
 } from '@/lib/graphUpstreamPayload';
 import {
+  ASPECT_RATIOS,
+  getPerspectiveLabel,
+  normalizeResolution,
+  resolvePerspectiveIds,
+} from '@/lib/imageVariationsOptions';
+import {
   Stage1ContextSchema,
   Stage2ImageGeneratorContextSchema,
   type AssistantEdgeInput,
@@ -414,13 +420,13 @@ export function resolveStage2SetDressingContext(
   });
 }
 
-function gridToCount(layout: GridLayout): number {
-  const cols = layout === '1x1' ? 1 : layout === '2x2' ? 2 : 3;
-  return cols * cols;
+function isHttpImageUrl(url: string): boolean {
+  const u = url.trim();
+  return u.length > 0 && !u.startsWith('blob:') && /^https?:\/\//i.test(u);
 }
 
 /**
- * Stage 3 — Angle variations: dressed-room image from upstream Set dressing.
+ * Stage 3 — Angle variations: reference image from upstream + selected perspectives / preferences on the node.
  */
 export function resolveStage3Context(
   nodes: Node[],
@@ -432,18 +438,36 @@ export function resolveStage3Context(
   if (!av) return fail('Angle variations node not found.');
 
   const inc = incomingSources(edges, angleVariationsNodeId);
-  if (inc.length === 0) return fail('Connect Set dressing (or prior stage) into Angle variations.');
+  if (inc.length === 0) {
+    return fail('Connect upstream nodes (e.g. Set dressing, upload, image generator) into Angle variations.');
+  }
 
   let sourceImageUrl = '';
   for (const e of inc) {
     const src = nodes.find((n) => n.id === e.source);
     if (src?.type === 'setDressingNode') {
       const url = String((src.data as { previewUrl?: string })?.previewUrl ?? '').trim();
-      if (url) sourceImageUrl = url;
+      if (isHttpImageUrl(url)) sourceImageUrl = url;
     }
   }
   if (!sourceImageUrl) {
-    return fail('Upstream set dressing preview image is missing — run Set dressing first.');
+    for (const e of inc) {
+      const src = nodes.find((n) => n.id === e.source);
+      if (!src) continue;
+      const items = upstreamImageItemsFromNode(src, nodes);
+      for (const it of items) {
+        if (isHttpImageUrl(it.url)) {
+          sourceImageUrl = it.url.trim();
+          break;
+        }
+      }
+      if (sourceImageUrl) break;
+    }
+  }
+  if (!sourceImageUrl) {
+    return fail(
+      'No usable HTTPS reference image from upstream — connect Set dressing (after run), upload, or image generator with a public image URL.'
+    );
   }
 
   const listEdge = edges.find(
@@ -451,7 +475,49 @@ export function resolveStage3Context(
   );
   const listNodeId = listEdge?.target;
 
-  const count = Math.min(9, gridToCount(gridLayout));
+  const avData = av.data as {
+    prompt?: string;
+    perspectives?: unknown;
+    angleAspectRatio?: string;
+    angleResolution?: unknown;
+  };
+  const perspectiveIds = resolvePerspectiveIds(avData.perspectives);
+  if (perspectiveIds.length === 0) {
+    return fail('Select at least one camera perspective — open Perspectives in the node action bar.');
+  }
+
+  const count = Math.min(9, perspectiveIds.length);
+  const ids = perspectiveIds.slice(0, count);
+
+  const aspectRaw = String(avData.angleAspectRatio ?? '').trim();
+  const aspectRatio = (ASPECT_RATIOS as readonly string[]).includes(aspectRaw) ? aspectRaw : '16:9';
+  const resolutionLabel = normalizeResolution(avData.angleResolution);
+
+  const localPrompt = richTextToPlainForScout(String(avData.prompt ?? '')).trim();
+  const textParts: string[] = [];
+  if (localPrompt) textParts.push(localPrompt);
+  for (const e of inc) {
+    const src = nodes.find((n) => n.id === e.source);
+    if (!src) continue;
+    const hk = handleKind(e.targetHandle);
+    if (hk === 'text') {
+      const t = upstreamTextFromNode(src, nodes).trim();
+      if (t) textParts.push(t);
+    }
+  }
+  const sceneContextText = mergeTextPartsDedupe(textParts);
+
+  if (import.meta.env.DEV) {
+    console.debug('[Scout][Stage3] resolveStage3Context', {
+      angleVariationsNodeId,
+      gridLayout,
+      perspectiveCount: ids.length,
+      sourceImageUrl: sourceImageUrl.slice(0, 80),
+      sceneContextTextLen: sceneContextText.length,
+    });
+  }
+
+  const perspectiveLabels = ids.map((pid) => getPerspectiveLabel(pid) ?? pid);
 
   return ok({
     kind: 'stage3_angle_variations',
@@ -459,7 +525,14 @@ export function resolveStage3Context(
     listNodeId,
     sourceImageUrl,
     gridLayout,
-    count,
+    perspectiveIds: ids,
+    perspectiveLabels,
+    preferences: {
+      aspectRatio,
+      resolutionLabel,
+    },
+    sceneContextText,
+    count: ids.length,
   });
 }
 

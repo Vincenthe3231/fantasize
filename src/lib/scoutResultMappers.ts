@@ -59,6 +59,8 @@ export function mapScoutResultToNodePatches(
           id: a.id,
           src: a.src,
           resolution: a.resolution ?? '4K',
+          ...(a.perspectiveId != null ? { perspectiveId: a.perspectiveId } : {}),
+          ...(a.label != null ? { label: a.label } : {}),
         }));
         patches[listId] = {
           accumulatedAngles: add,

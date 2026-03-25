@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, useCallback } from 'react';
+import { memo, useMemo, useCallback } from 'react';
 import { type NodeProps } from 'reactflow';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
@@ -31,8 +31,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { RichTextField } from '@/components/rich-text/RichTextField';
-
-const MODES = ['Auto', 'Cinematic', 'Classic', 'Classic Fast', 'Flux.1', 'Flux.1 Fast', 'SDXL', 'Mystic'];
+import { IMAGE_GENERATOR_MODES } from '@/lib/imageGeneratorModes';
 
 function makeEdge(
   source: string,
@@ -51,7 +50,6 @@ function makeEdge(
 }
 
 const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
-  const [negOpen, setNegOpen] = useState(false);
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -69,6 +67,7 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
   const negativePrompt = (data.negativePrompt as string) || '';
   const status = (data.status as string) || 'idle';
   const generatedUrl = (data.generatedUrl as string) || '';
+  const negativePromptOpen = Boolean(data.negativePromptOpen);
 
   const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
 
@@ -248,7 +247,7 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="node-canvas-dropdown text-xs max-h-48 overflow-y-auto">
-                  {MODES.map((m) => (
+                  {IMAGE_GENERATOR_MODES.map((m) => (
                     <DropdownMenuItem key={m} onClick={() => updateNodeData(id, { mode: m })}>
                       {m}
                     </DropdownMenuItem>
@@ -276,7 +275,10 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <Popover open={negOpen} onOpenChange={setNegOpen}>
+              <Popover
+                open={negativePromptOpen}
+                onOpenChange={(open) => updateNodeData(id, { negativePromptOpen: open })}
+              >
                 <PopoverTrigger asChild>
                   <button
                     type="button"

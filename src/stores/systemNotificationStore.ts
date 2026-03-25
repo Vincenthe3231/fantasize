@@ -19,23 +19,47 @@ type SystemNotificationState = {
 
 const MAX_NOTIFICATIONS = 5;
 
-export const useSystemNotificationStore = create<SystemNotificationState>((set) => ({
+/** Auto-remove system notification cards after this delay (manual dismiss clears the timer). */
+export const AUTO_DISMISS_MS = 1500;
+
+const dismissTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function clearDismissTimer(id: string) {
+  const t = dismissTimers.get(id);
+  if (t !== undefined) {
+    clearTimeout(t);
+    dismissTimers.delete(id);
+  }
+}
+
+export const useSystemNotificationStore = create<SystemNotificationState>((set, get) => ({
   notifications: [],
-  push: (item) =>
-    set((state) => ({
-      notifications: [
-        {
-          id: `sys-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          createdAt: Date.now(),
-          ...item,
-        },
-        ...state.notifications,
-      ].slice(0, MAX_NOTIFICATIONS),
-    })),
-  dismiss: (id) =>
+  push: (item) => {
+    const id = `sys-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const createdAt = Date.now();
+    set((state) => {
+      const next = [{ id, createdAt, ...item }, ...state.notifications].slice(0, MAX_NOTIFICATIONS);
+      const nextIds = new Set(next.map((n) => n.id));
+      for (const n of state.notifications) {
+        if (!nextIds.has(n.id)) clearDismissTimer(n.id);
+      }
+      return { notifications: next };
+    });
+    const t = setTimeout(() => {
+      dismissTimers.delete(id);
+      get().dismiss(id);
+    }, AUTO_DISMISS_MS);
+    dismissTimers.set(id, t);
+  },
+  dismiss: (id) => {
+    clearDismissTimer(id);
     set((state) => ({
       notifications: state.notifications.filter((n) => n.id !== id),
-    })),
-  clear: () => set({ notifications: [] }),
+    }));
+  },
+  clear: () => {
+    for (const t of dismissTimers.values()) clearTimeout(t);
+    dismissTimers.clear();
+    set({ notifications: [] });
+  },
 }));
-

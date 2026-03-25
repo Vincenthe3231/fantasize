@@ -1,5 +1,10 @@
 import type { Edge, Node } from 'reactflow';
-import type { ScoutExecutionKind, ScoutExecutionResult, ScoutRemoteContext } from '@/lib/scoutContextContracts';
+import type {
+  ScoutExecutionKind,
+  ScoutExecutionResult,
+  ScoutRemoteContext,
+  Stage3AngleVariationsContext,
+} from '@/lib/scoutContextContracts';
 import { invokeScoutExecute } from '@/lib/scoutExecutionApi';
 import { mapScoutResultToNodePatches, type StageResultTargets } from '@/lib/scoutResultMappers';
 import {
@@ -15,7 +20,6 @@ import {
 import { runScoutComplianceChecks } from '@/lib/scoutComplianceChecks';
 import type { ScoutPipelineState } from '@/lib/scoutPipeline';
 import { scoutDebugLog, summarizeForScoutLog } from '@/lib/scoutDebugLog';
-import { notifyInfo } from '@/lib/systemNotify';
 
 export interface ScoutRunOptions {
   /** Required for `atmosphereTestNode` — which branch to execute */
@@ -151,6 +155,15 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
     kind,
     context: summarizeForScoutLog(context),
   });
+  if (kind === 'stage3_angle_variations' && import.meta.env.DEV) {
+    const c = context as Stage3AngleVariationsContext;
+    console.debug('[Scout][Stage3] resolved context', {
+      count: c.count,
+      perspectiveIds: c.perspectiveIds,
+      sceneContextLen: c.sceneContextText.length,
+      aspect: c.preferences.aspectRatio,
+    });
+  }
   const targets = targetsFor(kind, node.id, context);
 
   const api = await invokeScoutExecute(kind, context as unknown as Record<string, unknown>, {
@@ -174,7 +187,16 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
     const prev =
       ((prevNode?.data as { accumulatedAngles?: { id: string; src: string; resolution?: string }[] })
         ?.accumulatedAngles ?? []) as { id: string; src: string; resolution?: string }[];
-    const merged = [...prev, ...result.angles.map((a) => ({ id: a.id, src: a.src, resolution: a.resolution ?? '4K' }))];
+    const merged = [
+      ...prev,
+      ...result.angles.map((a) => ({
+        id: a.id,
+        src: a.src,
+        resolution: a.resolution ?? '4K',
+        ...(a.perspectiveId != null ? { perspectiveId: a.perspectiveId } : {}),
+        ...(a.label != null ? { label: a.label } : {}),
+      })),
+    ];
     deps.updateNodeData(listId, { accumulatedAngles: merged });
   }
 
@@ -197,10 +219,10 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
     }
     if (deps.experimentalDebug && result.kind === 'stage2_instructions') {
       const rp = 'refinedPrompt' in result ? String(result.refinedPrompt ?? '') : '';
-      notifyInfo(
-        'Scout · Stage 2 instructions',
-        `Applied to assistant node · ${rp.length} chars refined prompt`
-      );
+      console.debug('[Scout]', 'Stage 2 instructions applied', {
+        refinedPromptChars: rp.length,
+        nodeId: deps.nodeId,
+      });
     }
   }
 

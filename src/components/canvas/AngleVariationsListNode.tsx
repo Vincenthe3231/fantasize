@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, useCallback } from 'react';
+import { memo, useMemo, useCallback } from 'react';
 import { type NodeProps } from 'reactflow';
 import { Plus, Grid3X3, List, Settings, CircleDot } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
@@ -11,7 +11,13 @@ import ImageCellOverlay from './ImageCellOverlay';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 
-export type AccumulatedAngle = { id: string; src: string; resolution?: string };
+export type AccumulatedAngle = {
+  id: string;
+  src: string;
+  resolution?: string;
+  perspectiveId?: string;
+  label?: string;
+};
 
 const AngleVariationsListNode = memo(({ id, selected, data }: NodeProps) => {
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -24,7 +30,9 @@ const AngleVariationsListNode = memo(({ id, selected, data }: NodeProps) => {
   const edges = useWorkflowStore((s) => s.edges);
   const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
   const { connectMenuItems } = useQuickConnect(id, selfPos);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  const viewMode =
+    (data as { angleListViewMode?: 'grid' | 'list' }).angleListViewMode === 'list' ? 'list' : 'grid';
 
   const accumulatedAngles: AccumulatedAngle[] = Array.isArray((data as { accumulatedAngles?: AccumulatedAngle[] })?.accumulatedAngles)
     ? ((data as { accumulatedAngles: AccumulatedAngle[] }).accumulatedAngles as AccumulatedAngle[])
@@ -126,14 +134,22 @@ const AngleVariationsListNode = memo(({ id, selected, data }: NodeProps) => {
                   <CircleDot size={12} />
                 </button>
                 <button
+                  type="button"
                   className={`rounded p-1 transition-colors ${viewMode === 'list' ? 'bg-[var(--node-tab-active-bg)] text-[var(--text-primary)]' : 'text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-control-text)]'}`}
-                  onClick={() => setViewMode('list')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateNodeData(id, { angleListViewMode: 'list' });
+                  }}
                 >
                   <List size={12} />
                 </button>
                 <button
+                  type="button"
                   className={`rounded p-1 transition-colors ${viewMode === 'grid' ? 'bg-[var(--node-tab-active-bg)] text-[var(--text-primary)]' : 'text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-control-text)]'}`}
-                  onClick={() => setViewMode('grid')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateNodeData(id, { angleListViewMode: 'grid' });
+                  }}
                 >
                   <Grid3X3 size={12} />
                 </button>

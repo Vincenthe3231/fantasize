@@ -7,13 +7,13 @@ import {
   type ScoutExecutionKind,
 } from '@/lib/scoutContextContracts';
 import { scoutDebugLog, scoutDebugTime, summarizeForScoutLog } from '@/lib/scoutDebugLog';
-import { notifyInfo } from '@/lib/systemNotify';
 
 const DEFAULT_TIMEOUT_MS: Record<ScoutExecutionKind, number> = {
   stage2_instructions: 90_000,
   stage2_image_generator: 120_000,
   stage2_set_dressing: 120_000,
-  stage3_angle_variations: 120_000,
+  /** Multiple OpenRouter image calls (one per perspective). */
+  stage3_angle_variations: 300_000,
   stage4_lighting_batch: 180_000,
   stage5_atmosphere_text: 180_000,
   stage5_atmosphere_reference: 180_000,
@@ -102,13 +102,11 @@ export async function invokeScoutExecute(
     if (experimentalDebug && parsed.data.ok && parsed.data.meta && typeof parsed.data.meta === 'object') {
       const r = parsed.data.result;
       const meta = parsed.data.meta as Record<string, unknown>;
-      const extra = Object.entries(meta)
-        .map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
-        .join(', ');
-      notifyInfo(
-        'Scout · scout-execute',
-        `${r?.kind ?? 'ok'}${parsed.data.mock ? ' (mock)' : ''} · ${extra}`
-      );
+      console.debug('[Scout]', 'scout-execute response', {
+        kind: r?.kind ?? 'ok',
+        mock: parsed.data.mock,
+        meta: summarizeForScoutLog(meta),
+      });
     }
     return parsed.data;
   } catch (e: unknown) {

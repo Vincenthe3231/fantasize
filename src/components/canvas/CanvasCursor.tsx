@@ -2,10 +2,12 @@ import { useRef } from 'react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { useCanvasCursor } from '@/hooks/useCanvasCursor';
 
-/** Full-screen pointer trail overlay; disable via Settings → Canvas cursor trails. */
+/** Full-screen pointer trail overlay; disable via Settings → Canvas cursor trails, or in Hand (pan) mode. */
 export function CanvasCursor() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const enabled = useWorkflowStore((s) => s.settings.canvasCursorTrails);
+  const canvasCursorTrails = useWorkflowStore((s) => s.settings.canvasCursorTrails);
+  const selectedTool = useWorkflowStore((s) => s.selectedTool);
+  const enabled = canvasCursorTrails && selectedTool !== 'hand';
   useCanvasCursor(canvasRef, enabled);
 
   return (

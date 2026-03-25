@@ -261,7 +261,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         const n = s.nodes.find((x) => x.id === nid);
         if (n?.type === 'imageGeneratorNode' && patch.prompt != null) {
           const plen = String(patch.prompt).length;
-          notifyInfo('Dataflow', `Image generator prompt updated (${plen} chars)`);
+          console.debug('[Scout]', 'Dataflow: image generator prompt updated', { nodeId: nid, chars: plen });
         }
       }
     }

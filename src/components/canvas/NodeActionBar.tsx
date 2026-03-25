@@ -49,6 +49,10 @@ interface NodeActionBarProps {
   onExpand?: () => void;
   onGridToggle?: () => void;
   onSelectMode?: () => void;
+  /** Angle variations / multi-image: open Perspectives picker (List icon). */
+  onOpenPerspectives?: () => void;
+  /** Angle variations / multi-image: open output preferences (Settings icon). */
+  onOpenPreferences?: () => void;
   showDownload?: boolean;
   connectMenuItems?: ConnectMenuItem[];
 }
@@ -90,6 +94,8 @@ const NodeActionBar = memo(
     onExpand,
     onGridToggle,
     onSelectMode,
+    onOpenPerspectives,
+    onOpenPreferences,
     showDownload,
     connectMenuItems = [],
   }: NodeActionBarProps) => {
@@ -186,8 +192,8 @@ const NodeActionBar = memo(
             {variant === 'multiImage' && (
               <>
                 {onSelectMode && <Btn onClick={onSelectMode} tooltip="Select mode"><CircleDot size={12} /></Btn>}
-                <Btn tooltip="List"><List size={12} /></Btn>
-                <Btn tooltip="Settings"><Settings size={12} /></Btn>
+                <Btn onClick={onOpenPerspectives} tooltip="Perspectives"><List size={12} /></Btn>
+                <Btn onClick={onOpenPreferences} tooltip="Preferences"><Settings size={12} /></Btn>
                 <Btn tooltip="Add"><Plus size={12} /></Btn>
               </>
             )}

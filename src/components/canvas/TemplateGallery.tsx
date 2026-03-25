@@ -35,9 +35,9 @@ const templates: Template[] = [
     nodes: [
       { id: 'upload-1', type: 'uploadNode', position: { x: 80, y: 200 }, data: { mediaUrl: '', label: '' } },
       { id: 'text-1', type: 'textNode', position: { x: 80, y: 420 }, data: { content: 'Hero product on marble surface, soft key light, clean editorial backdrop' } },
-      { id: 'gen-1', type: 'imageGeneratorNode', position: { x: 420, y: 100 }, data: { model: 'flux', aspect: '1:1', images: 1, status: 'idle' } },
-      { id: 'gen-2', type: 'imageGeneratorNode', position: { x: 420, y: 300 }, data: { model: 'mystic', aspect: '16:9', images: 1, status: 'idle' } },
-      { id: 'gen-3', type: 'imageGeneratorNode', position: { x: 420, y: 500 }, data: { model: 'sdxl', aspect: '4:3', images: 1, status: 'idle' } },
+      { id: 'gen-1', type: 'imageGeneratorNode', position: { x: 420, y: 100 }, data: { mode: 'Flux.1', aspect: '1:1', images: 1, status: 'idle' } },
+      { id: 'gen-2', type: 'imageGeneratorNode', position: { x: 420, y: 300 }, data: { mode: 'Mystic', aspect: '16:9', images: 1, status: 'idle' } },
+      { id: 'gen-3', type: 'imageGeneratorNode', position: { x: 420, y: 500 }, data: { mode: 'SDXL', aspect: '4:3', images: 1, status: 'idle' } },
       { id: 'upscaler-1', type: 'imageUpscalerNode', position: { x: 760, y: 300 }, data: { mode: 'creative', scale: '4x', status: 'idle' } },
     ],
     edges: [
@@ -54,7 +54,7 @@ const templates: Template[] = [
     nodes: [
       { id: 'text-1', type: 'textNode', position: { x: 80, y: 260 }, data: { content: 'Summer campaign hero visual — vibrant, cinematic, aspirational lifestyle' } },
       { id: 'assistant-1', type: 'assistantNode', position: { x: 400, y: 260 }, data: { refinedPrompt: '' } },
-      { id: 'gen-1', type: 'imageGeneratorNode', position: { x: 720, y: 160 }, data: { model: 'mystic', aspect: '1:1', images: 2, status: 'idle' } },
+      { id: 'gen-1', type: 'imageGeneratorNode', position: { x: 720, y: 160 }, data: { mode: 'Mystic', aspect: '1:1', images: 2, status: 'idle' } },
       { id: 'video-1', type: 'videoGeneratorNode', position: { x: 720, y: 400 }, data: { mode: 'text-to-video', duration: '5s', model: 'kling', status: 'idle' } },
     ],
     edges: [

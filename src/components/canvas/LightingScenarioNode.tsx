@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, useCallback } from 'react';
+import { memo, useMemo, useCallback } from 'react';
 import { type NodeProps } from 'reactflow';
 import { Sun, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
@@ -86,7 +86,15 @@ const LightingScenarioNode = memo(({ id, selected, data }: NodeProps) => {
     runFromNode(id);
   }, [scoutPipeline.selectedShotCommitted, lightingStrings, runFromNode, id]);
 
-  const [activePreview, setActivePreview] = useState<string | null>(null);
+  const rawPreview = (data as { activeLightingPreviewSrc?: string | null }).activeLightingPreviewSrc;
+  const activePreview = typeof rawPreview === 'string' ? rawPreview : null;
+
+  const setActivePreview = useCallback(
+    (src: string) => {
+      updateNodeData(id, { activeLightingPreviewSrc: src });
+    },
+    [id, updateNodeData]
+  );
 
   return (
     <FlowNodeResizeRoot
@@ -106,7 +114,7 @@ const LightingScenarioNode = memo(({ id, selected, data }: NodeProps) => {
           onDelete={() => deleteNode(id)}
           onLock={() => lockNode(id)}
           showDownload
-          onDownload={() => window.open(activePreview || MOCK.lightWarm, '_blank')}
+          onDownload={() => window.open(activePreview ?? MOCK.lightWarm, '_blank')}
           connectMenuItems={connectMenuItems}
         />
 

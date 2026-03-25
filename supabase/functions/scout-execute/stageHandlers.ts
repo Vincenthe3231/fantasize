@@ -1,5 +1,6 @@
 import { getOpenRouterStage2Model, streamOpenRouterAuto } from './openrouterClient.ts';
 import { generateStage2ImageViaOpenRouter } from './stage2ImageOpenRouter.ts';
+import { generateStage3AngleVariationsViaOpenRouter } from './stage3AngleVariationsOpenRouter.ts';
 import { buildStage2InstructionsContent } from './stage2Multimodal.ts';
 import type { ScoutExecutionKind } from './types.ts';
 
@@ -70,15 +71,16 @@ export async function handleScoutStage(
     }
 
     case 'stage3_angle_variations': {
-      const count = Math.min(9, Math.max(1, Number(context.count ?? 4)));
-      const angles = Array.from({ length: count }, (_, i) => ({
-        id: `ang-${crypto.randomUUID()}`,
-        src: picsum(`ang-${i}-${Date.now()}`),
-        resolution: '4K',
-      }));
+      if (!useLlm) {
+        throw new Error(
+          'OPENROUTER_API_KEY is not set on scout-execute — Stage 3 angle variations require OpenRouter image generation.'
+        );
+      }
+      const { angles, meta } = await generateStage3AngleVariationsViaOpenRouter(context, apiKey!.trim());
       return {
-        mock: true,
+        mock: false,
         result: { kind: 'stage3_angle_variations', angles },
+        meta,
       };
     }
 

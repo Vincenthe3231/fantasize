@@ -7,6 +7,7 @@ import {
   buildStage2ImageGenUserContentParts,
   type ImageGenUserContentPart,
 } from './stage2ImageGenBuild.ts';
+import { resolveImageGenModelForMode } from './imageGenModeModel.ts';
 
 function openRouterMeta() {
   const httpReferer = Deno.env.get('OPENROUTER_HTTP_REFERER') ?? 'https://vision-forge.local';
@@ -15,7 +16,7 @@ function openRouterMeta() {
 }
 
 export function getOpenRouterImageGenModel(): string {
-  return Deno.env.get('OPENROUTER_IMAGE_GEN_MODEL') ?? 'google/gemini-2.5-flash-image';
+  return resolveImageGenModelForMode('Auto', (k) => Deno.env.get(k)).model;
 }
 
 function parseModalities(): Array<'text' | 'image'> {
@@ -56,7 +57,7 @@ export async function generateStage2ImageViaOpenRouter(
   apiKey: string
 ): Promise<{ generatedUrl: string; meta: Record<string, unknown> }> {
   const { httpReferer, xTitle } = openRouterMeta();
-  const model = getOpenRouterImageGenModel();
+  const { model, modeLabel } = resolveImageGenModelForMode(String(context.mode ?? ''), (k) => Deno.env.get(k));
   const modalities = parseModalities();
   const userParts = buildStage2ImageGenUserContentParts(context);
   const aspect = aspectToOpenRouterImageConfig(String(context.aspect ?? ''));
@@ -111,6 +112,8 @@ export async function generateStage2ImageViaOpenRouter(
     meta: {
       executionKind: 'stage2_image_generator',
       model,
+      mode: String(context.mode ?? '') || undefined,
+      modeLabel,
       modalities,
       anchorImageCount: anchorCount,
       promptTextLength: promptLen,

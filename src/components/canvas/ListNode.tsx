@@ -22,14 +22,15 @@ interface ListItem {
 const ListNode = memo(({ id, data, selected }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
+  const updateNodeDataSilent = useWorkflowStore((s) => s.updateNodeDataSilent);
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
 
   const items: ListItem[] = (data.items as ListItem[]) || [];
-  const [addingText, setAddingText] = useState(false);
-  const [textDraft, setTextDraft] = useState('');
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const viewMode = (data.listViewMode as 'list' | 'grid') === 'grid' ? 'grid' : 'list';
+  const addingText = Boolean(data.listAddingText);
+  const textDraft = String(data.listTextDraft ?? '');
   const [hovered, setHovered] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -37,11 +38,17 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
     updateNodeData(id, { items: newItems });
   }, [id, updateNodeData]);
 
+  const closeTextEntry = useCallback(() => {
+    updateNodeData(id, { listAddingText: false, listTextDraft: '' });
+  }, [id, updateNodeData]);
+
   const addTextItem = () => {
     if (!textDraft.trim()) return;
-    setItems([...items, { id: `t-${Date.now()}`, type: 'text', text: textDraft.trim() }]);
-    setTextDraft('');
-    setAddingText(false);
+    updateNodeData(id, {
+      items: [...items, { id: `t-${Date.now()}`, type: 'text', text: textDraft.trim() }],
+      listAddingText: false,
+      listTextDraft: '',
+    });
   };
 
   const addMediaItem = (file: File) => {
@@ -95,7 +102,7 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
               <div className="mt-1 flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setAddingText(true)}
+                  onClick={() => updateNodeData(id, { listAddingText: true })}
                   className="flex items-center gap-1.5 rounded-lg border border-[var(--node-control-border)] bg-[var(--node-control-bg)] px-3 py-1.5 text-[11px] text-[var(--node-control-text)] transition-colors hover:bg-[var(--node-action-bar-hover-bg)]"
                 >
                   <Type size={12} /> Add text
@@ -125,10 +132,10 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                         autoFocus
                         draggable={false}
                         value={textDraft}
-                        onChange={(e) => setTextDraft(e.target.value)}
+                        onChange={(e) => updateNodeDataSilent(id, { listTextDraft: e.target.value })}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') addTextItem();
-                          if (e.key === 'Escape') { setAddingText(false); setTextDraft(''); }
+                          if (e.key === 'Escape') closeTextEntry();
                           e.stopPropagation();
                         }}
                         placeholder="Type text and press Enter…"
@@ -139,7 +146,7 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                         <span className="font-mono text-[10px] text-[var(--node-control-muted)]">Aa</span>
                         <button type="button" onClick={() => navigator.clipboard.writeText(textDraft)} className="p-1 text-[var(--node-control-muted)] hover:text-[var(--node-control-text)]"><Copy size={11} /></button>
                         <div className="flex-1" />
-                        <button type="button" onClick={() => { setAddingText(false); setTextDraft(''); }} className="p-1 text-[var(--node-control-muted)] hover:text-destructive"><X size={12} /></button>
+                        <button type="button" onClick={closeTextEntry} className="p-1 text-[var(--node-control-muted)] hover:text-destructive"><X size={12} /></button>
                         <button type="button" onClick={addTextItem} className="p-1 text-[var(--node-control-muted)] hover:text-emerald-500"><Check size={12} /></button>
                       </div>
                     </div>
@@ -218,7 +225,13 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
               <button type="button" className="rounded-md bg-[var(--node-control-bg)] p-1 text-[var(--node-control-text)] transition-colors hover:bg-[var(--node-action-bar-hover-bg)]"><Plus size={12} /></button>
             </PopoverTrigger>
             <PopoverContent side="top" className="node-canvas-popover w-36 p-1.5 backdrop-blur-xl" align="start">
-              <button type="button" onClick={() => setAddingText(true)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[11px] text-[var(--node-popover-text)] hover:bg-[var(--node-action-bar-hover-bg)]"><Type size={12} /> Add text</button>
+              <button
+                type="button"
+                onClick={() => updateNodeData(id, { listAddingText: true })}
+                className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[11px] text-[var(--node-popover-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
+              >
+                <Type size={12} /> Add text
+              </button>
               <button type="button" onClick={() => fileRef.current?.click()} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[11px] text-[var(--node-popover-text)] hover:bg-[var(--node-action-bar-hover-bg)]"><ImageIcon size={12} /> Add media</button>
             </PopoverContent>
           </Popover>
@@ -232,7 +245,19 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
             <PopoverContent side="top" className="node-canvas-popover w-36 p-1.5 backdrop-blur-xl" align="start">
               <button type="button" className="w-full rounded-md px-2.5 py-1.5 text-left text-[11px] text-[var(--node-popover-text)] hover:bg-[var(--node-action-bar-hover-bg)]">Keep Items</button>
               <button type="button" className="w-full rounded-md px-2.5 py-1.5 text-left text-[11px] text-[var(--node-popover-text)] hover:bg-[var(--node-action-bar-hover-bg)]">Replace Items</button>
-              <button type="button" onClick={() => setItems([])} className="w-full rounded-md px-2.5 py-1.5 text-left text-[11px] text-destructive hover:bg-[var(--node-action-bar-hover-bg)]">Clear All</button>
+              <button
+                type="button"
+                onClick={() =>
+                  updateNodeData(id, {
+                    items: [],
+                    listAddingText: false,
+                    listTextDraft: '',
+                  })
+                }
+                className="w-full rounded-md px-2.5 py-1.5 text-left text-[11px] text-destructive hover:bg-[var(--node-action-bar-hover-bg)]"
+              >
+                Clear All
+              </button>
             </PopoverContent>
           </Popover>
 
@@ -244,8 +269,22 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
             </span>
           )}
 
-          <button type="button" title="List view" onClick={() => setViewMode('list')} className={`rounded p-1 transition-colors ${viewMode === 'list' ? 'bg-[var(--node-tab-active-bg)] text-[var(--node-control-text)]' : 'text-[var(--node-tab-inactive)] hover:text-[var(--node-control-text)]'}`}><LayoutList size={11} /></button>
-          <button type="button" title="Grid view" onClick={() => setViewMode('grid')} className={`rounded p-1 transition-colors ${viewMode === 'grid' ? 'bg-[var(--node-tab-active-bg)] text-[var(--node-control-text)]' : 'text-[var(--node-tab-inactive)] hover:text-[var(--node-control-text)]'}`}><LayoutGrid size={11} /></button>
+          <button
+            type="button"
+            title="List view"
+            onClick={() => updateNodeData(id, { listViewMode: 'list' })}
+            className={`rounded p-1 transition-colors ${viewMode === 'list' ? 'bg-[var(--node-tab-active-bg)] text-[var(--node-control-text)]' : 'text-[var(--node-tab-inactive)] hover:text-[var(--node-control-text)]'}`}
+          >
+            <LayoutList size={11} />
+          </button>
+          <button
+            type="button"
+            title="Grid view"
+            onClick={() => updateNodeData(id, { listViewMode: 'grid' })}
+            className={`rounded p-1 transition-colors ${viewMode === 'grid' ? 'bg-[var(--node-tab-active-bg)] text-[var(--node-control-text)]' : 'text-[var(--node-tab-inactive)] hover:text-[var(--node-control-text)]'}`}
+          >
+            <LayoutGrid size={11} />
+          </button>
           <button type="button" className="rounded p-1 text-[var(--node-tab-inactive)] transition-colors hover:text-[var(--node-control-text)]"><Settings size={11} /></button>
         </div>
 
@@ -260,7 +299,7 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
               className="absolute -right-10 top-1/2 flex -translate-y-1/2 flex-col gap-1.5"
             >
               {[
-                { icon: Type, action: () => setAddingText(true), tip: 'Add text' },
+                { icon: Type, action: () => updateNodeData(id, { listAddingText: true }), tip: 'Add text' },
                 { icon: ImageIcon, action: () => fileRef.current?.click(), tip: 'Add media' },
                 { icon: FolderOpen, action: () => {}, tip: 'Group' },
                 { icon: SlidersHorizontal, action: () => {}, tip: 'Settings' },

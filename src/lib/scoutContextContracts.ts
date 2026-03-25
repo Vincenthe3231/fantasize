@@ -129,14 +129,40 @@ export type Stage2SetDressingContext = z.infer<typeof Stage2SetDressingContextSc
 
 // ── Stage 3 ────────────────────────────────────────────────────────────────
 
+export const Stage3AnglePreferencesSchema = z.object({
+  aspectRatio: z.string().min(1),
+  resolutionLabel: z.string().min(1),
+});
+
 export const Stage3AngleVariationsContextSchema = z.object({
   kind: z.literal('stage3_angle_variations'),
   angleVariationsNodeId: z.string(),
   listNodeId: z.string().optional(),
   sourceImageUrl: z.string().min(1),
   gridLayout: z.enum(['1x1', '2x2', '3x3']),
-  /** How many cells / angles to generate */
+  /** Selected camera perspective ids (order preserved). */
+  perspectiveIds: z.array(z.string().min(1)).min(1).max(9),
+  /** Human labels aligned with perspectiveIds. */
+  perspectiveLabels: z.array(z.string().min(1)).min(1).max(9),
+  /** Output preferences (aspect for OpenRouter image_config, resolution for labeling). */
+  preferences: Stage3AnglePreferencesSchema,
+  /** Scene / creative context: local prompt + wired upstream text. */
+  sceneContextText: z.string(),
+  /** Must equal perspectiveIds.length */
   count: z.number().int().min(1).max(9),
+}).superRefine((d, ctx) => {
+  if (d.perspectiveIds.length !== d.perspectiveLabels.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'stage3: perspectiveIds and perspectiveLabels length mismatch',
+    });
+  }
+  if (d.count !== d.perspectiveIds.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'stage3: count must match perspectiveIds length',
+    });
+  }
 });
 
 export type Stage3AngleVariationsContext = z.infer<typeof Stage3AngleVariationsContextSchema>;
@@ -214,6 +240,8 @@ export const AngleItemSchema = z.object({
   id: z.string(),
   src: z.string(),
   resolution: z.string().optional(),
+  perspectiveId: z.string().optional(),
+  label: z.string().optional(),
 });
 
 export const ScoutExecutionResultSchema = z.discriminatedUnion('kind', [

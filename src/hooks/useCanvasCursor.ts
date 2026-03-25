@@ -210,6 +210,9 @@ export function useCanvasCursor(canvasRef: RefObject<HTMLCanvasElement | null>, 
       document.removeEventListener('touchmove', onTouchMove);
       document.removeEventListener('touchstart', onTouchStart);
       window.removeEventListener('resize', resize);
+      // Wipe pixels when trail is turned off (e.g. Hand mode) so nothing lingers on the overlay.
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
     };
   }, [canvasRef, enabled]);
 }
