@@ -111,7 +111,7 @@ const CustomEdge = memo(({
   const anchorY = hovered && hoverPoint ? hoverPoint.y : midY;
 
   return (
-    <>
+    <g className="vf-custom-edge">
       <path
         d={edgePath}
         fill="none"
@@ -132,7 +132,7 @@ const CustomEdge = memo(({
         fill="none"
         stroke={strokeColor}
         strokeWidth={strokeW}
-        className={isRunning && edgeAnimation ? 'animated-edge' : ''}
+        className={`vf-custom-edge-stroke ${isRunning && edgeAnimation ? 'animated-edge' : ''}`}
         style={{ opacity, pointerEvents: 'none' }}
       />
       {showSnipControl && (
@@ -164,7 +164,7 @@ const CustomEdge = memo(({
           </div>
         </foreignObject>
       )}
-    </>
+    </g>
   );
 });
 

@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import type { MentionItem } from './nodeMentionUtils';
 
 export type MentionListProps = {
@@ -55,25 +56,27 @@ const MentionList = forwardRef<MentionListHandle, MentionListProps>(({ items, co
   }
 
   return (
-    <div className="vf-mention-list max-h-[min(40vh,240px)] w-[min(100vw-2rem,280px)] overflow-y-auto rounded-lg border border-[var(--node-control-border)] bg-[var(--node-inner-deep)] py-1 text-[11px] shadow-lg">
-      {items.map((item, index) => (
-        <button
-          key={item.id}
-          type="button"
-          className={`flex w-full flex-col items-start gap-0.5 px-2 py-1.5 text-left transition-colors ${
-            index === selected
-              ? 'bg-[var(--node-tab-active-bg)] text-[var(--text-primary)]'
-              : 'text-[var(--text-primary)] hover:bg-[var(--node-action-bar-hover-bg)]'
-          }`}
-          onClick={() => select(index)}
-        >
-          <span className="truncate font-medium">{item.label}</span>
-          <span className="truncate text-[9px] font-mono uppercase tracking-wide text-[var(--text-muted)]">
-            {item.nodeType}
-          </span>
-        </button>
-      ))}
-    </div>
+    <ScrollArea className="vf-mention-list nowheel max-h-[min(40vh,240px)] w-[min(100vw-2rem,280px)] rounded-lg border border-[var(--node-control-border)] bg-[var(--node-inner-deep)] text-[11px] shadow-lg">
+      <div className="py-1 pr-2">
+        {items.map((item, index) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`flex w-full flex-col items-start gap-0.5 px-2 py-1.5 text-left transition-colors ${
+              index === selected
+                ? 'bg-[var(--node-tab-active-bg)] text-[var(--text-primary)]'
+                : 'text-[var(--text-primary)] hover:bg-[var(--node-action-bar-hover-bg)]'
+            }`}
+            onClick={() => select(index)}
+          >
+            <span className="truncate font-medium">{item.label}</span>
+            <span className="truncate text-[9px] font-mono uppercase tracking-wide text-[var(--text-muted)]">
+              {item.nodeType}
+            </span>
+          </button>
+        ))}
+      </div>
+    </ScrollArea>
   );
 });
 

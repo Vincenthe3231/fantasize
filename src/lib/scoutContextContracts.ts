@@ -139,12 +139,17 @@ export const Stage3AngleVariationsContextSchema = z.object({
   kind: z.literal('stage3_angle_variations'),
   angleVariationsNodeId: z.string(),
   listNodeId: z.string().optional(),
+  /** Primary/legacy source image (first from sourceImageUrls). */
   sourceImageUrl: z.string().min(1),
+  /** All usable upstream image anchors (stable order, deduped). */
+  sourceImageUrls: z.array(z.string().min(1)).min(1),
   gridLayout: z.enum(['1x1', '2x2', '3x3']),
   /** Selected camera perspective ids (order preserved). */
   perspectiveIds: z.array(z.string().min(1)).min(1).max(9),
   /** Human labels aligned with perspectiveIds. */
   perspectiveLabels: z.array(z.string().min(1)).min(1).max(9),
+  /** Optional camera-direction prompts aligned with perspectiveIds (empty string when none). */
+  perspectivePrompts: z.array(z.string()).min(1).max(9),
   /** Output preferences (aspect for OpenRouter image_config, resolution for labeling). */
   preferences: Stage3AnglePreferencesSchema,
   /** Scene / creative context: local prompt + wired upstream text. */
@@ -156,6 +161,18 @@ export const Stage3AngleVariationsContextSchema = z.object({
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'stage3: perspectiveIds and perspectiveLabels length mismatch',
+    });
+  }
+  if (d.perspectivePrompts.length !== d.perspectiveIds.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'stage3: perspectiveIds and perspectivePrompts length mismatch',
+    });
+  }
+  if (d.sourceImageUrls[0] !== d.sourceImageUrl) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'stage3: sourceImageUrl must be first item of sourceImageUrls',
     });
   }
   if (d.count !== d.perspectiveIds.length) {

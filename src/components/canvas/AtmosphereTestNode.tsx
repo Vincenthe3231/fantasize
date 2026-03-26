@@ -13,6 +13,7 @@ import { notifyInfo, notifySuccess } from '@/lib/systemNotify';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import { RichTextField } from '@/components/rich-text/RichTextField';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { richTextToPlainForScout } from '@/lib/richTextForScout';
 import type { LightingResult } from './LightingScenarioNode';
 import type { ScoutFinalDeliverable } from '@/lib/scoutPipeline';
@@ -171,7 +172,7 @@ const AtmosphereTestNode = memo(({ id, selected, data }: NodeProps) => {
                   excludeNodeId={id}
                   toolbarVariant="top"
                   className="max-h-[140px]"
-                  editorContentClassName="w-full min-h-[56px] max-h-[120px] overflow-y-auto text-[11px] text-[var(--text-primary)] outline-none prose prose-invert prose-sm max-w-none"
+                  editorContentClassName="w-full min-h-[56px] max-h-[120px] text-[11px] text-[var(--text-primary)] outline-none prose prose-invert prose-sm max-w-none"
                   editorProps={{
                     handleDOMEvents: {
                       mousedown: (_, e) => {
@@ -220,7 +221,8 @@ const AtmosphereTestNode = memo(({ id, selected, data }: NodeProps) => {
             </div>
           </div>
 
-          <div className="grid max-h-[220px] grid-cols-2 gap-2 overflow-y-auto p-3">
+          <ScrollArea className="nowheel max-h-[220px]">
+            <div className="grid grid-cols-2 gap-2 p-3 pr-2">
             <div>
               <div className="mb-1 text-[9px] uppercase text-[var(--text-muted)]">Text-driven</div>
               <div className="grid grid-cols-2 gap-1.5">
@@ -251,7 +253,8 @@ const AtmosphereTestNode = memo(({ id, selected, data }: NodeProps) => {
                 ))}
               </div>
             </div>
-          </div>
+            </div>
+          </ScrollArea>
 
           {scoutPipeline.finalDeliverable && (
             <div className="mx-3 mb-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2 text-[10px] text-emerald-100">

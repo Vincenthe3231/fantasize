@@ -9,7 +9,6 @@ import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
 import { RichTextField } from '@/components/rich-text/RichTextField';
-
 const TextNode = memo(({ id, data, selected }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);

@@ -26,7 +26,7 @@ function stage2MaxTokens(): number {
 
 /** Output shape only; graph content is in the user multimodal message. */
 const SYSTEM_DEFAULT =
-  'Reply with a single image-generation prompt only. No preamble, no markdown fences, no bullet lists unless they are part of the prompt text.';
+  'Reply with a single image-generation prompt only. No preamble, no markdown fences, no bullet lists unless they are part of the prompt text. The user message may include Token-Oriented Object Notation (TOON) for canvas context — use `edgeTexts`, `placement`, `operatorNotes`, and `attachments` (slot order matches following image/video parts).';
 
 function toUserContent(parts: Stage2MultimodalPart[]) {
   return parts.map((p) => {

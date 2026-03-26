@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { RichTextField } from '@/components/rich-text/RichTextField';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   VARIATION_MODES,
   DEFAULT_VARIATION_MODE_ID,
@@ -88,8 +88,6 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
     : '3x3';
   const perspectiveIds = useMemo(() => resolvePerspectiveIds(data.perspectives), [data.perspectives]);
   const splitImages = Boolean(data.splitImages);
-  const localPrompt = String((data.prompt as string) ?? '');
-
   const modeLabel = VARIATION_MODES.find((m) => m.id === variationMode)?.label ?? 'Reframe';
 
   const lastAngles: Stage3AngleLike[] = Array.isArray((data as { lastAngles?: unknown })?.lastAngles)
@@ -167,21 +165,23 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
               </div>
 
               {lastAngles.length > 0 ? (
-                <div
-                  className={`${NODE_INTERACTIVE_CLASS} custom-scrollbar grid min-h-0 flex-1 gap-2 overflow-auto p-3`}
-                  style={{ gridTemplateColumns: `repeat(${Math.min(cols, Math.max(1, lastAngles.length))}, 1fr)` }}
-                >
-                  {lastAngles.map((a, i) => (
-                    <ImageCellOverlay
-                      key={a.id ?? `${i}`}
-                      src={a.src}
-                      label={a.label}
-                      index={i}
-                      nodeId={id}
-                      resolution={a.resolution ?? resolution}
-                    />
-                  ))}
-                </div>
+                <ScrollArea className={`${NODE_INTERACTIVE_CLASS} nowheel min-h-0 flex-1`}>
+                  <div
+                    className="grid min-h-0 gap-2 p-3 pr-2"
+                    style={{ gridTemplateColumns: `repeat(${Math.min(cols, Math.max(1, lastAngles.length))}, 1fr)` }}
+                  >
+                    {lastAngles.map((a, i) => (
+                      <ImageCellOverlay
+                        key={a.id ?? `${i}`}
+                        src={a.src}
+                        label={a.label}
+                        index={i}
+                        nodeId={id}
+                        resolution={a.resolution ?? resolution}
+                      />
+                    ))}
+                  </div>
+                </ScrollArea>
               ) : (
                 <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 py-6 text-center min-h-[100px]">
                   <div className="rounded-2xl bg-[var(--node-inner-mid)] p-4 text-[var(--node-control-muted)]">
@@ -193,18 +193,6 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
                   <p className="text-[12px] text-[var(--text-muted)]">Generate variations from your images</p>
                 </div>
               )}
-
-              <div className="px-3 pb-2" onPointerDown={(e) => e.stopPropagation()}>
-                <RichTextField
-                  value={localPrompt}
-                  onChange={(html) => updateNodeData(id, { prompt: html })}
-                  placeholder="Optional notes (merges with wired text from edges)…"
-                  excludeNodeId={id}
-                  toolbarVariant="top"
-                  className="max-h-[100px]"
-                  editorContentClassName="w-full min-h-[36px] max-h-[80px] overflow-y-auto text-[11px] text-[var(--text-primary)] outline-none prose prose-invert prose-sm max-w-none"
-                />
-              </div>
 
               <div className="absolute right-3 top-28 z-10 rounded bg-[var(--node-badge-bg)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--node-overlay-text)]">
                 {aspect} · {resolution} · {gridSize}
@@ -230,7 +218,9 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
                           <span className="text-[var(--node-control-muted)]">▼</span>
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent className="node-canvas-dropdown text-xs max-h-56 overflow-y-auto min-w-[200px]">
+                      <DropdownMenuContent className="node-canvas-dropdown p-0 text-xs min-w-[200px]">
+                        <ScrollArea className="max-h-56">
+                          <div className="py-1">
                         {VARIATION_MODES.map(({ id: mid, label }) => {
                           const Icon = MODE_ICON[mid] ?? Scan;
                           return (
@@ -244,6 +234,8 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
                             </DropdownMenuItem>
                           );
                         })}
+                          </div>
+                        </ScrollArea>
                       </DropdownMenuContent>
                     </DropdownMenu>
 
@@ -328,7 +320,8 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
                         <p className="text-[10px] font-mono-display text-[var(--node-popover-muted)] uppercase mb-2 px-1">
                           Perspectives
                         </p>
-                        <div className="flex flex-col gap-0.5 max-h-52 overflow-y-auto pr-0.5">
+                        <ScrollArea className="max-h-52">
+                          <div className="flex flex-col gap-0.5 pr-2">
                           {PERSPECTIVE_CHOICES.map(({ id: pid, label }) => {
                             const checked = perspectiveIds.includes(pid);
                             return (
@@ -347,7 +340,8 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
                               </label>
                             );
                           })}
-                        </div>
+                          </div>
+                        </ScrollArea>
                       </PopoverContent>
                     </Popover>
 

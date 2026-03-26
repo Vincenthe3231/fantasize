@@ -222,6 +222,7 @@ const CanvasInner = ({
   const pasteClipboard = useWorkflowStore((s) => s.pasteClipboard);
   const setSelectedTool = useWorkflowStore((s) => s.setSelectedTool);
   const setFocusedNodeContentId = useWorkflowStore((s) => s.setFocusedNodeContentId);
+  const focusedNodeContentId = useWorkflowStore((s) => s.focusedNodeContentId);
   const hydrateFromSpace = useWorkflowStore((s) => s.hydrateFromSpace);
   const setLastViewport = useWorkflowStore((s) => s.setLastViewport);
   const pushSelectionCommand = useWorkflowStore((s) => s.pushSelectionCommand);
@@ -261,6 +262,8 @@ const CanvasInner = ({
   const [edges, setEdges] = useEdgesState(storeEdges);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addPanelOpen, setAddPanelOpen] = useState(false);
+  /** Lift static edges above nodes while dragging a connection; CSS disables pointer events on that SVG so handles still receive the drop. */
+  const [isConnectingFromHandle, setIsConnectingFromHandle] = useState(false);
   const notifications = useSystemNotificationStore((s) => s.notifications);
   const dismissNotification = useSystemNotificationStore((s) => s.dismiss);
   const pauseNotificationAutoDismiss = useSystemNotificationStore((s) => s.pauseAutoDismiss);
@@ -644,6 +647,14 @@ const CanvasInner = ({
           ? 'cursor-crosshair'
           : '';
 
+  /** While a node body is content-focused, wheel should scroll inside the node (not zoom/pan the canvas). */
+  const nodeContentFocusActive = focusedNodeContentId != null;
+  /** With hand tool, left-drag normally pans the pane — that steals node drags when a node is focused. */
+  const canvasPanOnDrag =
+    !nodeContentFocusActive && selectedTool === 'hand' ? true : ([1] as const);
+  const canvasPanOnScroll = !nodeContentFocusActive && settings.mouseWheelBehavior === 'pan';
+  const canvasZoomOnScroll = !nodeContentFocusActive && settings.mouseWheelBehavior === 'zoom';
+
   const targetId = contextMenu?.targetId;
 
   return (
@@ -655,7 +666,7 @@ const CanvasInner = ({
       }}
     >
     <div
-      className={`w-screen h-screen ${canvasClass(settings.canvasPattern)} ${cursorClass} ${settings.showNodeLabels ? '' : 'workflow-hide-labels'}`}
+      className={`w-screen h-screen ${canvasClass(settings.canvasPattern)} ${cursorClass} ${settings.showNodeLabels ? '' : 'workflow-hide-labels'} ${isConnectingFromHandle ? 'vf-connecting-edge' : ''}`}
       onClick={handleCanvasClick}
       onContextMenu={handleContextMenu}
       ref={reactFlowWrapper}
@@ -821,7 +832,10 @@ const CanvasInner = ({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChangeTracked}
         onConnect={onConnect}
+        onConnectStart={() => setIsConnectingFromHandle(true)}
+        onConnectEnd={() => setIsConnectingFromHandle(false)}
         isValidConnection={isValidConnection}
+        connectionLineStyle={{ stroke: 'var(--edge-stroke)', strokeWidth: 2 }}
         onNodeDragStart={(_, node) => {
           setIsDragging(true);
           const ns = getNodes();
@@ -871,10 +885,10 @@ const CanvasInner = ({
         onSelectionEnd={onSelectionEnd}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        panOnDrag={selectedTool === 'hand' ? true : [1]}
-        panOnScroll={settings.mouseWheelBehavior === 'pan'}
-        zoomOnScroll={settings.mouseWheelBehavior === 'zoom'}
-        selectionOnDrag={selectedTool === 'select'}
+        panOnDrag={canvasPanOnDrag}
+        panOnScroll={canvasPanOnScroll}
+        zoomOnScroll={canvasZoomOnScroll}
+        selectionOnDrag={selectedTool === 'select' && !nodeContentFocusActive}
         selectionMode={SelectionMode.Full}
         fitView={false}
         defaultEdgeOptions={{ type: 'custom' }}

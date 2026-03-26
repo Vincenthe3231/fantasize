@@ -190,7 +190,7 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
         fallbackText={label}
       />
       <div
-        className={`glass-node glass-node-input relative flex w-full flex-1 flex-col min-h-0 ${isRunning ? 'ring-1 ring-amber-500/40' : ''}`}
+        className={`glass-node glass-node-input relative flex w-full flex-1 flex-col min-h-0 overflow-hidden ${isRunning ? 'ring-1 ring-amber-500/40' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
         <NodeActionBar
@@ -201,103 +201,117 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
         />
 
         <NodeContentFocus nodeId={id} shellMoveCursor>
-          <div className="flex min-h-0 flex-1 flex-col p-3 pt-2">
-            <div className="mb-1.5 flex justify-end">
-              {s1.hasLocation ? (
-                <span className="text-[9px] rounded bg-emerald-500/20 px-1.5 py-0.5 text-emerald-300">Location OK</span>
+          <div
+            className={`rounded-xl border-2 transition-colors flex flex-1 flex-col min-h-0 ${
+              contentFocused
+                ? 'border-[hsl(217_91%_60%)] shadow-[0_0_0_3px_hsla(217,91%,60%,0.15)]'
+                : 'border-transparent'
+            }`}
+          >
+            <div className="rounded-[10px] overflow-hidden bg-[var(--node-inner-deep)] flex min-h-0 min-w-0 flex-1 flex-col">
+              {mediaUrl ? (
+                <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                  <div className="absolute inset-0 min-h-0 min-w-0 overflow-hidden">
+                    {isVideoUrl(mediaUrl) ? (
+                      <video
+                        src={mediaUrl}
+                        className="h-full w-full object-cover"
+                        muted
+                        playsInline
+                        loop
+                        onLoadedMetadata={(e) => {
+                          const el = e.currentTarget;
+                          syncDimsFromElement(el.videoWidth, el.videoHeight);
+                        }}
+                      />
+                    ) : (
+                      <img
+                        src={mediaUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        onLoad={(e) => {
+                          const el = e.currentTarget;
+                          syncDimsFromElement(el.naturalWidth, el.naturalHeight);
+                        }}
+                      />
+                    )}
+                  </div>
+                  {/* <div className="pointer-events-none absolute left-2 top-2 z-10">
+                    {s1.hasLocation ? (
+                      <span className="text-[9px] rounded bg-emerald-500/20 px-1.5 py-0.5 text-emerald-300">
+                        Location OK
+                      </span>
+                    ) : (
+                      <span className="text-[9px] rounded bg-amber-500/20 px-1.5 py-0.5 text-amber-200">
+                        Add location
+                      </span>
+                    )}
+                  </div> */}
+                  {displayDims ? (
+                    <div
+                      className="pointer-events-none absolute right-2 top-2 z-10 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-medium tabular-nums text-white backdrop-blur-[2px]"
+                      aria-hidden
+                    >
+                      {displayDims.w} × {displayDims.h}
+                    </div>
+                  ) : null}
+                  <div
+                    className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-24 bg-gradient-to-t from-black/55 via-black/25 to-transparent"
+                    aria-hidden
+                  />
+                  <input
+                    ref={replaceInputRef}
+                    type="file"
+                    className="sr-only"
+                    accept={REPLACE_INPUT_ACCEPT}
+                    onChange={onReplaceInputChange}
+                    disabled={uploading}
+                  />
+                  <button
+                    type="button"
+                    disabled={uploading}
+                    title="Replace image or video"
+                    className={`${NODE_INTERACTIVE_CLASS} absolute bottom-2 left-2 z-10 flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1.5 text-[11px] font-medium text-white backdrop-blur-[2px] transition-opacity hover:bg-black/55 disabled:cursor-wait disabled:opacity-60`}
+                    onClick={() => replaceInputRef.current?.click()}
+                  >
+                    <ReplaceIcon size={14} strokeWidth={2} className="shrink-0 opacity-95" aria-hidden />
+                    Replace
+                  </button>
+                </div>
               ) : (
-                <span className="text-[9px] rounded bg-amber-500/20 px-1.5 py-0.5 text-amber-200">Add location</span>
+                <div className="flex min-h-0 flex-1 flex-col gap-2 p-3 pt-2">
+                  <div
+                    {...getRootProps({
+                      className: `${NODE_INTERACTIVE_CLASS} flex min-h-[120px] min-w-0 flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed transition-colors ${
+                        uploading
+                          ? 'border-[var(--border-node)] opacity-80 cursor-wait'
+                          : `cursor-pointer ${isDragActive ? 'border-[var(--port-input)] bg-[var(--port-input)]/5' : 'border-[var(--border-node)] hover:border-[var(--accent-color)]/35'}`
+                      }`,
+                    })}
+                  >
+                    <input {...getInputProps()} />
+                    {uploading ? (
+                      <>
+                        <Loader2 size={22} className="text-[var(--accent-color)] animate-spin" />
+                        <span className="text-[11px] text-[var(--text-muted)] font-mono-display">Uploading…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={20} className="text-[var(--text-muted)]" />
+                        <span className="text-[11px] text-[var(--text-muted)] font-mono-display">
+                          Drop image or video here
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  {uploadError ? (
+                    <p className="shrink-0 px-0.5 font-mono-display text-[10px] leading-snug text-red-400">
+                      {uploadError}
+                    </p>
+                  ) : null}
+                </div>
               )}
             </div>
-            {mediaUrl ? (
-              <div className="relative min-h-[120px] min-w-0 flex-1 overflow-hidden rounded-2xl bg-[var(--node-inner-mid)]">
-                {isVideoUrl(mediaUrl) ? (
-                  <video
-                    src={mediaUrl}
-                    className="absolute inset-0 h-full w-full object-cover"
-                    muted
-                    playsInline
-                    loop
-                    onLoadedMetadata={(e) => {
-                      const el = e.currentTarget;
-                      syncDimsFromElement(el.videoWidth, el.videoHeight);
-                    }}
-                  />
-                ) : (
-                  <img
-                    src={mediaUrl}
-                    alt=""
-                    className="absolute inset-0 h-full w-full object-cover"
-                    onLoad={(e) => {
-                      const el = e.currentTarget;
-                      syncDimsFromElement(el.naturalWidth, el.naturalHeight);
-                    }}
-                  />
-                )}
-                {displayDims ? (
-                  <div
-                    className="absolute right-2 top-2 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-medium tabular-nums text-white backdrop-blur-[2px]"
-                    aria-hidden
-                  >
-                    {displayDims.w} × {displayDims.h}
-                  </div>
-                ) : null}
-                <div
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-24 rounded-b-2xl bg-gradient-to-t from-black/55 via-black/25 to-transparent"
-                  aria-hidden
-                />
-                <input
-                  ref={replaceInputRef}
-                  type="file"
-                  className="sr-only"
-                  accept={REPLACE_INPUT_ACCEPT}
-                  onChange={onReplaceInputChange}
-                  disabled={uploading}
-                />
-                <button
-                  type="button"
-                  disabled={uploading}
-                  title="Replace image or video"
-                  className={`${NODE_INTERACTIVE_CLASS} absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1.5 text-[11px] font-medium text-white backdrop-blur-[2px] transition-opacity hover:bg-black/55 disabled:cursor-wait disabled:opacity-60`}
-                  onClick={() => replaceInputRef.current?.click()}
-                >
-                  <ReplaceIcon size={14} strokeWidth={2} className="shrink-0 opacity-95" aria-hidden />
-                  Replace
-                </button>
-              </div>
-            ) : (
-              <div className="flex min-h-0 flex-1 flex-col gap-2">
-                <div
-                  {...getRootProps({
-                    className: `${NODE_INTERACTIVE_CLASS} flex min-h-[120px] min-w-0 flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed transition-colors ${
-                      uploading
-                        ? 'border-[var(--border-node)] opacity-80 cursor-wait'
-                        : `cursor-pointer ${isDragActive ? 'border-[var(--port-input)] bg-[var(--port-input)]/5' : 'border-[var(--border-node)] hover:border-[var(--accent-color)]/35'}`
-                    }`,
-                  })}
-                >
-                  <input {...getInputProps()} />
-                  {uploading ? (
-                    <>
-                      <Loader2 size={22} className="text-[var(--accent-color)] animate-spin" />
-                      <span className="text-[11px] text-[var(--text-muted)] font-mono-display">Uploading…</span>
-                    </>
-                  ) : (
-                    <>
-                      <Upload size={20} className="text-[var(--text-muted)]" />
-                      <span className="text-[11px] text-[var(--text-muted)] font-mono-display">
-                        Drop image or video here
-                      </span>
-                    </>
-                  )}
-                </div>
-                {uploadError ? (
-                  <p className="shrink-0 px-0.5 font-mono-display text-[10px] leading-snug text-red-400">
-                    {uploadError}
-                  </p>
-                ) : null}
-              </div>
-            )}
           </div>
         </NodeContentFocus>
 

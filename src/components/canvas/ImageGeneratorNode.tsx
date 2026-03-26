@@ -32,6 +32,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { RichTextField } from '@/components/rich-text/RichTextField';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { IMAGE_GENERATOR_MODES } from '@/lib/imageGeneratorModes';
 import { notifyInfo } from '@/lib/systemNotify';
 
@@ -78,7 +79,7 @@ function makeEdge(
   };
 }
 
-const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
+const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -202,51 +203,32 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
               : 'border-transparent'
           }`}
         >
-          <div className="rounded-[10px] overflow-hidden bg-[var(--node-inner-deep)] flex min-h-[220px] flex-1 flex-col">
-            <div className="relative flex flex-1 min-h-0 flex-col">
+          <div className="rounded-[10px] overflow-hidden bg-[var(--node-inner-deep)] flex min-h-[220px] flex-1 flex-col min-w-0">
+            <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
               <AnimatePresence>
                 {status === 'success' && generatedUrl && (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="absolute inset-0 flex items-center justify-center p-2"
+                    className="absolute inset-0 min-h-0 min-w-0 overflow-hidden"
                   >
-                    <img src={generatedUrl} alt="" className="max-h-full max-w-full object-contain rounded-lg" />
+                    <img
+                      src={generatedUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
                   </motion.div>
                 )}
               </AnimatePresence>
               {status === 'generating' && (
-                <div className="flex-1 flex flex-col items-center justify-center gap-2 py-8">
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 py-8">
                   <Loader2 size={24} className="animate-spin text-[var(--accent-color)]" />
                   <span className="text-[11px] font-mono-display text-[var(--text-muted)]">Generating…</span>
                 </div>
               )}
               {status !== 'generating' && status !== 'success' && (
-                <div className="flex-1 min-h-0" />
+                <div className="min-h-0 flex-1" />
               )}
-              <div className="mt-auto shrink-0 p-3 pt-0" onPointerDown={(e) => e.stopPropagation()}>
-                <RichTextField
-                  value={prompt}
-                  onChange={(html) => updateNodeData(id, { prompt: html })}
-                  placeholder="Describe the image you want to generate…"
-                  excludeNodeId={id}
-                  toolbarVariant="top"
-                  className="max-h-[140px]"
-                  editorContentClassName="w-full min-h-[48px] max-h-[120px] overflow-y-auto text-[12px] text-[var(--text-primary)] outline-none leading-relaxed prose prose-invert prose-sm max-w-none"
-                  editorProps={{
-                    handleDOMEvents: {
-                      mousedown: (_, e) => {
-                        e.stopPropagation();
-                        return false;
-                      },
-                      keydown: (_, e) => {
-                        e.stopPropagation();
-                        return false;
-                      },
-                    },
-                  }}
-                />
-              </div>
             </div>
 
             <div
@@ -289,12 +271,16 @@ const ImageGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
                     <span className="text-[var(--node-control-muted)]">▼</span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="node-canvas-dropdown text-xs max-h-48 overflow-y-auto">
-                  {IMAGE_GENERATOR_MODES.map((m) => (
-                    <DropdownMenuItem key={m} onClick={() => updateNodeData(id, { mode: m })}>
-                      {m}
-                    </DropdownMenuItem>
-                  ))}
+                <DropdownMenuContent className="node-canvas-dropdown p-0 text-xs">
+                  <ScrollArea className="max-h-48">
+                    <div className="py-1">
+                      {IMAGE_GENERATOR_MODES.map((m) => (
+                        <DropdownMenuItem key={m} onClick={() => updateNodeData(id, { mode: m })}>
+                          {m}
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 </DropdownMenuContent>
               </DropdownMenu>
 

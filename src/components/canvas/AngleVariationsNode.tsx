@@ -13,6 +13,7 @@ import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RichTextField } from '@/components/rich-text/RichTextField';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   ASPECT_RATIOS,
   PERSPECTIVE_CHOICES,
@@ -104,16 +105,17 @@ const AngleVariationsNode = memo(({ id, data, selected }: NodeProps) => {
         />
 
         {panel !== 'none' && (
-          <div
-            className="node-canvas-dropdown absolute left-1/2 top-9 z-[60] max-h-64 w-[min(280px,calc(100%-1rem))] -translate-x-1/2 overflow-y-auto rounded-lg border border-[var(--border)] bg-[hsl(var(--popover))] p-3 text-[11px] text-[hsl(var(--popover-foreground))] shadow-xl"
+          <ScrollArea
+            className="node-canvas-dropdown absolute left-1/2 top-9 z-[60] max-h-64 w-[min(280px,calc(100%-1rem))] -translate-x-1/2 rounded-lg border border-[var(--border)] bg-[hsl(var(--popover))] p-0 text-[11px] text-[hsl(var(--popover-foreground))] shadow-xl"
             onPointerDown={(e) => e.stopPropagation()}
           >
             {panel === 'perspectives' && (
-              <div className="space-y-2">
+              <div className="space-y-2 p-3">
                 <div className="font-mono-display text-[10px] uppercase tracking-wider text-muted-foreground">
                   Perspectives ({perspectiveIds.length} selected)
                 </div>
-                <div className="max-h-48 space-y-1.5 overflow-y-auto pr-1">
+                <ScrollArea className="max-h-48">
+                  <div className="space-y-1.5 pr-2">
                   {PERSPECTIVE_CHOICES.map(({ id: pid, label }) => (
                     <label key={pid} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 hover:bg-muted/50">
                       <Checkbox
@@ -123,7 +125,8 @@ const AngleVariationsNode = memo(({ id, data, selected }: NodeProps) => {
                       <span>{label}</span>
                     </label>
                   ))}
-                </div>
+                  </div>
+                </ScrollArea>
                 <button
                   type="button"
                   className="mt-2 w-full rounded border border-border py-1 text-[10px] hover:bg-muted/50"
@@ -134,7 +137,7 @@ const AngleVariationsNode = memo(({ id, data, selected }: NodeProps) => {
               </div>
             )}
             {panel === 'preferences' && (
-              <div className="space-y-3">
+              <div className="space-y-3 p-3">
                 <div className="font-mono-display text-[10px] uppercase tracking-wider text-muted-foreground">
                   Output preferences
                 </div>
@@ -175,7 +178,7 @@ const AngleVariationsNode = memo(({ id, data, selected }: NodeProps) => {
                 </button>
               </div>
             )}
-          </div>
+          </ScrollArea>
         )}
 
         <NodeContentFocus nodeId={id} shellMoveCursor>
@@ -199,7 +202,7 @@ const AngleVariationsNode = memo(({ id, data, selected }: NodeProps) => {
                 excludeNodeId={id}
                 toolbarVariant="top"
                 className="max-h-[100px]"
-                editorContentClassName="w-full min-h-[36px] max-h-[80px] overflow-y-auto text-[11px] text-[var(--text-primary)] outline-none prose prose-invert prose-sm max-w-none"
+                editorContentClassName="w-full min-h-[36px] max-h-[80px] text-[11px] text-[var(--text-primary)] outline-none prose prose-invert prose-sm max-w-none"
               />
             </div>
 
@@ -207,17 +210,19 @@ const AngleVariationsNode = memo(({ id, data, selected }: NodeProps) => {
               {aspect} · {resolution}
             </div>
 
-            <div className="grid min-h-0 flex-1 gap-2 overflow-auto p-3" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
-              {cells.map((i) => (
-                <ImageCellOverlay
-                  key={i}
-                  src={CAMERA_SRC[i] ?? MOCK.camera1}
-                  index={i}
-                  nodeId={id}
-                  resolution="4K"
-                />
-              ))}
-            </div>
+            <ScrollArea className="nowheel min-h-0 flex-1">
+              <div className="grid min-h-0 gap-2 p-3 pr-2" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+                {cells.map((i) => (
+                  <ImageCellOverlay
+                    key={i}
+                    src={CAMERA_SRC[i] ?? MOCK.camera1}
+                    index={i}
+                    nodeId={id}
+                    resolution="4K"
+                  />
+                ))}
+              </div>
+            </ScrollArea>
 
             <div
               className={`${NODE_INTERACTIVE_CLASS} flex shrink-0 items-center justify-between border-t border-border px-3 py-2 text-[10px]`}

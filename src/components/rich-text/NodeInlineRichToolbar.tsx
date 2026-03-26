@@ -24,6 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { getRichTextBlockLabel } from './blockLabel';
 
@@ -186,15 +187,19 @@ export function NodeInlineRichToolbar({ editor, variant = 'floating-above' }: No
             {t.blockLabel} ▾
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="node-canvas-dropdown text-xs max-h-[min(70vh,20rem)] overflow-y-auto">
-          <DropdownMenuItem onClick={() => setBlockType('paragraph')}>Paragraph</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setBlockType('h1')}>Heading 1</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setBlockType('h2')}>Heading 2</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setBlockType('h3')}>Heading 3</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setBlockType('blockquote')}>Quote</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setBlockType('codeBlock')}>Code block</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setBlockType('bullet')}>Bullet list</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setBlockType('ordered')}>Numbered list</DropdownMenuItem>
+        <DropdownMenuContent className="node-canvas-dropdown p-0 text-xs">
+          <ScrollArea className="max-h-[min(70vh,20rem)]">
+            <div className="py-1">
+              <DropdownMenuItem onClick={() => setBlockType('paragraph')}>Paragraph</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBlockType('h1')}>Heading 1</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBlockType('h2')}>Heading 2</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBlockType('h3')}>Heading 3</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBlockType('blockquote')}>Quote</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBlockType('codeBlock')}>Code block</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBlockType('bullet')}>Bullet list</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBlockType('ordered')}>Numbered list</DropdownMenuItem>
+            </div>
+          </ScrollArea>
         </DropdownMenuContent>
       </DropdownMenu>
       <div className="w-px h-4 node-inline-toolbar-divider shrink-0" />

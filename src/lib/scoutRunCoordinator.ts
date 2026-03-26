@@ -144,8 +144,12 @@ async function normalizeContextImageReferences(
     }
     case 'stage3_angle_variations': {
       const c = context as Stage3AngleVariationsContext;
-      const normalizedSource = await normalizeImageReferenceUrl(c.sourceImageUrl);
-      return { ...c, sourceImageUrl: normalizedSource };
+      const normalizedSources = await normalizeImageReferenceUrls(c.sourceImageUrls ?? [c.sourceImageUrl]);
+      return {
+        ...c,
+        sourceImageUrls: normalizedSources,
+        sourceImageUrl: normalizedSources[0] ?? c.sourceImageUrl,
+      };
     }
     case 'stage4_lighting_batch': {
       const c = context as Stage4LightingBatchContext;

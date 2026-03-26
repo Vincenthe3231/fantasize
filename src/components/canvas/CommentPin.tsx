@@ -38,7 +38,7 @@ const CommentPin = ({ comment }: CommentPinProps) => {
               enableMentions={false}
               toolbarVariant="top"
               className="max-h-[200px]"
-              editorContentClassName="w-full min-h-[50px] max-h-[160px] overflow-y-auto text-[13px] text-[var(--text-primary)] outline-none prose prose-invert prose-sm max-w-none"
+              editorContentClassName="w-full min-h-[50px] text-[13px] text-[var(--text-primary)] outline-none prose prose-invert prose-sm max-w-none"
               editorProps={{
                 handleDOMEvents: {
                   mousedown: (_, e) => {

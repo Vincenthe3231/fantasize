@@ -19,20 +19,28 @@ export async function generateStage3AngleVariationsViaOpenRouter(
 }> {
   const perspectiveIds = (context.perspectiveIds as string[] | undefined) ?? [];
   const perspectiveLabels = (context.perspectiveLabels as string[] | undefined) ?? [];
+  const perspectivePrompts = (context.perspectivePrompts as string[] | undefined) ?? [];
   const sourceImageUrl = String(context.sourceImageUrl ?? '').trim();
+  const sourceImageUrls = Array.isArray(context.sourceImageUrls) ?
+      (context.sourceImageUrls as unknown[]).map((x) => String(x ?? '').trim()).filter(Boolean)
+    : [];
   const sceneContextTextRaw = String(context.sceneContextText ?? '').trim();
   const prefs = context.preferences as { aspectRatio?: string; resolutionLabel?: string } | undefined;
   const aspect = String(prefs?.aspectRatio ?? '16:9');
   const resolutionLabel = String(prefs?.resolutionLabel ?? '4K');
 
-  if (!sourceImageUrl) {
-    throw new Error('Stage 3: sourceImageUrl is required');
+  const anchorImageUrls = sourceImageUrls.length > 0 ? sourceImageUrls : sourceImageUrl ? [sourceImageUrl] : [];
+  if (anchorImageUrls.length === 0) {
+    throw new Error('Stage 3: sourceImageUrl/sourceImageUrls is required');
   }
   if (perspectiveIds.length === 0) {
     throw new Error('Stage 3: perspectiveIds is empty');
   }
   if (perspectiveIds.length !== perspectiveLabels.length) {
     throw new Error('Stage 3: perspectiveIds and perspectiveLabels length mismatch');
+  }
+  if (perspectivePrompts.length > 0 && perspectivePrompts.length !== perspectiveIds.length) {
+    throw new Error('Stage 3: perspectiveIds and perspectivePrompts length mismatch');
   }
 
   const angles: Array<{
@@ -47,8 +55,14 @@ export async function generateStage3AngleVariationsViaOpenRouter(
   for (let i = 0; i < perspectiveIds.length; i++) {
     const pid = perspectiveIds[i]!;
     const label = perspectiveLabels[i] ?? pid;
+    const perspectivePrompt = String(perspectivePrompts[i] ?? '').trim();
+    const shotIndex = i + 1;
+    const shotTotal = perspectiveIds.length;
+    /** Slightly higher + staggered temperature per shot to reduce near-duplicate frames (stateless requests). */
+    const temperature = Math.min(0.88, 0.52 + i * 0.06);
     const toonContext = encode({
       stage: 'stage3_angle_variations',
+      shot: { index: shotIndex, total: shotTotal, perspectiveId: pid },
       perspective: { id: pid, label },
       preferences: {
         aspectRatio: aspect,
@@ -58,16 +72,18 @@ export async function generateStage3AngleVariationsViaOpenRouter(
         sceneContext: sceneContextTextRaw,
       },
       constraints: [
-        'preserve set continuity',
-        'preserve furniture identity and materials',
-        'keep lighting intent coherent',
+        'preserve furniture identity, materials, and set dressing',
+        'keep lighting intent coherent with the scene',
+        `This is an independent shot ${shotIndex}/${shotTotal} — reframe camera and composition to match this perspective; do not copy the reference image's viewpoint, crop, or lens feel.`,
       ],
     });
     const prompt = [
-      'Virtual production scout — multi-angle pass.',
+      `Virtual production scout — angle pass ${shotIndex} of ${shotTotal}. Each pass is a separate generation request (no shared chat history with other shots).`,
       'Context (TOON):',
       toonContext,
-      'Use the reference image as the scene anchor. Generate a new still that matches this camera angle while preserving set continuity, materials, and lighting intent.',
+      perspectivePrompt ? `Perspective direction:\n${perspectivePrompt}` : '',
+      `CRITICAL — Output a single ${label} shot. The camera position, height, distance, and framing must read clearly different from the reference image(s). Treat reference(s) as identity and layout only, not as the final camera angle.`,
+      'Use the reference image(s) as the scene anchor for continuity, then generate a new still that matches this camera angle.',
     ]
       .filter(Boolean)
       .join('\n\n');
@@ -76,8 +92,9 @@ export async function generateStage3AngleVariationsViaOpenRouter(
       prompt,
       negativePrompt: '',
       aspect,
-      anchorImageUrls: [sourceImageUrl],
+      anchorImageUrls,
       mode: 'Auto',
+      temperature,
     };
 
     console.log(

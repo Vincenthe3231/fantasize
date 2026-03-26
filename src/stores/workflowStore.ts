@@ -118,6 +118,48 @@ export const DEFAULT_WORKFLOW_SETTINGS: WorkflowSettings = {
   canvasCursorTrails: true,
 };
 
+const WORKFLOW_SETTINGS_STORAGE_KEY = 'vision-forge.workflow-settings.v1';
+
+function readPersistedWorkflowSettings(): Partial<WorkflowSettings> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(WORKFLOW_SETTINGS_STORAGE_KEY);
+    if (!raw) return {};
+    const o = JSON.parse(raw) as unknown;
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return {};
+    const r = o as Record<string, unknown>;
+    const out: Partial<WorkflowSettings> = {};
+    if (typeof r.helperLines === 'boolean') out.helperLines = r.helperLines;
+    if (typeof r.videoAutoplay === 'boolean') out.videoAutoplay = r.videoAutoplay;
+    if (typeof r.performanceMode === 'boolean') out.performanceMode = r.performanceMode;
+    if (typeof r.richTooltips === 'boolean') out.richTooltips = r.richTooltips;
+    if (typeof r.experimentalTools === 'boolean') out.experimentalTools = r.experimentalTools;
+    if (typeof r.darkMode === 'boolean') out.darkMode = r.darkMode;
+    if (typeof r.showMinimap === 'boolean') out.showMinimap = r.showMinimap;
+    if (typeof r.edgeAnimation === 'boolean') out.edgeAnimation = r.edgeAnimation;
+    if (typeof r.showNodeLabels === 'boolean') out.showNodeLabels = r.showNodeLabels;
+    if (typeof r.canvasCursorTrails === 'boolean') out.canvasCursorTrails = r.canvasCursorTrails;
+    if (r.edgePathType === 'bezier' || r.edgePathType === 'palma')
+      out.edgePathType = r.edgePathType;
+    if (r.mouseWheelBehavior === 'pan' || r.mouseWheelBehavior === 'zoom')
+      out.mouseWheelBehavior = r.mouseWheelBehavior;
+    if (r.canvasPattern === 'dots' || r.canvasPattern === 'grid' || r.canvasPattern === 'lines' || r.canvasPattern === 'none')
+      out.canvasPattern = r.canvasPattern;
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function writePersistedWorkflowSettings(settings: WorkflowSettings): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(WORKFLOW_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    /* quota / private mode */
+  }
+}
+
 /** Command: execute = redo forward, undo = revert */
 export interface CanvasCommand {
   execute: () => void;
@@ -365,7 +407,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     hoveredImageCell: null,
     nodeGridLayouts: {},
     contextMenu: null,
-    settings: DEFAULT_WORKFLOW_SETTINGS,
+    settings: { ...DEFAULT_WORKFLOW_SETTINGS, ...readPersistedWorkflowSettings() },
     nodesClipboard: null,
     focusedNodeContentId: null,
     currentSpaceId: null,
@@ -1150,6 +1192,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
           document.body.setAttribute('data-performance', String(next.performanceMode));
         if (partial.darkMode !== undefined)
           document.body.setAttribute('data-theme', next.darkMode ? 'dark' : 'light');
+        writePersistedWorkflowSettings(next);
         return { settings: next };
       });
     },

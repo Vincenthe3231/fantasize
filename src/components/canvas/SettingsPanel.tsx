@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface SettingsPanelProps {
   open: boolean;
@@ -242,7 +243,9 @@ const SettingsPanel = ({ open, onClose }: SettingsPanelProps) => {
           </TabsContent>
 
           {/* Shortcuts Tab */}
-          <TabsContent value="shortcuts" className="px-5 py-4 mt-0 max-h-[400px] overflow-y-auto space-y-4">
+          <TabsContent value="shortcuts" className="mt-0 px-0 py-0">
+            <ScrollArea className="max-h-[400px]">
+              <div className="space-y-4 px-5 py-4">
             {/* Basics */}
             <div>
               <p className="text-[10px] font-mono-display text-muted-foreground uppercase tracking-widest mb-2">
@@ -290,6 +293,8 @@ const SettingsPanel = ({ open, onClose }: SettingsPanelProps) => {
                 <ShortcutRow action="Toggle grid" keys={['G']} />
               </div>
             </div>
+              </div>
+            </ScrollArea>
           </TabsContent>
         </Tabs>
       </DialogContent>

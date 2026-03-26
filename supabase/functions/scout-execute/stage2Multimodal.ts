@@ -3,9 +3,14 @@
  * Multimodal user message parts for Stage 2 instructions (OpenRouter chat format).
  * Shapes align with @openrouter/sdk ChatMessageContentItem (plain JSON for Deno).
  *
+ * Structured canvas context is encoded with `@toon-format/toon` in a single text part (fewer
+ * tokens than markdown sections). Image/video parts follow in ascending `slot` order.
+ *
  * Payload is intentionally bounded (image/video caps, text truncation, `detail: low` by default)
  * to reduce OpenRouter/Cloudflare worker load on large Scout graphs.
  */
+
+import { encode } from '@toon-format/toon';
 
 export type Stage2MultimodalPart =
   | { type: 'text'; text: string }
@@ -91,27 +96,60 @@ function parseEdgeInputs(context: Record<string, unknown>): EdgeInputRaw[] {
   return raw.filter((x): x is EdgeInputRaw => x != null && typeof x === 'object');
 }
 
+type EdgeTextRow = {
+  edgeId: string;
+  sourceNodeId: string;
+  sourceType: string;
+  text: string;
+};
+
+type AttachmentRow = {
+  slot: number;
+  section: 'edge' | 'placementRef' | 'location' | 'prop';
+  kind: 'image' | 'video';
+  edgeId: string;
+  sourceNodeId: string;
+  sourceType: string;
+  label: string;
+};
+
+const STAGE2_TOON_INTRO =
+  'Virtual production scout — Stage 2 instructions.\nCanvas below uses TOON (Token-Oriented Object Notation). The following message parts are image_url / video_url attachments in ascending `slot` order (see `attachments`).\n\n';
+
 /**
  * Build multimodal content from the JSON context produced by the app resolver.
  * Order: edgeInputs first (edge-first), then Stage 1 placement / ref / locations / props with URL dedupe.
+ * One TOON text block replaces verbose markdown headers to reduce LLM tokens.
  */
 export function buildStage2InstructionsContent(context: Record<string, unknown>): Stage2MultimodalPart[] {
   const limits = getStage2ContentLimits();
-  const parts: Stage2MultimodalPart[] = [];
   const edgeUrls = new Set<string>();
   const budget: MediaBudget = { imagesLeft: limits.maxImageParts, videosLeft: limits.maxVideoParts };
   const detail = limits.imageDetail;
 
+  const edgeTexts: EdgeTextRow[] = [];
+  const attachments: AttachmentRow[] = [];
+  const mediaQueue: { kind: 'image' | 'video'; url: string }[] = [];
+  let slot = 1;
+
+  const pushEdgeHint = (e: EdgeInputRaw) => ({
+    edgeId: String(e.edgeId ?? ''),
+    sourceNodeId: String(e.sourceNodeId ?? ''),
+    sourceType: String(e.sourceType ?? 'node'),
+  });
+
   for (const e of parseEdgeInputs(context)) {
-    const srcLabel = `${String(e.sourceType ?? 'node')}:${String(e.sourceNodeId ?? '')}`;
     const edgeHint = e.edgeId ? `edge ${e.edgeId}` : 'edge';
+    const meta = pushEdgeHint(e);
 
     if (e.kind === 'text') {
       const text = truncateText(String(e.text ?? '').trim(), limits.maxEdgeTextChars);
       if (!text) continue;
-      parts.push({
-        type: 'text',
-        text: `## Connected input (${edgeHint}, ${srcLabel})\n${text}`,
+      edgeTexts.push({
+        edgeId: meta.edgeId,
+        sourceNodeId: meta.sourceNodeId,
+        sourceType: meta.sourceType,
+        text,
       });
       continue;
     }
@@ -133,14 +171,17 @@ export function buildStage2InstructionsContent(context: Record<string, unknown>)
       }
       edgeUrls.add(url);
       const label = String(e.label ?? '').trim();
-      parts.push({
-        type: 'text',
-        text: `## Connected image (${edgeHint}, ${srcLabel}${label ? ` — ${label}` : ''})`,
+      attachments.push({
+        slot,
+        section: 'edge',
+        kind: 'image',
+        edgeId: meta.edgeId,
+        sourceNodeId: meta.sourceNodeId,
+        sourceType: meta.sourceType,
+        label,
       });
-      parts.push({
-        type: 'image_url',
-        imageUrl: { url, detail },
-      });
+      mediaQueue.push({ kind: 'image', url });
+      slot++;
       budget.imagesLeft--;
       continue;
     }
@@ -162,20 +203,22 @@ export function buildStage2InstructionsContent(context: Record<string, unknown>)
       }
       edgeUrls.add(url);
       const label = String(e.label ?? '').trim();
-      parts.push({
-        type: 'text',
-        text: `## Connected video (${edgeHint}, ${srcLabel}${label ? ` — ${label}` : ''})`,
+      attachments.push({
+        slot,
+        section: 'edge',
+        kind: 'video',
+        edgeId: meta.edgeId,
+        sourceNodeId: meta.sourceNodeId,
+        sourceType: meta.sourceType,
+        label,
       });
-      parts.push({ type: 'video_url', videoUrl: { url } });
+      mediaQueue.push({ kind: 'video', url });
+      slot++;
       budget.videosLeft--;
     }
   }
 
   const placementAndNotes = truncateText(String(context.placementAndNotes ?? ''), limits.maxPlacementChars);
-  parts.push({
-    type: 'text',
-    text: '## Stage 1 placement\n' + placementAndNotes,
-  });
 
   const placementRefImageUrl = context.placementRefImageUrl ? String(context.placementRefImageUrl) : '';
   if (
@@ -187,12 +230,18 @@ export function buildStage2InstructionsContent(context: Record<string, unknown>)
     if (budget.imagesLeft <= 0) {
       console.warn('[scout-execute] Stage2 image budget exhausted; skipping placement reference image.');
     } else {
-      parts.push({ type: 'text', text: '## Placement reference image' });
-      parts.push({
-        type: 'image_url',
-        imageUrl: { url: placementRefImageUrl, detail },
+      attachments.push({
+        slot,
+        section: 'placementRef',
+        kind: 'image',
+        edgeId: '',
+        sourceNodeId: '',
+        sourceType: '',
+        label: '',
       });
+      mediaQueue.push({ kind: 'image', url: placementRefImageUrl });
       edgeUrls.add(placementRefImageUrl);
+      slot++;
       budget.imagesLeft--;
     }
   }
@@ -218,27 +267,36 @@ export function buildStage2InstructionsContent(context: Record<string, unknown>)
         console.warn('[scout-execute] Stage2 video budget exhausted; skipping location video.', label);
         continue;
       }
-      parts.push({
-        type: 'text',
-        text: `## Location${label ? ` (${label})` : ''}`,
+      attachments.push({
+        slot,
+        section: 'location',
+        kind: 'video',
+        edgeId: '',
+        sourceNodeId: '',
+        sourceType: '',
+        label,
       });
-      parts.push({ type: 'video_url', videoUrl: { url } });
+      mediaQueue.push({ kind: 'video', url });
       edgeUrls.add(url);
+      slot++;
       budget.videosLeft--;
     } else {
       if (budget.imagesLeft <= 0) {
         console.warn('[scout-execute] Stage2 image budget exhausted; skipping location image.', label);
         continue;
       }
-      parts.push({
-        type: 'text',
-        text: `## Location${label ? ` (${label})` : ''}`,
+      attachments.push({
+        slot,
+        section: 'location',
+        kind: 'image',
+        edgeId: '',
+        sourceNodeId: '',
+        sourceType: '',
+        label,
       });
-      parts.push({
-        type: 'image_url',
-        imageUrl: { url, detail },
-      });
+      mediaQueue.push({ kind: 'image', url });
       edgeUrls.add(url);
+      slot++;
       budget.imagesLeft--;
     }
   }
@@ -256,23 +314,42 @@ export function buildStage2InstructionsContent(context: Record<string, unknown>)
       console.warn('[scout-execute] Stage2 image budget exhausted; skipping prop image.', label);
       continue;
     }
-    parts.push({
-      type: 'text',
-      text: `## Prop: ${label || 'unnamed'}`,
+    attachments.push({
+      slot,
+      section: 'prop',
+      kind: 'image',
+      edgeId: '',
+      sourceNodeId: '',
+      sourceType: '',
+      label: label || 'unnamed',
     });
-    parts.push({
-      type: 'image_url',
-      imageUrl: { url, detail },
-    });
+    mediaQueue.push({ kind: 'image', url });
     edgeUrls.add(url);
+    slot++;
     budget.imagesLeft--;
   }
 
   const userPrompt = truncateText(String(context.userPrompt ?? ''), limits.maxUserPromptChars);
-  parts.push({
-    type: 'text',
-    text: '## Operator notes\n' + (userPrompt || '(none)'),
-  });
+
+  const canvasPayload = {
+    stage: 'stage2_instructions',
+    placement: placementAndNotes,
+    operatorNotes: userPrompt || '(none)',
+    edgeTexts,
+    attachments,
+  };
+
+  const parts: Stage2MultimodalPart[] = [
+    { type: 'text', text: STAGE2_TOON_INTRO + encode(canvasPayload) },
+  ];
+
+  for (const m of mediaQueue) {
+    if (m.kind === 'image') {
+      parts.push({ type: 'image_url', imageUrl: { url: m.url, detail } });
+    } else {
+      parts.push({ type: 'video_url', videoUrl: { url: m.url } });
+    }
+  }
 
   return parts;
 }

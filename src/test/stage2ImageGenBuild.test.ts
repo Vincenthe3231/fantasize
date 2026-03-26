@@ -6,7 +6,6 @@ import {
   filterAnchorImageUrls,
   isUsableHttpImageUrl,
   isUsableMultimodalImageUrl,
-  MAX_STAGE2_IMAGE_GEN_ANCHORS,
 } from '../../supabase/functions/scout-execute/stage2ImageGenBuild.ts';
 
 describe('stage2ImageGenBuild', () => {
@@ -16,23 +15,26 @@ describe('stage2ImageGenBuild', () => {
       wiredTextFromEdges: 'From assistant.',
       negativePrompt: 'blur',
     });
+    expect(out).toContain('TOON');
     expect(out).toContain('Main brief.');
     expect(out).toContain('From assistant.');
-    expect(out).toContain('Negative prompt');
     expect(out).toContain('blur');
+    expect(out).toContain('stage2_image_generator');
   });
 
-  it('filters blob and dedupes anchor URLs with cap', () => {
+  it('filters blob and dedupes anchor URLs (all distinct anchors kept)', () => {
     const u = 'https://example.com/a.jpg';
+    const many = Array.from({ length: 8 }, (_, i) => `https://example.com/ref${i}.jpg`);
     const urls = filterAnchorImageUrls([
+      ...many,
+      many[0],
       u,
       u,
       'blob:http://local/x',
       'not-a-url',
       ...Array.from({ length: 10 }, () => `${u}?x`),
     ]);
-    expect(urls.length).toBeLessThanOrEqual(MAX_STAGE2_IMAGE_GEN_ANCHORS);
-    expect(urls[0]).toBe(u);
+    expect(urls).toEqual([...many, u, `${u}?x`]);
     expect(isUsableHttpImageUrl('blob:x')).toBe(false);
     expect(isUsableMultimodalImageUrl('blob:x')).toBe(false);
   });

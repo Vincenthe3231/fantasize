@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { RichTextField } from '@/components/rich-text/RichTextField';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const ASSISTANT_MODELS = [
   'Auto',
@@ -116,7 +117,7 @@ function makeEdge(
   };
 }
 
-const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
+const AssistantNode = memo(({ id, data }: NodeProps) => {
   const isStoreRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -241,7 +242,7 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
               </button>
             </div>
 
-            <div className="flex min-h-[140px] flex-1 flex-col overflow-hidden p-3">
+            <div className="flex min-h-0 flex-1 flex-col p-3">
               {view === 'prompt' ? (
                 <RichTextField
                   value={prompt}
@@ -249,8 +250,8 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
                   placeholder={PLACEHOLDER}
                   excludeNodeId={id}
                   toolbarVariant="top"
-                  className="min-h-[120px] flex-1"
-                  editorContentClassName="w-full min-h-[100px] max-h-full flex-1 overflow-y-auto text-[12px] text-[var(--text-primary)] outline-none leading-relaxed break-words [overflow-wrap:anywhere] prose prose-invert prose-sm max-w-none [&_p]:my-1 [&_*]:break-words"
+                  className="min-h-0 flex-1"
+                  editorContentClassName="w-full min-h-[100px] max-h-full flex-1 text-[12px] text-[var(--text-primary)] outline-none leading-relaxed break-words [overflow-wrap:anywhere] prose prose-invert prose-sm max-w-none [&_p]:my-1 [&_*]:break-words"
                   editorProps={{
                     handleDOMEvents: {
                       mousedown: (_, e) => {
@@ -265,11 +266,13 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
                   }}
                 />
               ) : (
-                <div
-                  className={`${NODE_INTERACTIVE_CLASS} node-shell-readout min-h-[120px] flex-1 select-text overflow-y-auto text-[12px] text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap`}
-                >
-                  {result || <span className="text-[var(--text-muted)]">Run the assistant to see results here.</span>}
-                </div>
+                <ScrollArea className="nowheel min-h-0 flex-1 overscroll-contain">
+                  <div
+                    className={`${NODE_INTERACTIVE_CLASS} node-shell-readout select-text pr-2 text-[12px] text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap`}
+                  >
+                    {result || <span className="text-[var(--text-muted)]">Run the assistant to see results here.</span>}
+                  </div>
+                </ScrollArea>
               )}
             </div>
 
@@ -287,12 +290,16 @@ const AssistantNode = memo(({ id, data, selected }: NodeProps) => {
                     <span className="text-[var(--node-control-muted)] text-[9px]">▼</span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="node-canvas-dropdown text-xs max-h-56 overflow-y-auto">
-                  {ASSISTANT_MODELS.map((m) => (
-                    <DropdownMenuItem key={m} onClick={() => updateNodeData(id, { assistantModel: m })}>
-                      {m}
-                    </DropdownMenuItem>
-                  ))}
+                <DropdownMenuContent className="node-canvas-dropdown p-0 text-xs">
+                  <ScrollArea className="max-h-56">
+                    <div className="py-1">
+                      {ASSISTANT_MODELS.map((m) => (
+                        <DropdownMenuItem key={m} onClick={() => updateNodeData(id, { assistantModel: m })}>
+                          {m}
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 </DropdownMenuContent>
               </DropdownMenu>
               <button

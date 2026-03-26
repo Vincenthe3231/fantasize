@@ -7,6 +7,7 @@ import {
   Film,
 } from 'lucide-react';
 import type { NodeType } from '@/stores/workflowStore';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface AddNodePanelProps {
   onAddNode: (type: string) => void;
@@ -170,7 +171,8 @@ const AddNodePanel = ({ onAddNode }: AddNodePanelProps) => {
       </div>
 
       {/* Node list */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-2 space-y-3">
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="space-y-3 px-3 pb-2 pr-2">
         {activeCategory === 'all' || activeCategory === 'recent' ? (
           sectionOrder.map((section) => {
             let sectionNodes = filteredNodes.filter((n) =>
@@ -199,7 +201,8 @@ const AddNodePanel = ({ onAddNode }: AddNodePanelProps) => {
             {filteredNodes.map(renderNodeButton)}
           </div>
         )}
-      </div>
+        </div>
+      </ScrollArea>
 
       {/* Bottom hints */}
       <div className="shrink-0 px-3 py-2 border-t border-border flex items-center gap-4 text-[10px] text-muted-foreground font-mono-display">

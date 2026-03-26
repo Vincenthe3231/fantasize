@@ -20,6 +20,7 @@ import {
   ASPECT_RATIOS,
   GRID_SIZES,
   getPerspectiveLabel,
+  getPerspectivePrompt,
   normalizeResolution,
   resolvePerspectiveIds,
 } from '@/lib/imageVariationsOptions';
@@ -454,28 +455,30 @@ export function resolveStage3Context(
     );
   }
 
-  let sourceImageUrl = '';
+  const sourceImageUrls: string[] = [];
+  const seenSourceUrls = new Set<string>();
+  const pushSourceUrl = (raw: string) => {
+    const u = raw.trim();
+    if (!isUsableStage3ReferenceUrl(u) || seenSourceUrls.has(u)) return;
+    seenSourceUrls.add(u);
+    sourceImageUrls.push(u);
+  };
   for (const e of inc) {
     const src = nodes.find((n) => n.id === e.source);
     if (src?.type === 'setDressingNode') {
       const url = String((src.data as { previewUrl?: string })?.previewUrl ?? '').trim();
-      if (isUsableStage3ReferenceUrl(url)) sourceImageUrl = url;
+      pushSourceUrl(url);
     }
   }
-  if (!sourceImageUrl) {
-    for (const e of inc) {
-      const src = nodes.find((n) => n.id === e.source);
-      if (!src) continue;
-      const items = upstreamImageItemsFromNode(src, nodes);
-      for (const it of items) {
-        if (isUsableStage3ReferenceUrl(it.url)) {
-          sourceImageUrl = it.url.trim();
-          break;
-        }
-      }
-      if (sourceImageUrl) break;
+  for (const e of inc) {
+    const src = nodes.find((n) => n.id === e.source);
+    if (!src) continue;
+    const items = upstreamImageItemsFromNode(src, nodes);
+    for (const it of items) {
+      pushSourceUrl(it.url);
     }
   }
+  const sourceImageUrl = sourceImageUrls[0] ?? '';
   if (!sourceImageUrl) {
     return fail(
       'No usable reference image from upstream — connect an image output (http/https, data:image, or blob). Non-HTTP(S) URLs are normalized via upload before execution; if that fails, check storage/upload permissions.'
@@ -539,20 +542,24 @@ export function resolveStage3Context(
       gridLayout: gridFromNode,
       perspectiveCount: ids.length,
       sourceImageUrl: sourceImageUrl.slice(0, 80),
+      sourceImageCount: sourceImageUrls.length,
       sceneContextTextLen: sceneContextText.length,
     });
   }
 
   const perspectiveLabels = ids.map((pid) => getPerspectiveLabel(pid) ?? pid);
+  const perspectivePrompts = ids.map((pid) => getPerspectivePrompt(pid) ?? '');
 
   return ok({
     kind: 'stage3_angle_variations',
     angleVariationsNodeId,
     listNodeId,
     sourceImageUrl,
+    sourceImageUrls,
     gridLayout: gridFromNode,
     perspectiveIds: ids,
     perspectiveLabels,
+    perspectivePrompts,
     preferences: {
       aspectRatio,
       resolutionLabel,

@@ -12,8 +12,8 @@ import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
 import { RichTextField } from '@/components/rich-text/RichTextField';
-
-const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
+import { ScrollArea } from '@/components/ui/scroll-area';
+const VideoGeneratorNode = memo(({ id, data }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -56,7 +56,8 @@ const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
       />
 
       <NodeContentFocus nodeId={id} shellMoveCursor>
-        <div className="flex flex-1 min-h-0 flex-col space-y-3 overflow-y-auto p-3">
+        <ScrollArea className="nowheel min-h-0 flex-1">
+        <div className="flex flex-col space-y-3 p-3 pr-2">
         <div className={`${NODE_INTERACTIVE_CLASS} grid shrink-0 grid-cols-3 gap-2`}>
           <div>
             <label className="text-[10px] font-mono-display text-[var(--text-muted)] uppercase tracking-wider mb-1 block">Mode</label>
@@ -150,6 +151,7 @@ const VideoGeneratorNode = memo(({ id, data, selected }: NodeProps) => {
           )}
         </button>
         </div>
+        </ScrollArea>
       </NodeContentFocus>
 
       <DefaultNodePortHandles />

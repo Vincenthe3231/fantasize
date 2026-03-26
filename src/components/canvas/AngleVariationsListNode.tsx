@@ -10,6 +10,7 @@ import { useQuickConnect } from '@/hooks/useQuickConnect';
 import ImageCellOverlay from './ImageCellOverlay';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export type AccumulatedAngle = {
   id: string;
@@ -89,7 +90,8 @@ const AngleVariationsListNode = memo(({ id, selected, data }: NodeProps) => {
               <span className="text-[11px] text-[var(--text-muted)]">{totalImages} images</span>
             </div>
 
-            <div className="custom-scrollbar grid min-h-0 flex-1 grid-cols-3 gap-2 overflow-y-auto p-3">
+            <ScrollArea className="nowheel min-h-0 flex-1">
+              <div className="grid min-h-0 grid-cols-3 gap-2 p-3 pr-2">
               {accumulatedAngles.length === 0 ? (
                 <div className="col-span-3 py-8 text-center text-[11px] text-[var(--text-muted)]">
                   Run Angle variations to accumulate shots here.
@@ -113,7 +115,8 @@ const AngleVariationsListNode = memo(({ id, selected, data }: NodeProps) => {
                   </button>
                 ))
               )}
-            </div>
+              </div>
+            </ScrollArea>
 
             <div className="flex items-center justify-between border-t border-border px-3 py-2">
               <button

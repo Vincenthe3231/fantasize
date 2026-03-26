@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Handle, useNodeId, type Edge, type HandleProps, type Node } from 'reactflow';
 import { Type, Image as ImageIcon, Video, type LucideIcon } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
@@ -113,8 +114,8 @@ export function EnhancedHandle({ dataType = 'generic', className = '', ...props 
             e.stopPropagation();
           }}
         >
-          <div
-            className={`absolute mt-1 max-h-52 w-56 overflow-y-auto rounded-lg border border-[var(--node-control-border)] bg-[var(--node-dropdown-bg)] p-1 shadow-xl ${
+          <ScrollArea
+            className={`nowheel absolute mt-1 max-h-52 w-56 rounded-lg border border-[var(--node-control-border)] bg-[var(--node-dropdown-bg)] p-0 shadow-xl ${
               handleType === 'target' ? 'left-0' : 'right-0'
             }`}
             onPointerDown={(e) => {
@@ -125,6 +126,7 @@ export function EnhancedHandle({ dataType = 'generic', className = '', ...props 
               e.stopPropagation();
             }}
           >
+            <div className="p-1 pr-2">
             {linkedNodes.length === 0 ? (
               <div className="px-2 py-1.5 text-[11px] text-[var(--node-control-muted)]">
                 No connections
@@ -142,7 +144,8 @@ export function EnhancedHandle({ dataType = 'generic', className = '', ...props 
                 </div>
               ))
             )}
-          </div>
+            </div>
+          </ScrollArea>
         </div>
       )}
     </Handle>

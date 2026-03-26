@@ -428,6 +428,60 @@
   transform: translateX(-50%) translateY(-4px);
 }
 
+/*
+ * Static edge SVGs paint below nodes. React Flow renders the drag preview in a *separate* SVG that also
+ * uses `react-flow__edges` but adds `react-flow__connectionline` — that layer must stay above nodes or the
+ * line is invisible while connecting.
+ */
+.react-flow .react-flow__viewport svg.react-flow__edges:not(.react-flow__connectionline) {
+  position: relative;
+  z-index: 0 !important;
+}
+
+.react-flow .react-flow__viewport svg.react-flow__connectionline {
+  position: relative;
+  z-index: 2 !important;
+  /* Full-viewport SVG must not sit above handles and steal drops while connecting */
+  pointer-events: none !important;
+}
+
+.react-flow .react-flow__viewport .react-flow__nodes {
+  position: relative;
+  z-index: 1;
+}
+
+/*
+ * While dragging a new connection: raise existing edges above node cards (same stacking problem as the
+ * connection preview). RF gives `.react-flow__edge` children `pointer-events: visibleStroke`, so we must
+ * force `pointer-events: none` on the static edges SVG and all descendants — otherwise wide hit paths
+ * steal the release event and handles never connect.
+ */
+.vf-connecting-edge .react-flow .react-flow__viewport svg.react-flow__edges:not(.react-flow__connectionline) {
+  position: relative;
+  z-index: 2 !important;
+  pointer-events: none !important;
+}
+
+.vf-connecting-edge .react-flow .react-flow__viewport svg.react-flow__edges:not(.react-flow__connectionline) * {
+  pointer-events: none !important;
+}
+
+/* CustomEdge: smooth hover / selection / running opacity & stroke */
+.vf-custom-edge .vf-custom-edge-stroke {
+  transition:
+    stroke 0.2s ease,
+    stroke-width 0.2s ease,
+    opacity 0.2s ease;
+}
+
+/* Connection preview line (path inside edges SVG while dragging from a handle) */
+.react-flow__connection-path {
+  stroke: var(--edge-stroke);
+  stroke-width: 2;
+  opacity: 1;
+  transition: stroke 0.15s ease, stroke-width 0.15s ease, opacity 0.15s ease;
+}
+
 /* Ensure node wrapper allows overflow for action bars; hide RF outer border/selection ring (inner .glass-node uses .node-selected). */
 .react-flow__node {
   overflow: visible !important;

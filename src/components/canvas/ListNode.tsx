@@ -3,12 +3,12 @@ import { type NodeProps } from 'reactflow';
 import { List, Plus, X, Check, Type, ImageIcon, Copy, FolderOpen, SlidersHorizontal, Sparkles, LayoutList, LayoutGrid, Settings, ChevronDown } from 'lucide-react';
 import { Reorder, AnimatePresence, motion } from 'framer-motion';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeLabelRow } from './NodeLabelRow';
 import ResizableNodeWrapper from './ResizableNodeWrapper';
 import { DefaultNodePortHandles } from './DefaultNodePortHandles';
-
 type ListItemType = 'text' | 'image';
 
 interface ListItem {
@@ -156,7 +156,8 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
 
               {/* Items */}
               {items.length > 0 && (
-                <div className="scrollbar-thin max-h-[300px] flex-1 space-y-1 overflow-y-auto">
+                <ScrollArea className="nowheel max-h-[300px] flex-1">
+                  <div className="space-y-1 pr-2">
                   {/* Text items always in list */}
                   {textItems.length > 0 && (
                     <Reorder.Group
@@ -212,7 +213,8 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                       ))}
                     </div>
                   )}
-                </div>
+                  </div>
+                </ScrollArea>
               )}
             </>
           )}

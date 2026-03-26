@@ -41,6 +41,14 @@ function toSdkUserContent(parts: ImageGenUserContentPart[]): unknown[] {
   });
 }
 
+function resolveTemperature(context: Record<string, unknown>, defaultTemp: number): number {
+  const raw = context.temperature;
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return Math.min(2, Math.max(0, raw));
+  }
+  return defaultTemp;
+}
+
 function extractFirstImageDataUrl(message: Record<string, unknown>): string | null {
   const imgs = message.images as Array<Record<string, unknown>> | undefined;
   if (!imgs?.length) return null;
@@ -61,6 +69,7 @@ export async function generateStage2ImageViaOpenRouter(
   const modalities = parseModalities();
   const userParts = buildStage2ImageGenUserContentParts(context);
   const aspect = aspectToOpenRouterImageConfig(String(context.aspect ?? ''));
+  const temperature = resolveTemperature(context, 0.4);
 
   const openrouter = new OpenRouter({
     apiKey: apiKey.trim(),
@@ -76,7 +85,7 @@ export async function generateStage2ImageViaOpenRouter(
       messages: [{ role: 'user', content: toSdkUserContent(userParts) as unknown }],
       modalities,
       stream: false,
-      temperature: 0.4,
+      temperature,
       ...(aspect ? { imageConfig: aspect } : {}),
     },
   });
@@ -104,7 +113,7 @@ export async function generateStage2ImageViaOpenRouter(
   const promptLen = textPart?.text.length ?? 0;
 
   console.log(
-    `[scout-execute] stage2_image_generator model=${model} modalities=${modalities.join(',')} anchorImages=${anchorCount} dataUrlLen=${generatedUrl.length}`
+    `[scout-execute] stage2_image_generator model=${model} modalities=${modalities.join(',')} anchorImages=${anchorCount} temperature=${temperature} dataUrlLen=${generatedUrl.length}`
   );
 
   return {
@@ -118,6 +127,7 @@ export async function generateStage2ImageViaOpenRouter(
       anchorImageCount: anchorCount,
       promptTextLength: promptLen,
       aspect: String(context.aspect ?? '') || undefined,
+      temperature,
     },
   };
 }

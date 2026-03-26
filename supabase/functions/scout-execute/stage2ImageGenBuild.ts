@@ -2,7 +2,7 @@
  * Pure helpers for Stage 2 image generator — safe to unit-test from Vitest (no Deno / OpenRouter).
  */
 
-export const MAX_STAGE2_IMAGE_GEN_ANCHORS = 4;
+import { encode } from '@toon-format/toon';
 
 /** OpenRouter image_config.aspect_ratio supported values (subset matching canvas aspect dropdown). */
 const ALLOWED_ASPECT_RATIOS = new Set([
@@ -42,14 +42,14 @@ export function buildStage2ImageGenFinalPrompt(context: Record<string, unknown>)
   const wired = String(context.wiredTextFromEdges ?? '').trim();
   const neg = String(context.negativePrompt ?? '').trim();
 
-  const blocks: string[] = [];
-  if (prompt) blocks.push(prompt);
-  if (wired) blocks.push(wired);
-  let out = blocks.join('\n\n');
-  if (neg) {
-    out = out ? `${out}\n\nNegative prompt / avoid: ${neg}` : `Negative prompt / avoid: ${neg}`;
-  }
-  return out.trim();
+  if (!prompt && !wired && !neg) return '';
+
+  const payload: Record<string, string> = { stage: 'stage2_image_generator' };
+  if (prompt) payload.prompt = prompt;
+  if (wired) payload.wiredFromEdges = wired;
+  if (neg) payload.negative = neg;
+
+  return `Image brief (TOON):\n${encode(payload)}`.trim();
 }
 
 export function filterAnchorImageUrls(urls: unknown): string[] {
@@ -61,7 +61,6 @@ export function filterAnchorImageUrls(urls: unknown): string[] {
     if (!isUsableMultimodalImageUrl(s) || seen.has(s)) continue;
     seen.add(s);
     out.push(s);
-    if (out.length >= MAX_STAGE2_IMAGE_GEN_ANCHORS) break;
   }
   return out;
 }

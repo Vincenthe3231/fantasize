@@ -24,12 +24,13 @@ describe('scoutStage2Multimodal (edge)', () => {
     });
 
     const types = parts.map((p) => p.type);
-    expect(types.filter((t) => t === 'text').length).toBeGreaterThanOrEqual(3);
+    expect(types.filter((t) => t === 'text').length).toBe(1);
     expect(types.includes('image_url')).toBe(true);
-    const texts = parts.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text);
-    expect(texts.some((t) => t.includes('Stage 1 placement'))).toBe(true);
-    expect(texts.some((t) => t.includes('Operator notes'))).toBe(true);
-    expect(texts.some((t) => t.includes('Warm light'))).toBe(true);
+    const toonBlock = parts.find((p): p is { type: 'text'; text: string } => p.type === 'text')?.text ?? '';
+    expect(toonBlock).toContain('TOON');
+    expect(toonBlock).toContain('Room layout');
+    expect(toonBlock).toContain('Warm light');
+    expect(toonBlock).toContain('stage2_instructions');
   });
 
   it('buildStage2InstructionsContent renders edgeInputs first and dedupes Stage 1 location URL', () => {
@@ -50,9 +51,10 @@ describe('scoutStage2Multimodal (edge)', () => {
       locationImages: [{ url: sharedUrl, label: 'Main', mediaKind: 'image' }],
       props: [],
     });
-    const texts = parts.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text);
-    expect(texts[0]).toContain('Connected image');
-    expect(texts.some((t) => t.includes('Location'))).toBe(false);
+    const toonBlock = parts.find((p): p is { type: 'text'; text: string } => p.type === 'text')?.text ?? '';
+    expect(toonBlock).toContain('edge');
+    expect(toonBlock).toContain('attachments');
+    expect(toonBlock.includes('Main')).toBe(false);
   });
 
   it('uses video_url for location video', () => {

@@ -4,7 +4,7 @@ import { createVirtualProductionScoutTemplate } from '@/stores/workflowStore';
 import type { ScoutPipelineState } from '@/lib/scoutPipeline';
 import { DEFAULT_SCOUT_PIPELINE } from '@/lib/scoutPipeline';
 import { invokeScoutExecute } from '@/lib/scoutExecutionApi';
-import { normalizeImageReferenceUrl, normalizeImageReferenceUrls } from '@/lib/scoutMediaUrlNormalizer';
+import { normalizeImageReferenceUrls } from '@/lib/scoutMediaUrlNormalizer';
 import { notifySuccess, notifyWarning } from '@/lib/systemNotify';
 
 vi.mock('@/lib/scoutExecutionApi', () => ({
@@ -90,11 +90,12 @@ describe('scoutRunCoordinator', () => {
     });
 
     expect(r.ok).toBe(true);
-    expect(normalizeImageReferenceUrl).toHaveBeenCalledWith('data:image/png;base64,AAAA');
+    expect(normalizeImageReferenceUrls).toHaveBeenCalledWith(['data:image/png;base64,AAAA']);
     expect(invokeScoutExecute).toHaveBeenCalledWith(
       'stage3_angle_variations',
       expect.objectContaining({
         sourceImageUrl: 'https://cdn.example/normalized.jpg',
+        sourceImageUrls: ['https://cdn.example/normalized.jpg'],
       }),
       expect.any(Object)
     );
@@ -105,7 +106,7 @@ describe('scoutRunCoordinator', () => {
   });
 
   it('fails fast when normalization throws and does not invoke scout-execute', async () => {
-    vi.mocked(normalizeImageReferenceUrl).mockRejectedValueOnce(new Error('Upload blocked'));
+    vi.mocked(normalizeImageReferenceUrls).mockRejectedValueOnce(new Error('Upload blocked'));
     const { nodes: baseNodes, edges } = createVirtualProductionScoutTemplate();
     const nodes = baseNodes.map((n) =>
       n.id === 'set-dressing-1' ? { ...n, data: { ...(n.data as object), previewUrl: 'data:image/png;base64,AAAA' } } : n

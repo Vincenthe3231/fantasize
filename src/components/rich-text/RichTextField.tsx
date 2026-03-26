@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
 import { AnimatePresence } from 'framer-motion';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { getRichTextExtensions, type RichTextExtensionOptions } from './getRichTextExtensions';
 import { NodeInlineRichToolbar } from './NodeInlineRichToolbar';
@@ -135,9 +136,9 @@ export function RichTextField({
           <NodeInlineRichToolbar key="vf-toolbar" editor={editor} variant={toolbarVariant} />
         )}
       </AnimatePresence>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <ScrollArea className="nowheel min-h-0 flex-1 overscroll-contain">
         <EditorContent editor={editor} />
-      </div>
+      </ScrollArea>
     </div>
   );
 }
