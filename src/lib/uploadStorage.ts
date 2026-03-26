@@ -13,7 +13,10 @@ export function sanitizeFilename(name: string): string {
  * Upload a file to Supabase Storage and return its public URL.
  * Requires VITE_SUPABASE_STORAGE_BUCKET and bucket policies that allow insert + public read (or adjust getPublicUrl usage).
  */
-export async function uploadWorkflowMedia(file: File): Promise<{ url: string; path: string }> {
+export async function uploadWorkflowMedia(
+  file: File,
+  metadata?: Record<string, string>
+): Promise<{ url: string; path: string; metadata?: Record<string, string> }> {
   if (!BUCKET?.trim()) {
     throw new Error(
       'Missing VITE_SUPABASE_STORAGE_BUCKET in .env. Set it to your Supabase Storage bucket name.'
@@ -46,5 +49,5 @@ export async function uploadWorkflowMedia(file: File): Promise<{ url: string; pa
     throw new Error('Could not resolve public URL for uploaded file');
   }
 
-  return { url, path };
+  return { url, path, metadata };
 }

@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react';
 import { Position, type NodeProps } from 'reactflow';
-import { Sofa, AlertTriangle } from 'lucide-react';
+import { Sofa, AlertTriangle, Loader2 } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
@@ -49,6 +49,7 @@ const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
       >
         <NodeActionBar
           variant="image"
+          runBusy={isRunning}
           onRun={() => runFromNode(id)}
           onDuplicate={() => duplicateNode(id)}
           onDelete={() => deleteNode(id)}
@@ -86,13 +87,21 @@ const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                className={`${NODE_INTERACTIVE_CLASS} rounded-lg border border-[var(--node-control-border)] bg-[var(--node-control-bg)] px-2 py-1 font-mono-display uppercase tracking-wider text-[var(--accent-color)] hover:bg-[var(--node-action-bar-hover-bg)]`}
+                disabled={isRunning}
+                className={`${NODE_INTERACTIVE_CLASS} rounded-lg border border-[var(--node-control-border)] bg-[var(--node-control-bg)] px-2 py-1 font-mono-display uppercase tracking-wider text-[var(--accent-color)] hover:bg-[var(--node-action-bar-hover-bg)] disabled:cursor-not-allowed disabled:opacity-50`}
                 onClick={(e) => {
                   e.stopPropagation();
                   runFromNode(id);
                 }}
               >
-                Regenerate
+                {isRunning ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Loader2 size={12} className="animate-spin" />
+                    Running…
+                  </span>
+                ) : (
+                  'Regenerate'
+                )}
               </button>
               <button
                 type="button"

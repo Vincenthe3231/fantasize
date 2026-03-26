@@ -38,9 +38,13 @@ export function mapScoutResultToNodePatches(
     case 'stage2_image_generator': {
       const id = targets.imageGeneratorNodeId;
       if (id) {
+        const urls = Array.isArray(result.generatedUrls) && result.generatedUrls.length > 0 ?
+            result.generatedUrls
+          : [result.generatedUrl];
         patches[id] = {
           status: 'success',
-          generatedUrl: result.generatedUrl,
+          generatedUrl: urls[0],
+          generatedUrls: urls,
         };
       }
       break;

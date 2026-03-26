@@ -3,6 +3,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Handle, useNodeId, type Edge, type HandleProps, type Node } from 'reactflow';
 import { Type, Image as ImageIcon, Video, type LucideIcon } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
+import { SCOPED_PORT_SEP, scopedPortHandle } from '@/lib/portHandles';
 
 export type HandleDataType = 'text' | 'image' | 'video' | 'generic';
 
@@ -42,12 +43,18 @@ function iconColorClass(dataType: HandleDataType): string {
  * outer ring still reflects input (green) vs output (violet) / accent.
  */
 export function EnhancedHandle({ dataType = 'generic', className = '', ...props }: EnhancedHandleProps) {
+  const { id: rawHandleId, ...handleRest } = props;
   const Icon = iconFor(dataType);
   const colorClass = iconColorClass(dataType);
   const hasGlyph = Icon != null;
   const nodeId = useNodeId();
-  const handleId = props.id;
-  const handleType = props.type;
+  const handleId =
+    rawHandleId != null && rawHandleId !== '' && nodeId
+      ? String(rawHandleId).includes(SCOPED_PORT_SEP)
+        ? String(rawHandleId)
+        : scopedPortHandle(nodeId, String(rawHandleId))
+      : rawHandleId;
+  const handleType = handleRest.type;
   const [hovered, setHovered] = useState(false);
   const [open, setOpen] = useState(false);
   const edges = useWorkflowStore((s) => s.edges);
@@ -91,7 +98,8 @@ export function EnhancedHandle({ dataType = 'generic', className = '', ...props 
         e.stopPropagation();
         setOpen((v) => !v);
       }}
-      {...props}
+      {...handleRest}
+      id={handleId}
     >
       {hovered ? (
         <span className="pointer-events-none text-[9px] font-mono-display leading-none text-[var(--node-control-text)]">

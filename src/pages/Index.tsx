@@ -24,6 +24,7 @@ import ReactFlow, {
   ReactFlowProvider,
   SelectionMode,
   getConnectedEdges,
+  ConnectionLineType,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import '@reactflow/node-resizer/dist/style.css';
@@ -666,7 +667,7 @@ const CanvasInner = ({
       }}
     >
     <div
-      className={`w-screen h-screen ${canvasClass(settings.canvasPattern)} ${cursorClass} ${settings.showNodeLabels ? '' : 'workflow-hide-labels'} ${isConnectingFromHandle ? 'vf-connecting-edge' : ''}`}
+      className={`w-screen h-screen ${canvasClass(settings.canvasPattern)} ${cursorClass} ${settings.showNodeLabels ? '' : 'workflow-hide-labels'} ${isConnectingFromHandle ? 'vf-connecting-edge' : ''} ${selectedTool === 'cut' ? 'vf-snip-tool' : ''}`}
       onClick={handleCanvasClick}
       onContextMenu={handleContextMenu}
       ref={reactFlowWrapper}
@@ -835,6 +836,7 @@ const CanvasInner = ({
         onConnectStart={() => setIsConnectingFromHandle(true)}
         onConnectEnd={() => setIsConnectingFromHandle(false)}
         isValidConnection={isValidConnection}
+        connectionLineType={ConnectionLineType.Bezier}
         connectionLineStyle={{ stroke: 'var(--edge-stroke)', strokeWidth: 2 }}
         onNodeDragStart={(_, node) => {
           setIsDragging(true);

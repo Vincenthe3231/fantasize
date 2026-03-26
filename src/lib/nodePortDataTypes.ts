@@ -1,6 +1,12 @@
 import type { HandleDataType } from '@/components/canvas/EnhancedHandle';
 import type { Node } from 'reactflow';
-import { aggregateGroupOutputPacket, mergeTextPartsDedupe } from '@/lib/graphUpstreamPayload';
+import { logicalPortId } from '@/lib/portHandles';
+import {
+  aggregateGroupOutputPacket,
+  listNodeImageItemsFromNode,
+  listNodeTextFromNode,
+  mergeTextPartsDedupe,
+} from '@/lib/graphUpstreamPayload';
 import { richTextToPlainForScout } from '@/lib/richTextForScout';
 
 /** Order handles consistently on group nodes. */
@@ -15,7 +21,7 @@ const NODE_PORT_TYPES: Record<string, HandleDataType[]> = {
   imageVariationsNode: ['text', 'image'],
   imageUpscalerNode: ['text', 'image'],
   videoGeneratorNode: ['text', 'video'],
-  listNode: ['text'],
+  listNode: ['text', 'image'],
   propsInputNode: ['image'],
   annotationNode: ['text'],
   placementRefNode: ['text', 'image'],
@@ -49,7 +55,17 @@ export function aggregatePortTypesForChildTypes(childTypes: string[]): HandleDat
 
 export type NodeDataflowPacket =
   | { kind: 'text'; value: string }
-  | { kind: 'image'; value: { url: string; label?: string }[] }
+  | {
+      kind: 'image';
+      value: {
+        url: string;
+        label?: string;
+        referer?: string;
+        generatedBy?: string;
+        timestamp?: number;
+        supabaseUrl?: string;
+      }[];
+    }
   | { kind: 'video'; value: { url: string; label?: string }[] }
   | { kind: 'generic'; value: unknown };
 
@@ -115,16 +131,32 @@ function assistantTextPacketFromNode(source: Node): NodeDataflowPacket | null {
 function imagePacketFromNode(source: Node): NodeDataflowPacket | null {
   const d = (source.data ?? {}) as Record<string, unknown>;
   const urls = [
+    ...(((d.generatedUrls as unknown[]) ?? [])
+      .map((x) => String(x ?? '').trim())
+      .filter(Boolean) as string[]),
     String(d.generatedUrl ?? '').trim(),
     String(d.previewUrl ?? '').trim(),
     String(d.mediaUrl ?? '').trim(),
     String(d.media_url ?? '').trim(),
     String(d.referenceUrl ?? '').trim(),
   ].filter(Boolean);
-  if (urls.length === 0) return null;
+  const unique = [...new Set(urls)];
+  const imageMetaByUrl = (d.generatedImageMetaByUrl ?? {}) as Record<
+    string,
+    {
+      referer?: string;
+      generatedBy?: string;
+      timestamp?: number;
+      supabaseUrl?: string;
+    }
+  >;
+  if (unique.length === 0) return null;
   return {
     kind: 'image',
-    value: urls.map((url) => ({ url })),
+    value: unique.map((url) => ({
+      url,
+      ...(imageMetaByUrl[url] ?? {}),
+    })),
   };
 }
 
@@ -151,6 +183,47 @@ function imageInputApply(targetField: string) {
     if (!first) return null;
     return { [targetField]: first };
   };
+}
+
+function listImageInputApply(target: Node, merged: NodeDataflowPacket): Partial<Record<string, unknown>> | null {
+  if (merged.kind !== 'image') return null;
+  const incoming = merged.value
+    .map((item) => ({
+      url: String(item.url ?? '').trim(),
+      label: String(item.label ?? '').trim(),
+      referer: String(item.referer ?? '').trim(),
+      generatedBy: String(item.generatedBy ?? '').trim(),
+      timestamp: typeof item.timestamp === 'number' ? item.timestamp : Date.now(),
+      supabaseUrl: String(item.supabaseUrl ?? '').trim(),
+    }))
+    .filter((item) => item.url);
+  if (incoming.length === 0) return null;
+
+  const existing =
+    (((target.data ?? {}) as { items?: Array<Record<string, unknown>> }).items ?? []).map((it) => ({
+      ...it,
+    })) ?? [];
+  const seenUrls = new Set(
+    existing
+      .filter((it) => String(it.type ?? '') === 'image')
+      .map((it) => String(it.mediaUrl ?? '').trim())
+      .filter(Boolean)
+  );
+
+  const additions = incoming
+    .filter((it) => !seenUrls.has(it.url))
+    .map((it) => ({
+      id: `m-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
+      type: 'image',
+      mediaUrl: it.url,
+      mediaName: it.label || 'Generated image',
+      referer: it.referer || undefined,
+      generatedBy: it.generatedBy || undefined,
+      timestamp: it.timestamp,
+      supabaseUrl: it.supabaseUrl || undefined,
+    }));
+  if (additions.length === 0) return null;
+  return { items: [...existing, ...additions] };
 }
 
 const CONTRACTS: Record<string, NodeDataflowContract> = {
@@ -204,6 +277,28 @@ const CONTRACTS: Record<string, NodeDataflowContract> = {
       'text-out': { dataType: 'text', read: textPacketFromNode },
     },
   },
+  listNode: {
+    inputs: {
+      'image-in': { dataType: 'image', merge: 'imageListByUrl', apply: listImageInputApply },
+    },
+    outputs: {
+      'text-out': {
+        dataType: 'text',
+        read: (source) => {
+          const v = listNodeTextFromNode(source).trim();
+          return v ? { kind: 'text', value: v } : null;
+        },
+      },
+      'image-out': {
+        dataType: 'image',
+        read: (source) => {
+          const items = listNodeImageItemsFromNode(source);
+          if (items.length === 0) return null;
+          return { kind: 'image', value: items };
+        },
+      },
+    },
+  },
   group: {
     inputs: {},
     outputs: {
@@ -254,7 +349,7 @@ export function inputContractForHandle(
   nodeType: string | undefined,
   handleId: string | null | undefined
 ): NodeHandleInputContract | null {
-  const id = handleId ?? 'default';
+  const id = logicalPortId(handleId);
   const c = contractForNodeType(nodeType);
   const explicit = c.inputs[id];
   if (explicit) return explicit;
@@ -267,7 +362,7 @@ export function outputContractForHandle(
   nodeType: string | undefined,
   handleId: string | null | undefined
 ): NodeHandleOutputContract | null {
-  const id = handleId ?? 'default';
+  const id = logicalPortId(handleId);
   const c = contractForNodeType(nodeType);
   const explicit = c.outputs[id];
   if (explicit) return explicit;

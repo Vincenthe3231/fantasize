@@ -105,8 +105,8 @@ export async function saveSpace(
     node_grid_layouts: Record<string, GridLayout>;
     viewport: ViewportState;
   }
-): Promise<void> {
-  const { error } = await supabase
+): Promise<SpaceRow> {
+  const { data, error } = await supabase
     .from('spaces')
     .update({
       nodes: payload.nodes as unknown as Record<string, unknown>[],
@@ -116,7 +116,10 @@ export async function saveSpace(
       node_grid_layouts: payload.node_grid_layouts as unknown as Record<string, unknown>,
       viewport: payload.viewport,
     })
-    .eq('id', spaceId);
+    .eq('id', spaceId)
+    .select()
+    .single();
 
   if (error) throw error;
+  return normalizeSpaceRow(data as Record<string, unknown>);
 }

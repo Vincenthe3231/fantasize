@@ -1,5 +1,6 @@
 import type { Connection, Edge, Node } from 'reactflow';
 import { DEFAULT_SCOUT_PROP_SLOTS } from '@/lib/mockPipelineAssets';
+import { logicalPortId } from '@/lib/portHandles';
 
 /** Global Virtual Production Scout orchestration (gates, stale, final output). */
 export interface ScoutPipelineState {
@@ -53,8 +54,9 @@ const HANDLE_KIND: Record<string, 'text' | 'image' | 'video' | 'generic'> = {
 };
 
 export function handleKind(handleId: string | null | undefined): 'text' | 'image' | 'video' | 'generic' {
-  if (!handleId) return 'generic';
-  return HANDLE_KIND[handleId] ?? 'generic';
+  const logical = logicalPortId(handleId);
+  if (logical === 'default') return 'generic';
+  return HANDLE_KIND[logical] ?? 'generic';
 }
 
 /** Same kind or generic accepts anything; text must match text; image↔video allowed for mixed media ports. */
@@ -77,8 +79,8 @@ export function isTargetHandleOccupied(
   target: string,
   targetHandle: string | null | undefined
 ): boolean {
-  const th = targetHandle ?? 'default';
-  return edges.some((e) => e.target === target && (e.targetHandle ?? 'default') === th);
+  const want = logicalPortId(targetHandle);
+  return edges.some((e) => e.target === target && logicalPortId(e.targetHandle) === want);
 }
 
 export function validateScoutConnection(

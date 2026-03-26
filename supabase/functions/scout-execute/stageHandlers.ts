@@ -1,5 +1,5 @@
 import { getOpenRouterStage2Model, streamOpenRouterAuto } from './openrouterClient.ts';
-import { generateStage2ImageViaOpenRouter } from './stage2ImageOpenRouter.ts';
+import { generateStage2ImagesViaOpenRouter } from './stage2ImageOpenRouter.ts';
 import { generateStage3AngleVariationsViaOpenRouter } from './stage3AngleVariationsOpenRouter.ts';
 import { buildStage2InstructionsContent } from './stage2Multimodal.ts';
 import type { ScoutExecutionKind } from './types.ts';
@@ -50,13 +50,18 @@ export async function handleScoutStage(
           'OPENROUTER_API_KEY is not set on scout-execute — Stage 2 image generator requires OpenRouter.'
         );
       }
-      const { generatedUrl, meta: imageGenMeta } = await generateStage2ImageViaOpenRouter(
+      const { generatedUrls, meta: imageGenMeta } = await generateStage2ImagesViaOpenRouter(
         context,
         apiKey!.trim()
       );
       return {
         mock: false,
-        result: { kind: 'stage2_image_generator', generatedUrl, status: 'success' as const },
+        result: {
+          kind: 'stage2_image_generator',
+          generatedUrl: generatedUrls[0] ?? '',
+          generatedUrls,
+          status: 'success' as const,
+        },
         meta: imageGenMeta,
       };
     }

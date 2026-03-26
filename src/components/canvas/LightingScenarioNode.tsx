@@ -105,6 +105,7 @@ const LightingScenarioNode = memo(({ id, selected, data }: NodeProps) => {
       >
         <NodeActionBar
           variant="multiImage"
+          runBusy={isRunning}
           onRun={runBatch}
           onDuplicate={() => duplicateNode(id)}
           onDelete={() => deleteNode(id)}

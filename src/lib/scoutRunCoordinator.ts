@@ -25,6 +25,7 @@ import type { ScoutPipelineState } from '@/lib/scoutPipeline';
 import { scoutDebugLog, summarizeForScoutLog } from '@/lib/scoutDebugLog';
 import { normalizeImageReferenceUrl, normalizeImageReferenceUrls } from '@/lib/scoutMediaUrlNormalizer';
 import { notifySuccess, notifyWarning } from '@/lib/systemNotify';
+import { uploadGeneratedImagesWithMetadata } from '@/lib/batchImageUpload';
 
 export interface ScoutRunOptions {
   /** Required for `atmosphereTestNode` — which branch to execute */
@@ -181,6 +182,34 @@ async function normalizeContextImageReferences(
   }
 }
 
+async function applyStage2ImageResult(
+  deps: ScoutCoordinatorDeps,
+  nodeId: string,
+  result: Extract<ScoutExecutionResult, { kind: 'stage2_image_generator' }>
+) {
+  const urls =
+    Array.isArray(result.generatedUrls) && result.generatedUrls.length > 0 ? result.generatedUrls : [result.generatedUrl];
+  const referer = window.location.origin;
+  let generatedImageMetaByUrl: Record<
+    string,
+    { referer?: string; generatedBy?: string; timestamp?: number; supabaseUrl?: string }
+  > = {};
+  try {
+    generatedImageMetaByUrl = await uploadGeneratedImagesWithMetadata(urls, {
+      referer,
+      generatedBy: nodeId,
+    });
+  } catch (e: unknown) {
+    console.warn('[Scout] generated image upload failed', e);
+  }
+  deps.updateNodeData(nodeId, {
+    generatedUrl: urls[0],
+    generatedUrls: urls,
+    generatedImageMetaByUrl,
+    status: 'success',
+  });
+}
+
 /**
  * Execute a Scout pipeline node: resolve graph context → edge function → map results into node data.
  * On invoke failure or missing result, returns `{ ok: false }` and does not mutate nodes with placeholder output.
@@ -235,6 +264,85 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
   }
   const targets = targetsFor(kind, node.id, normalizedContext);
 
+  if (
+    kind === 'stage2_image_generator' &&
+    normalizedContext.kind === 'stage2_image_generator' &&
+    (normalizedContext.promptItems?.length ?? 0) > 0
+  ) {
+    const promptItems = normalizedContext.promptItems ?? [];
+    let failures = 0;
+    let successes = 0;
+    let lastSuccessResult: Extract<ScoutExecutionResult, { kind: 'stage2_image_generator' }> | null = null;
+    deps.updateNodeData(node.id, {
+      status: 'generating',
+      queueMode: 'perPromptSequential',
+      queueTotal: promptItems.length,
+      queueCompleted: 0,
+      queueFailures: 0,
+      queueCurrentPrompt: 1,
+      queueRetrying: false,
+    });
+
+    for (let i = 0; i < promptItems.length; i++) {
+      const promptText = promptItems[i]!;
+      let done = false;
+      let attempt = 0;
+      while (!done && attempt < 2) {
+        attempt += 1;
+        deps.updateNodeData(node.id, {
+          queueCurrentPrompt: i + 1,
+          queuePromptText: promptText,
+          queueRetrying: attempt > 1,
+          status: 'generating',
+        });
+        const subContext: Stage2ImageGeneratorContext = {
+          ...normalizedContext,
+          prompt: promptText,
+          wiredTextFromEdges: undefined,
+          promptItems: undefined,
+          queueMode: 'single',
+        };
+        const api = await invokeScoutExecute(kind, subContext as unknown as Record<string, unknown>, {
+          experimentalDebug: deps.experimentalDebug,
+        });
+        if (api.ok && api.result && api.result.kind === 'stage2_image_generator') {
+          await applyStage2ImageResult(deps, node.id, api.result);
+          lastSuccessResult = api.result;
+          successes += 1;
+          done = true;
+        } else if (attempt < 2) {
+          notifyWarning('Prompt generation failed', `Retrying prompt ${i + 1}/${promptItems.length} once.`);
+        } else {
+          failures += 1;
+          done = true;
+        }
+      }
+      deps.updateNodeData(node.id, {
+        queueCompleted: i + 1,
+        queueFailures: failures,
+        queueRetrying: false,
+      });
+    }
+
+    if (lastSuccessResult) {
+      runScoutComplianceChecks({
+        executionKind: kind,
+        context: normalizedContext,
+        result: lastSuccessResult,
+        usedMock: false,
+      });
+    }
+    deps.updateNodeData(node.id, {
+      status: successes > 0 ? 'success' : 'idle',
+      queueDone: true,
+      queueFailures: failures,
+    });
+    if (successes === 0) {
+      return { ok: false, reason: 'All prompt queue items failed.' };
+    }
+    return { ok: true };
+  }
+
   const api = await invokeScoutExecute(kind, normalizedContext as unknown as Record<string, unknown>, {
     experimentalDebug: deps.experimentalDebug,
   });
@@ -248,6 +356,10 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
 
   const result = api.result;
   const usedMock = Boolean(api.mock);
+
+  if (result.kind === 'stage2_image_generator') {
+    await applyStage2ImageResult(deps, node.id, result);
+  }
 
   if (kind === 'stage3_angle_variations' && result.kind === 'stage3_angle_variations') {
     const requested = normalizedContext.kind === 'stage3_angle_variations' ? normalizedContext.count : 0;
@@ -299,7 +411,11 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
     });
   }
 
-  if (result.kind !== 'stage4_lighting_batch' && !(result.kind === 'stage3_angle_variations' && targets.angleListNodeId)) {
+  if (
+    result.kind !== 'stage4_lighting_batch' &&
+    result.kind !== 'stage2_image_generator' &&
+    !(result.kind === 'stage3_angle_variations' && targets.angleListNodeId)
+  ) {
     const patches = mapScoutResultToNodePatches(result, targets);
     for (const [nid, data] of Object.entries(patches)) {
       deps.updateNodeData(nid, data);

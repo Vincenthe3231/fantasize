@@ -10,6 +10,7 @@ import {
 import { richTextToPlainForScout } from '@/lib/richTextForScout';
 import {
   isVideoUrl,
+  listNodeTextItemsFromNode,
   mergeTextPartsDedupe,
   upstreamImageItemsFromNode,
   upstreamPrimaryMediaLikeAssistant,
@@ -24,6 +25,7 @@ import {
   normalizeResolution,
   resolvePerspectiveIds,
 } from '@/lib/imageVariationsOptions';
+import { logicalPortId } from '@/lib/portHandles';
 import {
   Stage1ContextSchema,
   Stage2ImageGeneratorContextSchema,
@@ -279,13 +281,16 @@ export function resolveStage2ImageGeneratorContext(
   const negativePrompt = richTextToPlainForScout(String((n.data as { negativePrompt?: string })?.negativePrompt ?? ''));
   const mode = String((n.data as { mode?: string })?.mode ?? '');
   const aspect = String((n.data as { aspect?: string })?.aspect ?? '');
+  const images = Math.min(8, Math.max(1, Number((n.data as { images?: number })?.images ?? 1)));
 
   const incoming = incomingSources(edges, imageGeneratorNodeId).sort((a, b) => a.id.localeCompare(b.id));
   const wiredParts: string[] = [];
+  const promptItems: string[] = [];
   const anchorImageUrls: string[] = [];
   const anchorVideoUrls: string[] = [];
   const seenImg = new Set<string>();
   const seenVid = new Set<string>();
+  const seenPromptItems = new Set<string>();
 
   const pushImages = (src: Node) => {
     for (const it of upstreamImageItemsFromNode(src, nodes)) {
@@ -320,6 +325,14 @@ export function resolveStage2ImageGeneratorContext(
     const tk = handleKind(e.targetHandle);
 
     if (tk === 'text') {
+      if (src.type === 'listNode') {
+        for (const item of listNodeTextItemsFromNode(src)) {
+          const key = item.toLowerCase();
+          if (seenPromptItems.has(key)) continue;
+          seenPromptItems.add(key);
+          promptItems.push(item);
+        }
+      }
       const t = upstreamTextFromNode(src, nodes).trim();
       if (t) wiredParts.push(t);
       continue;
@@ -357,6 +370,7 @@ export function resolveStage2ImageGeneratorContext(
   }
 
   const wiredTextFromEdges = mergeTextPartsDedupe(wiredParts);
+  const queueMode = promptItems.length > 0 ? 'perPromptSequential' : 'single';
 
   const raw = {
     kind: 'stage2_image_generator' as const,
@@ -368,6 +382,9 @@ export function resolveStage2ImageGeneratorContext(
     negativePrompt: negativePrompt || undefined,
     mode: mode || undefined,
     aspect: aspect || undefined,
+    images,
+    promptItems: promptItems.length > 0 ? promptItems : undefined,
+    queueMode,
   };
 
   const parsed = Stage2ImageGeneratorContextSchema.safeParse(raw);
@@ -393,7 +410,7 @@ export function resolveStage2SetDressingContext(
   if (!setNode) return fail('Set dressing node not found.');
 
   const inc = incomingSources(edges, setDressingNodeId);
-  const byHandle = (h: string) => inc.find((e) => (e.targetHandle ?? 'default') === h);
+  const byHandle = (h: string) => inc.find((e) => logicalPortId(e.targetHandle) === h);
 
   const locEdge = byHandle('location-in');
   if (!locEdge) return fail('Connect location (Stage 1 upload) to Set dressing `location-in`.');
@@ -586,7 +603,7 @@ export function resolveStage4Context(
   if (lightingLabels.length === 0) return fail('Add at least one non-empty lighting condition.');
 
   const inc = incomingSources(edges, lightingScenarioNodeId);
-  const imgEdge = inc.find((e) => e.targetHandle === 'image-in' || !e.targetHandle);
+  const imgEdge = inc.find((e) => logicalPortId(e.targetHandle) === 'image-in' || !e.targetHandle);
   if (!imgEdge) return fail('Connect Selected shot to Lighting `image-in`.');
 
   const shot = nodes.find((n) => n.id === imgEdge.source && n.type === 'selectedShotNode');

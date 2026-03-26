@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Edge, Node } from 'reactflow';
 import { computeNodeInputPatch, computeReactivePatchesFromSources } from '@/lib/nodeDataflow';
+import { upstreamImageItemsFromNode, upstreamTextFromNode } from '@/lib/graphUpstreamPayload';
 
 function node(id: string, type: string, data: Record<string, unknown>): Node {
   return {
@@ -130,5 +131,92 @@ describe('nodeDataflow', () => {
     const edges: Edge[] = [edge('g1', 'img-1', 'group-out-text', 'text-in')];
     const patches = computeReactivePatchesFromSources(['t1', 'g1'], nodes, edges);
     expect(patches['img-1']?.prompt).toBe('From child');
+  });
+
+  it('propagates listNode text items to assistant text-in', () => {
+    const nodes: Node[] = [
+      node('list-1', 'listNode', {
+        items: [
+          { id: 't1', type: 'text', text: 'Lighting soft cool' },
+          { id: 't2', type: 'text', text: 'Golden hour warmth' },
+        ],
+      }),
+      node('assistant-1', 'assistantNode', { prompt: '' }),
+    ];
+    const edges: Edge[] = [edge('list-1', 'assistant-1', 'text-out', 'text-in')];
+    const patches = computeReactivePatchesFromSources(['list-1'], nodes, edges);
+    expect(patches['assistant-1']?.wiredTextFromEdges).toBe('Lighting soft cool\n\nGolden hour warmth');
+  });
+
+  it('propagates listNode text through chain to image generator prompt', () => {
+    const nodes: Node[] = [
+      node('list-1', 'listNode', {
+        items: [{ id: 't1', type: 'text', text: 'From list to IG' }],
+      }),
+      node('assistant-1', 'assistantNode', { prompt: '' }),
+      node('img-1', 'imageGeneratorNode', { prompt: '' }),
+    ];
+    const edges: Edge[] = [
+      edge('list-1', 'assistant-1', 'text-out', 'text-in'),
+      edge('assistant-1', 'img-1', 'text-out', 'text-in'),
+    ];
+    const patches = computeReactivePatchesFromSources(['list-1'], nodes, edges);
+    expect(patches['assistant-1']?.wiredTextFromEdges).toBe('From list to IG');
+    expect(patches['img-1']?.prompt).toBe('From list to IG');
+  });
+
+  it('propagates first listNode image item to image generator mediaUrl', () => {
+    const nodes: Node[] = [
+      node('list-1', 'listNode', {
+        items: [
+          { id: 'm1', type: 'image', mediaUrl: 'https://example.com/first.jpg', mediaName: 'First' },
+          { id: 'm2', type: 'image', mediaUrl: 'https://example.com/second.jpg', mediaName: 'Second' },
+        ],
+      }),
+      node('img-1', 'imageGeneratorNode', { mediaUrl: '' }),
+    ];
+    const edges: Edge[] = [edge('list-1', 'img-1', 'image-out', 'image-in')];
+    const patches = computeReactivePatchesFromSources(['list-1'], nodes, edges);
+    expect(patches['img-1']?.mediaUrl).toBe('https://example.com/first.jpg');
+  });
+
+  it('exposes listNode items via upstreamTextFromNode and upstreamImageItemsFromNode', () => {
+    const list = node('list-1', 'listNode', {
+      items: [
+        { id: 't1', type: 'text', text: 'Scout line' },
+        { id: 'm1', type: 'image', mediaUrl: 'https://example.com/x.png', mediaName: 'X' },
+      ],
+    });
+    const nodes: Node[] = [list];
+    expect(upstreamTextFromNode(list, nodes)).toBe('Scout line');
+    expect(upstreamImageItemsFromNode(list, nodes)).toEqual([
+      { url: 'https://example.com/x.png', label: 'X' },
+    ]);
+  });
+
+  it('propagates imageGenerator generatedUrls to listNode image-in and appends items', () => {
+    const nodes: Node[] = [
+      node('img-1', 'imageGeneratorNode', {
+        generatedUrl: 'https://example.com/a.png',
+        generatedUrls: ['https://example.com/a.png', 'https://example.com/b.png'],
+        generatedImageMetaByUrl: {
+          'https://example.com/a.png': { referer: 'https://vision-forge.local', generatedBy: 'img-1' },
+          'https://example.com/b.png': { referer: 'https://vision-forge.local', generatedBy: 'img-1' },
+        },
+      }),
+      node('list-2', 'listNode', {
+        items: [{ id: 't1', type: 'text', text: 'keep me' }],
+      }),
+    ];
+    const edges: Edge[] = [edge('img-1', 'list-2', 'image-out', 'image-in')];
+    const patches = computeReactivePatchesFromSources(['img-1'], nodes, edges);
+    const listItems = (patches['list-2']?.items as Array<Record<string, unknown>>) ?? [];
+    const imageItems = listItems.filter((it) => it.type === 'image');
+    expect(imageItems).toHaveLength(2);
+    expect(imageItems.map((it) => it.mediaUrl)).toEqual([
+      'https://example.com/a.png',
+      'https://example.com/b.png',
+    ]);
+    expect(String(imageItems[0]?.referer ?? '')).toBe('https://vision-forge.local');
   });
 });

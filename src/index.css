@@ -438,9 +438,13 @@
   z-index: 0 !important;
 }
 
+/*
+ * Must sit above nodes (z-index 1), static edges while connecting (z-index 2), and snip-mode edges (z-index 5).
+ * If z-index ties static edges (2), sibling paint order can hide the preview entirely.
+ */
 .react-flow .react-flow__viewport svg.react-flow__connectionline {
   position: relative;
-  z-index: 2 !important;
+  z-index: 10 !important;
   /* Full-viewport SVG must not sit above handles and steal drops while connecting */
   pointer-events: none !important;
 }
@@ -448,6 +452,17 @@
 .react-flow .react-flow__viewport .react-flow__nodes {
   position: relative;
   z-index: 1;
+}
+
+/*
+ * Snip (cut) tool: static edges default below nodes (z-index 0 vs 1), so wires under cards never receive
+ * pointer events. Lift the edges SVG above the whole node layer while snipping only — do not set
+ * pointer-events: none here (unlike vf-connecting-edge). If both snip and connection-drag classes apply,
+ * connecting-edge rules still neutralize hits until the drag ends.
+ */
+.vf-snip-tool .react-flow .react-flow__viewport svg.react-flow__edges:not(.react-flow__connectionline) {
+  position: relative;
+  z-index: 5 !important;
 }
 
 /*
@@ -479,7 +494,8 @@
   stroke: var(--edge-stroke);
   stroke-width: 2;
   opacity: 1;
-  transition: stroke 0.15s ease, stroke-width 0.15s ease, opacity 0.15s ease;
+  /* No transition: coordinates update every frame — transitions cause lag / “not from handle” glitch */
+  transition: none;
 }
 
 /* Ensure node wrapper allows overflow for action bars; hide RF outer border/selection ring (inner .glass-node uses .node-selected). */

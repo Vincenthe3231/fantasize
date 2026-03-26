@@ -29,7 +29,14 @@ function mergeImageLike(
   packets: NodeDataflowPacket[],
   kind: 'image' | 'video'
 ): NodeDataflowPacket | null {
-  const out: { url: string; label?: string }[] = [];
+  const out: {
+    url: string;
+    label?: string;
+    referer?: string;
+    generatedBy?: string;
+    timestamp?: number;
+    supabaseUrl?: string;
+  }[] = [];
   const seen = new Set<string>();
   for (const p of packets) {
     if (p.kind !== kind) continue;
@@ -37,7 +44,28 @@ function mergeImageLike(
       const url = item.url.trim();
       if (!url || seen.has(url)) continue;
       seen.add(url);
-      out.push({ url, label: item.label?.trim() || undefined });
+      out.push({
+        url,
+        label: item.label?.trim() || undefined,
+        ...(kind === 'image' ?
+          {
+            referer:
+              'referer' in item ? String((item as { referer?: string }).referer ?? '').trim() || undefined : undefined,
+            generatedBy:
+              'generatedBy' in item ?
+                String((item as { generatedBy?: string }).generatedBy ?? '').trim() || undefined
+              : undefined,
+            timestamp:
+              'timestamp' in item && typeof (item as { timestamp?: unknown }).timestamp === 'number' ?
+                (item as { timestamp?: number }).timestamp
+              : undefined,
+            supabaseUrl:
+              'supabaseUrl' in item ?
+                String((item as { supabaseUrl?: string }).supabaseUrl ?? '').trim() || undefined
+              : undefined,
+          }
+        : {}),
+      });
     }
   }
   if (out.length === 0) return null;

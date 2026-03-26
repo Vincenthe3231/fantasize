@@ -39,17 +39,46 @@ export function isUsableMultimodalImageUrl(url: string): boolean {
 
 export function buildStage2ImageGenFinalPrompt(context: Record<string, unknown>): string {
   const prompt = String(context.prompt ?? '').trim();
-  const wired = String(context.wiredTextFromEdges ?? '').trim();
-  const neg = String(context.negativePrompt ?? '').trim();
+  const wired = normalizeConstraintText(String(context.wiredTextFromEdges ?? '').trim());
+  const neg = normalizeConstraintText(String(context.negativePrompt ?? '').trim());
 
   if (!prompt && !wired && !neg) return '';
 
-  const payload: Record<string, string> = { stage: 'stage2_image_generator' };
+  const payload: Record<string, string> = {
+    stage: 'stage2_image_generator',
+    output: 'single photorealistic cinematic still',
+  };
   if (prompt) payload.prompt = prompt;
-  if (wired) payload.wiredFromEdges = wired;
+  if (wired) payload.contextConstraints = wired;
   if (neg) payload.negative = neg;
 
-  return `Image brief (TOON):\n${encode(payload)}`.trim();
+  const sections: string[] = [
+    'You are generating one final production image.',
+    'MUST KEEP (identity lock): Preserve room geometry, scene identity, and anchor-image structure.',
+    prompt ? `TARGET LOOK:\n${prompt}` : '',
+    wired ? `CONTEXT CONSTRAINTS:\n${wired}` : '',
+    neg ? `DO NOT:\n${neg}` : '',
+    'OUTPUT: Photorealistic cinematic still with coherent lighting and natural material response.',
+    `Image brief (TOON):\n${encode(payload)}`,
+  ].filter(Boolean);
+
+  return sections.join('\n\n').trim();
+}
+
+function normalizeConstraintText(input: string): string {
+  const parts = input
+    .split(/\n+/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const p of parts) {
+    const key = p.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(p);
+  }
+  return deduped.join('\n');
 }
 
 export function filterAnchorImageUrls(urls: unknown): string[] {

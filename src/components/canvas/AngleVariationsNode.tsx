@@ -93,6 +93,7 @@ const AngleVariationsNode = memo(({ id, data, selected }: NodeProps) => {
       >
         <NodeActionBar
           variant="multiImage"
+          runBusy={isRunning}
           onRun={runAndAccumulate}
           onDuplicate={() => duplicateNode(id)}
           onDelete={() => deleteNode(id)}

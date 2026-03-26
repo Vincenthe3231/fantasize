@@ -107,10 +107,19 @@ export const Stage2ImageGeneratorContextSchema = z
     negativePrompt: z.string().optional(),
     mode: z.string().optional(),
     aspect: z.string().optional(),
+    images: z.number().int().min(1).max(8).optional(),
+    promptItems: z.array(z.string().min(1)).optional(),
+    queueMode: z.enum(['single', 'perPromptSequential']).optional(),
   })
-  .refine((d) => d.prompt.trim().length > 0 || (d.wiredTextFromEdges?.trim().length ?? 0) > 0, {
-    message: 'Image generator needs a prompt on the node or non-empty text from a connected edge.',
-  });
+  .refine(
+    (d) =>
+      d.prompt.trim().length > 0 ||
+      (d.wiredTextFromEdges?.trim().length ?? 0) > 0 ||
+      ((d.promptItems?.length ?? 0) > 0),
+    {
+      message: 'Image generator needs a prompt on the node, non-empty text from edges, or prompt items.',
+    }
+  );
 
 export type Stage2ImageGeneratorContext = z.infer<typeof Stage2ImageGeneratorContextSchema>;
 
@@ -271,6 +280,17 @@ export const ScoutExecutionResultSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('stage2_image_generator'),
     generatedUrl: z.string(),
+    generatedUrls: z.array(z.string()).optional(),
+    generatedImageMetaByUrl: z
+      .record(
+        z.object({
+          referer: z.string().optional(),
+          generatedBy: z.string().optional(),
+          timestamp: z.number().optional(),
+          supabaseUrl: z.string().optional(),
+        })
+      )
+      .optional(),
     status: z.enum(['success', 'idle']).optional(),
   }),
   z.object({

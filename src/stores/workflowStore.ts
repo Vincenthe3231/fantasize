@@ -27,6 +27,7 @@ import {
   unionEdgeIdsByRunSource,
 } from '@/stores/workflowGraphUtils';
 import { createVirtualProductionScoutTemplate } from '@/stores/workflowScoutTemplate';
+import { migrateEdgesToScopedHandles } from '@/lib/portHandles';
 export type { ScoutPipelineState } from '@/lib/scoutPipeline';
 export type { ScoutRunOptions } from '@/lib/scoutRunCoordinator';
 const pendingNodeDataUpdates = new Map<
@@ -208,6 +209,10 @@ export interface WorkflowState {
   lastViewport: { x: number; y: number; zoom: number };
   setLastViewport: (v: { x: number; y: number; zoom: number }) => void;
   hydrateFromSpace: (space: HydratableSpace & { viewport?: { x: number; y: number; zoom: number } | null }) => void;
+  /** Merge graph/comments/settings from a row returned after save — preserves undo, scout pipeline, running state, focus. */
+  applySavedSpaceRowToStore: (
+    space: HydratableSpace & { viewport?: { x: number; y: number; zoom: number } | null }
+  ) => void;
 
   setNodesSilently: (nodes: Node[]) => void;
   setEdgesSilently: (edges: Edge[]) => void;
@@ -396,7 +401,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
 
   return {
     nodes: initialTemplate.nodes,
-    edges: initialTemplate.edges,
+    edges: migrateEdgesToScopedHandles(structuredClone(initialTemplate.edges)),
     comments: [],
     runningNodes: new Set(),
     runningEdges: new Set(),
@@ -474,7 +479,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       const vp = space.viewport ?? { x: 0, y: 0, zoom: 1 };
       set({
         nodes: structuredClone(space.nodes),
-        edges: structuredClone(space.edges),
+        edges: migrateEdgesToScopedHandles(structuredClone(space.edges)),
         comments: structuredClone(space.comments || []),
         nodeGridLayouts: structuredClone(space.node_grid_layouts || {}),
         settings: merged,
@@ -490,6 +495,43 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       });
       document.body.setAttribute('data-theme', merged.darkMode ? 'dark' : 'light');
       document.body.setAttribute('data-performance', String(merged.performanceMode));
+    },
+
+    applySavedSpaceRowToStore: (space) => {
+      const st = get();
+      const baseSettings = st.settings;
+      const merged: WorkflowSettings = {
+        ...baseSettings,
+        ...(space.settings && typeof space.settings === 'object' ? space.settings : {}),
+      };
+      const vp = space.viewport ?? st.lastViewport;
+      const byId = new Map(st.nodes.map((n) => [n.id, n]));
+      const nextNodes = space.nodes.map((sn) => {
+        const live = byId.get(sn.id);
+        return {
+          ...structuredClone(sn),
+          selected: live?.selected ?? false,
+          dragging: false,
+          resizing: false,
+        };
+      });
+      const byEid = new Map(st.edges.map((e) => [e.id, e]));
+      const nextEdges = migrateEdgesToScopedHandles(space.edges).map((se) => {
+        const live = byEid.get(se.id);
+        return { ...structuredClone(se), selected: live?.selected ?? false };
+      });
+      set({
+        nodes: nextNodes,
+        edges: nextEdges,
+        comments: structuredClone(space.comments || []),
+        nodeGridLayouts: structuredClone(space.node_grid_layouts || {}),
+        settings: merged,
+        currentSpaceId: space.id,
+        lastViewport: vp,
+      });
+      document.body.setAttribute('data-theme', merged.darkMode ? 'dark' : 'light');
+      document.body.setAttribute('data-performance', String(merged.performanceMode));
+      applyReactiveDataflow([], true);
     },
 
     setNodesSilently: (nodes) => {
@@ -1227,7 +1269,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         comments: structuredClone(s.comments),
       };
       const afterNodes = structuredClone(nodes);
-      const afterEdges = structuredClone(edges);
+      const afterEdges = migrateEdgesToScopedHandles(structuredClone(edges));
       set({
         nodes: afterNodes,
         edges: afterEdges,

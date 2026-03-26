@@ -37,6 +37,37 @@ export function mergeTextPartsDedupe(parts: string[]): string {
   return out.join('\n\n');
 }
 
+/** Matches ListNode `data.items` entries. */
+type ListNodeItem = {
+  type?: string;
+  text?: string;
+  mediaUrl?: string;
+  mediaName?: string;
+  referer?: string;
+  generatedBy?: string;
+  timestamp?: number;
+  supabaseUrl?: string;
+};
+
+/** Plain text from listNode `items` (text rows only, array order, then deduped like group merge). */
+export function listNodeTextFromNode(n: Node): string {
+  if (n.type !== 'listNode') return '';
+  return mergeTextPartsDedupe(listNodeTextItemsFromNode(n));
+}
+
+/** Ordered non-empty text cells from ListNode items (no dedupe, no merge). */
+export function listNodeTextItemsFromNode(n: Node): string[] {
+  if (n.type !== 'listNode') return [];
+  const items = ((n.data as { items?: ListNodeItem[] })?.items ?? []) as ListNodeItem[];
+  const out: string[] = [];
+  for (const it of items) {
+    if (it.type !== 'text') continue;
+    const t = String(it.text ?? '').trim();
+    if (t) out.push(t);
+  }
+  return out;
+}
+
 /** Text from a single non-group node (assistant / IG / text / placement). */
 export function leafTextFromNode(n: Node): string {
   if (n.type === 'textNode') {
@@ -65,6 +96,9 @@ export function leafTextFromNode(n: Node): string {
   if (n.type === 'imageGeneratorNode') {
     return richTextToPlainForScout(String((n.data as { prompt?: string })?.prompt ?? ''));
   }
+  if (n.type === 'listNode') {
+    return listNodeTextFromNode(n);
+  }
   return '';
 }
 
@@ -89,20 +123,70 @@ export function upstreamTextFromNode(n: Node | undefined, nodes: Node[]): string
   return leafTextFromNode(n);
 }
 
-export type UpstreamMediaItem = { url: string; label?: string };
+export type UpstreamMediaItem = {
+  url: string;
+  label?: string;
+  referer?: string;
+  generatedBy?: string;
+  timestamp?: number;
+  supabaseUrl?: string;
+};
+
+/** Non-video image URLs from listNode `items` (order preserved). */
+export function listNodeImageItemsFromNode(n: Node): UpstreamMediaItem[] {
+  if (n.type !== 'listNode') return [];
+  const items = ((n.data as { items?: ListNodeItem[] })?.items ?? []) as ListNodeItem[];
+  const out: UpstreamMediaItem[] = [];
+  for (const it of items) {
+    if (it.type !== 'image') continue;
+    const url = String(it.mediaUrl ?? '').trim();
+    if (!url || isVideoUrl(url)) continue;
+    const label = String(it.mediaName ?? '').trim() || undefined;
+    const referer = String(it.referer ?? '').trim() || undefined;
+    const generatedBy = String(it.generatedBy ?? '').trim() || undefined;
+    const timestamp = typeof it.timestamp === 'number' ? it.timestamp : undefined;
+    const supabaseUrl = String(it.supabaseUrl ?? '').trim() || undefined;
+    out.push({
+      url,
+      label,
+      ...(referer ? { referer } : {}),
+      ...(generatedBy ? { generatedBy } : {}),
+      ...(timestamp ? { timestamp } : {}),
+      ...(supabaseUrl ? { supabaseUrl } : {}),
+    });
+  }
+  return out;
+}
 
 /** Image-like URLs from one non-group node (no recursion into child groups). */
 export function leafImageItemsFromNode(n: Node): UpstreamMediaItem[] {
+  if (n.type === 'listNode') {
+    return listNodeImageItemsFromNode(n);
+  }
   if (n.type === 'uploadNode') {
     const url = uploadMediaUrl(n);
     if (!url || isVideoUrl(url)) return [];
     return [{ url, label: uploadLabelText(n) || undefined }];
   }
   if (n.type === 'imageGeneratorNode') {
-    const url = String((n.data as { generatedUrl?: string })?.generatedUrl ?? '').trim();
-    if (!url) return [];
-    const label = String((n.data as { labelText?: string })?.labelText ?? '').trim() || undefined;
-    return [{ url, label }];
+    const d = (n.data ?? {}) as {
+      generatedUrl?: string;
+      generatedUrls?: string[];
+      labelText?: string;
+      generatedImageMetaByUrl?: Record<
+        string,
+        { referer?: string; generatedBy?: string; timestamp?: number; supabaseUrl?: string }
+      >;
+    };
+    const urls = [
+      ...(Array.isArray(d.generatedUrls) ? d.generatedUrls.map((u) => String(u ?? '').trim()) : []),
+      String(d.generatedUrl ?? '').trim(),
+    ].filter(Boolean);
+    if (urls.length === 0) return [];
+    const label = String(d.labelText ?? '').trim() || undefined;
+    const metaByUrl = d.generatedImageMetaByUrl ?? {};
+    const unique = [...new Set(urls)];
+    return unique.map((url) => ({ url, label, ...(metaByUrl[url] ?? {}) }));
   }
   if (n.type === 'propsInputNode') {
     const slots = effectiveScoutPropSlots((n.data ?? {}) as Record<string, unknown>);
@@ -228,7 +312,10 @@ export function upstreamPrimaryMediaLikeAssistant(n: Node | undefined, nodes: No
     return { url, label: uploadLabelText(n) || undefined };
   }
   if (n.type === 'imageGeneratorNode') {
-    const url = String((n.data as { generatedUrl?: string })?.generatedUrl ?? '').trim();
+    const d = (n.data ?? {}) as { generatedUrl?: string; generatedUrls?: string[] };
+    const url =
+      (Array.isArray(d.generatedUrls) ? d.generatedUrls.map((u) => String(u ?? '').trim()).find(Boolean) : '') ||
+      String(d.generatedUrl ?? '').trim();
     if (!url) return null;
     const label = String((n.data as { labelText?: string })?.labelText ?? '').trim() || undefined;
     return { url, label };
@@ -238,6 +325,10 @@ export function upstreamPrimaryMediaLikeAssistant(n: Node | undefined, nodes: No
     const first = slots.find((p) => p.label?.trim() && p.src?.trim());
     if (!first) return null;
     return { url: first.src!.trim(), label: first.label!.trim() };
+  }
+  if (n.type === 'listNode') {
+    const items = listNodeImageItemsFromNode(n);
+    return items[0] ?? null;
   }
   return null;
 }

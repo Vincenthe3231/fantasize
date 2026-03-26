@@ -2,6 +2,7 @@ import { useMemo, useCallback } from 'react';
 import type { Edge, XYPosition } from 'reactflow';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import type { ConnectMenuItem } from '@/components/canvas/NodeActionBar';
+import { makeWorkflowEdge } from '@/lib/portHandles';
 
 export type QuickConnectEdgeHint = {
   sourceHandle?: string;
@@ -14,22 +15,6 @@ export type QuickConnectOverrides = {
   imageUpscaler?: QuickConnectEdgeHint;
   assistant?: QuickConnectEdgeHint;
 };
-
-function makeEdge(
-  source: string,
-  target: string,
-  sourceHandle?: string | null,
-  targetHandle?: string | null
-): Edge {
-  return {
-    id: `e-${source}-${target}-${Date.now()}`,
-    source,
-    target,
-    sourceHandle: sourceHandle ?? undefined,
-    targetHandle: targetHandle ?? undefined,
-    type: 'custom',
-  };
-}
 
 /**
  * "Connect" menu: spawn Image Generator, Video Generator, Image Upscaler, or Assistant to the right and wire an edge.
@@ -58,28 +43,28 @@ export function useQuickConnect(nodeId: string, selfPosition: XYPosition, overri
         label: 'Image Generator',
         onClick: () => {
           const nid = addNode('imageGeneratorNode', { x: selfPosition.x + 340, y: selfPosition.y });
-          wireEdge(makeEdge(nodeId, nid, ig.sourceHandle, ig.targetHandle));
+          wireEdge(makeWorkflowEdge(nodeId, nid, ig.sourceHandle, ig.targetHandle));
         },
       },
       {
         label: 'Video Generator',
         onClick: () => {
           const nid = addNode('videoGeneratorNode', { x: selfPosition.x + 340, y: selfPosition.y });
-          wireEdge(makeEdge(nodeId, nid, vg.sourceHandle, vg.targetHandle));
+          wireEdge(makeWorkflowEdge(nodeId, nid, vg.sourceHandle, vg.targetHandle));
         },
       },
       {
         label: 'Image Upscaler',
         onClick: () => {
           const nid = addNode('imageUpscalerNode', { x: selfPosition.x + 340, y: selfPosition.y });
-          wireEdge(makeEdge(nodeId, nid, up.sourceHandle, up.targetHandle));
+          wireEdge(makeWorkflowEdge(nodeId, nid, up.sourceHandle, up.targetHandle));
         },
       },
       {
         label: 'Assistant',
         onClick: () => {
           const nid = addNode('assistantNode', { x: selfPosition.x + 340, y: selfPosition.y });
-          wireEdge(makeEdge(nodeId, nid, as.sourceHandle, as.targetHandle));
+          wireEdge(makeWorkflowEdge(nodeId, nid, as.sourceHandle, as.targetHandle));
         },
       },
     ];

@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useCallback } from 'react';
 import { type NodeProps } from 'reactflow';
-import { List, Plus, X, Check, Type, ImageIcon, Copy, FolderOpen, SlidersHorizontal, Sparkles, LayoutList, LayoutGrid, Settings, ChevronDown } from 'lucide-react';
+import { List, Plus, X, Check, Type, ImageIcon, Copy, FolderOpen, SlidersHorizontal, Sparkles, LayoutList, LayoutGrid, Settings, ChevronDown, Download, ExternalLink } from 'lucide-react';
 import { Reorder, AnimatePresence, motion } from 'framer-motion';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -17,6 +17,10 @@ interface ListItem {
   text?: string;
   mediaUrl?: string;
   mediaName?: string;
+  referer?: string;
+  generatedBy?: string;
+  timestamp?: number;
+  supabaseUrl?: string;
 }
 
 const ListNode = memo(({ id, data, selected }: NodeProps) => {
@@ -58,6 +62,44 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
 
   const removeItem = (itemId: string) => {
     setItems(items.filter((i) => i.id !== itemId));
+  };
+
+  const openImage = (url: string) => {
+    const u = url.trim();
+    if (!u) return;
+    window.open(u, '_blank', 'noopener,noreferrer');
+  };
+
+  const downloadImage = (url: string, fallbackName: string) => {
+    const u = url.trim();
+    if (!u) return;
+    try {
+      if (u.startsWith('data:')) {
+        const a = document.createElement('a');
+        a.href = u;
+        const ext =
+          u.startsWith('data:image/png') ? 'png'
+          : u.startsWith('data:image/jpeg') || u.startsWith('data:image/jpg') ? 'jpg'
+          : u.startsWith('data:image/webp') ? 'webp'
+          : u.startsWith('data:image/gif') ? 'gif'
+          : 'png';
+        a.download = `${fallbackName}.${ext}`;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      }
+      const a = document.createElement('a');
+      a.href = u;
+      a.download = fallbackName;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {
+      window.open(u, '_blank', 'noopener,noreferrer');
+    }
   };
 
   const textItems = items.filter((i) => i.type === 'text');
@@ -196,8 +238,27 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                             <img src={item.mediaUrl || '/placeholder.svg'} alt={item.mediaName} className="h-14 w-14 shrink-0 rounded-lg bg-[var(--node-control-bg)] object-cover" />
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-[12px] text-[var(--node-control-text)]" style={{ fontFamily: 'Inter, sans-serif' }}>{item.mediaName}</p>
-                              <p className="mt-0.5 font-mono text-[11px] text-[var(--node-control-muted)]">1024 × 768</p>
+                              <p className="mt-0.5 font-mono text-[11px] text-[var(--node-control-muted)]">
+                                {item.generatedBy ? 'Generated' : 'Uploaded'}
+                                {item.referer ? ` • ${item.referer}` : ''}
+                              </p>
                             </div>
+                            <button
+                              type="button"
+                              onClick={() => openImage(item.supabaseUrl || item.mediaUrl || '')}
+                              className="shrink-0 text-[var(--node-control-muted)] opacity-0 transition-opacity hover:text-[var(--node-control-text)] group-hover:opacity-100"
+                              title="Open preview"
+                            >
+                              <ExternalLink size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => downloadImage(item.supabaseUrl || item.mediaUrl || '', item.mediaName || `image-${item.id}`)}
+                              className="shrink-0 text-[var(--node-control-muted)] opacity-0 transition-opacity hover:text-[var(--node-control-text)] group-hover:opacity-100"
+                              title="Download image"
+                            >
+                              <Download size={11} />
+                            </button>
                             <button type="button" onClick={() => removeItem(item.id)} className="shrink-0 text-[var(--node-control-muted)] opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"><X size={11} /></button>
                           </div>
                         </Reorder.Item>
@@ -208,6 +269,22 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                       {imageItems.map((item) => (
                         <div key={item.id} className="group relative aspect-square overflow-hidden rounded-xl bg-[var(--node-control-bg)]">
                           <img src={item.mediaUrl || '/placeholder.svg'} alt={item.mediaName} className="h-full w-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => openImage(item.supabaseUrl || item.mediaUrl || '')}
+                            className="absolute left-1 top-1 z-10 rounded-full bg-[var(--node-badge-bg)] p-0.5 text-[var(--node-overlay-text)] opacity-0 transition-opacity group-hover:opacity-100"
+                            title="Open preview"
+                          >
+                            <ExternalLink size={10} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => downloadImage(item.supabaseUrl || item.mediaUrl || '', item.mediaName || `image-${item.id}`)}
+                            className="absolute left-7 top-1 z-10 rounded-full bg-[var(--node-badge-bg)] p-0.5 text-[var(--node-overlay-text)] opacity-0 transition-opacity group-hover:opacity-100"
+                            title="Download image"
+                          >
+                            <Download size={10} />
+                          </button>
                           <button type="button" onClick={() => removeItem(item.id)} className="absolute right-1 top-1 z-10 rounded-full bg-[var(--node-badge-bg)] p-0.5 text-[var(--node-overlay-text)] opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"><X size={10} /></button>
                         </div>
                       ))}

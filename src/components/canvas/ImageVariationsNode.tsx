@@ -3,6 +3,7 @@ import { type NodeProps } from 'reactflow';
 import {
   Layers,
   Play,
+  Loader2,
   User,
   Wand2,
   Users,
@@ -136,6 +137,7 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
       >
         <NodeActionBar
           variant="multiImage"
+          runBusy={isRunning}
           onRun={runAndAccumulate}
           onDuplicate={() => duplicateNode(id)}
           onDelete={() => deleteNode(id)}
@@ -364,14 +366,19 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
 
                     <button
                       type="button"
-                      className="w-10 h-10 rounded-full bg-[var(--accent-color)] text-[var(--node-on-accent)] flex items-center justify-center hover:bg-[var(--accent-hover)] shrink-0"
+                      disabled={isRunning}
+                      className="w-10 h-10 rounded-full bg-[var(--accent-color)] text-[var(--node-on-accent)] flex items-center justify-center hover:bg-[var(--accent-hover)] disabled:opacity-50 shrink-0"
                       title="Run"
                       onClick={(e) => {
                         e.stopPropagation();
                         runAndAccumulate();
                       }}
                     >
-                      <Play size={18} className="ml-0.5" />
+                      {isRunning ? (
+                        <Loader2 size={18} className="animate-spin" />
+                      ) : (
+                        <Play size={18} className="ml-0.5" />
+                      )}
                     </button>
                   </div>
                 </div>

@@ -49,6 +49,16 @@ function resolveTemperature(context: Record<string, unknown>, defaultTemp: numbe
   return defaultTemp;
 }
 
+function resolveSeed(context: Record<string, unknown>): number | undefined {
+  const raw = context.seed;
+  if (typeof raw === 'number' && Number.isInteger(raw) && raw >= 0) return raw;
+  if (typeof raw === 'string' && raw.trim()) {
+    const parsed = Number(raw);
+    if (Number.isInteger(parsed) && parsed >= 0) return parsed;
+  }
+  return undefined;
+}
+
 function extractFirstImageDataUrl(message: Record<string, unknown>): string | null {
   const imgs = message.images as Array<Record<string, unknown>> | undefined;
   if (!imgs?.length) return null;
@@ -70,6 +80,7 @@ export async function generateStage2ImageViaOpenRouter(
   const userParts = buildStage2ImageGenUserContentParts(context);
   const aspect = aspectToOpenRouterImageConfig(String(context.aspect ?? ''));
   const temperature = resolveTemperature(context, 0.4);
+  const seed = resolveSeed(context);
 
   const openrouter = new OpenRouter({
     apiKey: apiKey.trim(),
@@ -86,6 +97,7 @@ export async function generateStage2ImageViaOpenRouter(
       modalities,
       stream: false,
       temperature,
+      ...(seed != null ? { seed } : {}),
       ...(aspect ? { imageConfig: aspect } : {}),
     },
   });
@@ -128,6 +140,46 @@ export async function generateStage2ImageViaOpenRouter(
       promptTextLength: promptLen,
       aspect: String(context.aspect ?? '') || undefined,
       temperature,
+      seed,
+    },
+  };
+}
+
+export async function generateStage2ImagesViaOpenRouter(
+  context: Record<string, unknown>,
+  apiKey: string
+): Promise<{ generatedUrls: string[]; meta: Record<string, unknown> }> {
+  const requested = Math.min(8, Math.max(1, Number(context.images ?? 1)));
+  const baseSeed =
+    typeof context.seed === 'number' && Number.isInteger(context.seed) && context.seed >= 0 ?
+      context.seed
+    : Number(Date.now() % 1000000);
+  const generatedUrls: string[] = [];
+  const perImageMeta: Record<string, unknown>[] = [];
+  for (let idx = 0; idx < requested; idx++) {
+    const nextContext: Record<string, unknown> = {
+      ...context,
+      temperature:
+        typeof context.temperature === 'number' ?
+          Math.min(2, Math.max(0, Number(context.temperature) + idx * 0.05))
+        : 0.4 + idx * 0.05,
+      prompt:
+        requested > 1 ?
+          `${String(context.prompt ?? '').trim()}\n\nVariation ${idx + 1} of ${requested}: keep scene identity while making composition and detail choices distinct.`
+        : String(context.prompt ?? ''),
+      seed: baseSeed + idx,
+    };
+    const { generatedUrl, meta } = await generateStage2ImageViaOpenRouter(nextContext, apiKey);
+    generatedUrls.push(generatedUrl);
+    perImageMeta.push(meta);
+  }
+  return {
+    generatedUrls,
+    meta: {
+      executionKind: 'stage2_image_generator',
+      requested,
+      returned: generatedUrls.length,
+      perImageMeta,
     },
   };
 }

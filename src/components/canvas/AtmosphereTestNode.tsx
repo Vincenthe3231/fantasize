@@ -1,6 +1,6 @@
 import { memo, useMemo, useCallback, useRef } from 'react';
 import { type NodeProps } from 'reactflow';
-import { Cloud, Download, ImageIcon } from 'lucide-react';
+import { Cloud, Download, ImageIcon, Loader2 } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import NodeActionBar from './NodeActionBar';
 import { NodeContentFocus } from './NodeContentFocus';
@@ -151,6 +151,7 @@ const AtmosphereTestNode = memo(({ id, selected, data }: NodeProps) => {
       >
         <NodeActionBar
           variant="multiImage"
+          runBusy={isRunning}
           onRun={() => runFromNode(id, { atmosphereBranch: 'text' })}
           onDuplicate={() => duplicateNode(id)}
           onDelete={() => deleteNode(id)}
@@ -189,9 +190,11 @@ const AtmosphereTestNode = memo(({ id, selected, data }: NodeProps) => {
               </div>
               <button
                 type="button"
-                className={`${NODE_INTERACTIVE_CLASS} w-full rounded-lg bg-[var(--accent-color)]/20 py-1.5 text-[11px] font-mono-display uppercase text-[var(--accent-color)]`}
+                disabled={isRunning}
+                className={`${NODE_INTERACTIVE_CLASS} flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--accent-color)]/20 py-1.5 text-[11px] font-mono-display uppercase text-[var(--accent-color)] disabled:cursor-not-allowed disabled:opacity-50`}
                 onClick={runTextBatch}
               >
+                {isRunning ? <Loader2 size={14} className="animate-spin" /> : null}
                 Run text batch
               </button>
             </div>
@@ -213,9 +216,11 @@ const AtmosphereTestNode = memo(({ id, selected, data }: NodeProps) => {
               <input ref={refInputRef} type="file" accept="image/*" className="sr-only" onChange={onRefFile} />
               <button
                 type="button"
-                className={`${NODE_INTERACTIVE_CLASS} w-full rounded-lg bg-violet-500/20 py-1.5 text-[11px] font-mono-display uppercase text-violet-300`}
+                disabled={isRunning}
+                className={`${NODE_INTERACTIVE_CLASS} flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500/20 py-1.5 text-[11px] font-mono-display uppercase text-violet-300 disabled:cursor-not-allowed disabled:opacity-50`}
                 onClick={runReferenceBatch}
               >
+                {isRunning ? <Loader2 size={14} className="animate-spin" /> : null}
                 Run reference batch
               </button>
             </div>

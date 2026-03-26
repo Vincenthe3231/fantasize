@@ -35,6 +35,7 @@ import { RichTextField } from '@/components/rich-text/RichTextField';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { IMAGE_GENERATOR_MODES } from '@/lib/imageGeneratorModes';
 import { notifyInfo } from '@/lib/systemNotify';
+import { makeWorkflowEdge } from '@/lib/portHandles';
 
 function downloadFromImageUrl(url: string, basename: string) {
   const trimmed = url.trim();
@@ -63,22 +64,6 @@ function downloadFromImageUrl(url: string, basename: string) {
   }
 }
 
-function makeEdge(
-  source: string,
-  target: string,
-  sourceHandle?: string | null,
-  targetHandle?: string | null
-) {
-  return {
-    id: `e-${source}-${target}-${Date.now()}`,
-    source,
-    target,
-    sourceHandle: sourceHandle ?? undefined,
-    targetHandle: targetHandle ?? undefined,
-    type: 'custom' as const,
-  };
-}
-
 const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
@@ -93,16 +78,24 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
   const prompt = (data.prompt as string) || '';
   const mode = (data.mode as string) || 'Auto';
   const aspect = (data.aspect as string) || '16:9';
-  const images = Math.min(4, Math.max(1, (data.images as number) || 1));
+  const images = Math.min(8, Math.max(1, (data.images as number) || 1));
   const negativePrompt = (data.negativePrompt as string) || '';
   const status = (data.status as string) || 'idle';
-  const generatedUrl = (data.generatedUrl as string) || '';
+  const queueTotal = Math.max(0, Number(data.queueTotal ?? 0));
+  const queueCompleted = Math.max(0, Number(data.queueCompleted ?? 0));
+  const queueCurrentPrompt = Math.max(1, Number(data.queueCurrentPrompt ?? 1));
+  const queueFailures = Math.max(0, Number(data.queueFailures ?? 0));
+  const queueRetrying = Boolean(data.queueRetrying);
+  const generatedUrls = Array.isArray(data.generatedUrls)
+    ? (data.generatedUrls as unknown[]).map((u) => String(u ?? '').trim()).filter(Boolean)
+    : [];
+  const generatedUrl = generatedUrls[0] || (data.generatedUrl as string) || '';
   const negativePromptOpen = Boolean(data.negativePromptOpen);
 
   const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
 
   const wireEdge = useCallback(
-    (newEdge: ReturnType<typeof makeEdge>) => {
+    (newEdge: ReturnType<typeof makeWorkflowEdge>) => {
       const s = useWorkflowStore.getState();
       connectEdgeWithHistory([...s.edges, newEdge], newEdge);
     },
@@ -111,17 +104,17 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
 
   const quickTextLeft = useCallback(() => {
     const nid = addNode('textNode', { x: selfPos.x - 300, y: selfPos.y });
-    wireEdge(makeEdge(nid, id, 'text-out', 'text-in'));
+    wireEdge(makeWorkflowEdge(nid, id, 'text-out', 'text-in'));
   }, [addNode, selfPos, id, wireEdge]);
 
   const quickImageLeft = useCallback(() => {
     const nid = addNode('imageGeneratorNode', { x: selfPos.x - 320, y: selfPos.y + 20 });
-    wireEdge(makeEdge(nid, id, 'image-out', 'image-in'));
+    wireEdge(makeWorkflowEdge(nid, id, 'image-out', 'image-in'));
   }, [addNode, selfPos, id, wireEdge]);
 
   const quickImageRight = useCallback(() => {
     const nid = addNode('imageGeneratorNode', { x: selfPos.x + 340, y: selfPos.y });
-    wireEdge(makeEdge(id, nid, 'text-out', 'text-in'));
+    wireEdge(makeWorkflowEdge(id, nid, 'text-out', 'text-in'));
   }, [addNode, selfPos, id, wireEdge]);
 
   const { connectMenuItems } = useQuickConnect(id, selfPos);
@@ -138,15 +131,7 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
     }
   }, [generatedUrl, id]);
 
-  const handleRun = () => {
-    if (!prompt.trim()) return;
-    updateNodeData(id, { status: 'generating' });
-    setTimeout(() => {
-      updateNodeData(id, { status: 'success', generatedUrl: '/placeholder.svg' });
-    }, 2000);
-  };
-
-  const canRun = prompt.trim().length > 0 && status !== 'generating';
+  const canRun = status !== 'generating';
 
   const FloatBtn = ({
     children,
@@ -187,6 +172,7 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
       >
       <NodeActionBar
         variant="imageGen"
+        runBusy={isRunning}
         onRun={() => runFromNode(id)}
         onDuplicate={() => duplicateNode(id)}
         onDelete={() => deleteNode(id)}
@@ -206,7 +192,7 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
           <div className="rounded-[10px] overflow-hidden bg-[var(--node-inner-deep)] flex min-h-[220px] flex-1 flex-col min-w-0">
             <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
               <AnimatePresence>
-                {status === 'success' && generatedUrl && (
+                {status === 'success' && generatedUrl && generatedUrls.length <= 1 && (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -220,10 +206,50 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
                   </motion.div>
                 )}
               </AnimatePresence>
+              {status === 'success' && generatedUrls.length > 1 && (
+                <div className="h-full w-full overflow-auto p-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    {generatedUrls.map((url, idx) => (
+                      <div
+                        key={`${id}-gen-${idx}`}
+                        className="group relative aspect-square overflow-hidden rounded-lg bg-[var(--node-control-bg)]"
+                      >
+                        <img
+                          src={url}
+                          alt={`Generated ${idx + 1}`}
+                          className="h-full w-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadFromImageUrl(url, `image-${id}-${idx + 1}`);
+                          }}
+                          className="absolute right-1 top-1 rounded-md bg-[var(--node-badge-bg)] p-1 text-[var(--node-overlay-text)] opacity-0 transition-opacity group-hover:opacity-100"
+                          title="Download image"
+                        >
+                          <Download size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {status === 'generating' && (
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 py-8">
                   <Loader2 size={24} className="animate-spin text-[var(--accent-color)]" />
-                  <span className="text-[11px] font-mono-display text-[var(--text-muted)]">Generating…</span>
+                  <span className="text-[11px] font-mono-display text-[var(--text-muted)]">
+                    {queueTotal > 0 ?
+                      `Prompt ${Math.min(queueCurrentPrompt, queueTotal)}/${queueTotal} • ${images} image${images === 1 ? '' : 's'} each`
+                    : `Generating ${images} image${images === 1 ? '' : 's'}…`}
+                  </span>
+                  {queueTotal > 0 && (
+                    <span className="text-[10px] font-mono-display text-[var(--node-control-muted)]">
+                      Completed {Math.min(queueCompleted, queueTotal)}/{queueTotal}
+                      {queueFailures > 0 ? ` • failures ${queueFailures}` : ''}
+                      {queueRetrying ? ' • retrying' : ''}
+                    </span>
+                  )}
                 </div>
               )}
               {status !== 'generating' && status !== 'success' && (
@@ -252,7 +278,7 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    updateNodeData(id, { images: Math.min(4, images + 1) });
+                    updateNodeData(id, { images: Math.min(8, images + 1) });
                   }}
                   className="p-1 rounded text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)]"
                 >
@@ -363,17 +389,22 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
               </button>
 
               <div className="flex-1 min-w-[4px]" />
+              {generatedUrls.length > 1 && (
+                <span className="text-[10px] font-mono-display text-[var(--node-control-muted)]">
+                  {generatedUrls.length} outputs
+                </span>
+              )}
 
               <button
                 type="button"
-                disabled={!canRun}
+                disabled={!canRun || isRunning}
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleRun();
+                  runFromNode(id);
                 }}
                 className="w-10 h-10 rounded-full bg-[var(--accent-color)] text-[var(--node-on-accent)] flex items-center justify-center hover:bg-[var(--accent-hover)] disabled:opacity-35 disabled:grayscale shrink-0"
               >
-                {status === 'generating' ? (
+                {status === 'generating' || isRunning ? (
                   <Loader2 size={18} className="animate-spin" />
                 ) : (
                   <Play size={18} className="ml-0.5" />

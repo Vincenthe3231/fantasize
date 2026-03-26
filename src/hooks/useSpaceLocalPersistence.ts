@@ -18,6 +18,39 @@ import {
 } from '@/lib/persistenceConsole';
 import { useWorkflowStore, type WorkflowState } from '@/stores/workflowStore';
 import { queryClient } from '@/lib/queryClient';
+import { notifyError } from '@/lib/systemNotify';
+import {
+  sanitizeSnapshotForRemoteSave,
+  normalizeSnapshotMediaForRemoteSave,
+  estimateSnapshotBytes,
+  listLargestNodeDataFields,
+  isPostgresStatementTimeoutError,
+} from '@/lib/spacePayloadOptimizer';
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function saveSpaceWithRetries(
+  spaceId: string,
+  prepared: CanvasSnapshotPayload
+): Promise<SpaceRow> {
+  const delays = [0, 500, 1500];
+  let lastErr: unknown;
+  for (let i = 0; i < delays.length; i++) {
+    if (delays[i] > 0) await sleep(delays[i]);
+    try {
+      return await saveSpace(spaceId, prepared);
+    } catch (e) {
+      lastErr = e;
+      if (!isPostgresStatementTimeoutError(e) || i === delays.length - 1) throw e;
+      if (import.meta.env.DEV) {
+        console.warn('[VF:persistence] save retry after statement timeout', { attempt: i + 1 });
+      }
+    }
+  }
+  throw lastErr;
+}
 
 export type SpacePersistenceOpts = {
   /** Baseline so cross-tab detection does not fire before first paint (draft or server time ms) */
@@ -189,6 +222,8 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
     }
     logRemoteFlush('start', { spaceId, reason });
     const t0 = performance.now();
+    let lastPayloadBytesBefore = 0;
+    let lastPayloadBytesAfter = 0;
     try {
       await waitForPersistenceSettled();
 
@@ -197,15 +232,39 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
       for (let attempt = 0; attempt < MAX_SAVE_ATTEMPTS; attempt++) {
         await waitForPersistenceSettled();
         const lastSnap = snapshotFromStore();
-        const t = await writeSpaceDraft(spaceId, remoteBaselineRef.current, lastSnap, {
+        const sanitized = sanitizeSnapshotForRemoteSave(lastSnap);
+        const bytesBefore = estimateSnapshotBytes(sanitized);
+        lastPayloadBytesBefore = bytesBefore;
+        if (import.meta.env.DEV) {
+          const top = listLargestNodeDataFields(sanitized.nodes, 8);
+          if (top.length) {
+            console.info('[VF:persistence] largest node.data fields (UTF-8 bytes)', top);
+          }
+        }
+        const prepared = await normalizeSnapshotMediaForRemoteSave(sanitized);
+        const bytesAfter = estimateSnapshotBytes(prepared);
+        lastPayloadBytesAfter = bytesAfter;
+
+        const t = await writeSpaceDraft(spaceId, remoteBaselineRef.current, prepared, {
           everyWrite: true,
         });
         if (t != null) lastLocalWriteAtRef.current = t;
-        await saveSpace(spaceId, lastSnap);
-        lastCommittedSnap = lastSnap;
+        const savedRow = await saveSpaceWithRetries(spaceId, prepared);
+        useWorkflowStore.getState().applySavedSpaceRowToStore({
+          id: savedRow.id,
+          nodes: savedRow.nodes,
+          edges: savedRow.edges,
+          comments: savedRow.comments,
+          settings: savedRow.settings,
+          node_grid_layouts: savedRow.node_grid_layouts,
+          viewport: savedRow.viewport,
+        });
+
+        const snapAfterApply = snapshotFromStore();
         await waitForPersistenceSettled();
         const after = snapshotFromStore();
-        if (!snapshotDiffers(lastSnap, after)) break;
+        lastCommittedSnap = snapAfterApply;
+        if (!snapshotDiffers(snapAfterApply, after)) break;
       }
 
       await clearSpaceDraft(spaceId);
@@ -224,9 +283,26 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
         spaceId,
         reason,
         durationMs: Math.round(performance.now() - t0),
+        payloadBytesBefore: lastPayloadBytesBefore,
+        payloadBytesAfter: lastPayloadBytesAfter,
       });
     } catch (e) {
-      logRemoteFlush('fail', { spaceId, reason, error: e });
+      const timeout = isPostgresStatementTimeoutError(e);
+      logRemoteFlush('fail', {
+        spaceId,
+        reason,
+        error: e,
+        payloadBytesAfter: lastPayloadBytesAfter,
+        statementTimeout: timeout,
+      });
+      notifyError(
+        'Save failed',
+        timeout
+          ? `Database timed out while saving (~${Math.max(1, Math.round(lastPayloadBytesAfter / 1024))} KB payload). Remove large embedded images or split the graph.`
+          : e instanceof Error
+            ? e.message
+            : String(e)
+      );
     }
   };
 

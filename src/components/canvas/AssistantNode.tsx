@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { RichTextField } from '@/components/rich-text/RichTextField';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { makeWorkflowEdge } from '@/lib/portHandles';
 
 const ASSISTANT_MODELS = [
   'Auto',
@@ -101,22 +102,6 @@ const AssistantGlassNode = styled.div<{ $focused: boolean }>`
       : ''}
 `;
 
-function makeEdge(
-  source: string,
-  target: string,
-  sourceHandle?: string | null,
-  targetHandle?: string | null
-) {
-  return {
-    id: `e-${source}-${target}-${Date.now()}`,
-    source,
-    target,
-    sourceHandle: sourceHandle ?? undefined,
-    targetHandle: targetHandle ?? undefined,
-    type: 'custom' as const,
-  };
-}
-
 const AssistantNode = memo(({ id, data }: NodeProps) => {
   const isStoreRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
@@ -136,7 +121,7 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
   const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
 
   const wireEdge = useCallback(
-    (newEdge: ReturnType<typeof makeEdge>) => {
+    (newEdge: ReturnType<typeof makeWorkflowEdge>) => {
       const s = useWorkflowStore.getState();
       connectEdgeWithHistory([...s.edges, newEdge], newEdge);
     },
@@ -145,17 +130,17 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
 
   const quickAddTextLeft = useCallback(() => {
     const nid = addNode('textNode', { x: selfPos.x - 300, y: selfPos.y });
-    wireEdge(makeEdge(nid, id, 'text-out', 'text-in'));
+    wireEdge(makeWorkflowEdge(nid, id, 'text-out', 'text-in'));
   }, [addNode, selfPos.x, selfPos.y, id, wireEdge]);
 
   const quickAddImageLeft = useCallback(() => {
     const nid = addNode('imageGeneratorNode', { x: selfPos.x - 320, y: selfPos.y + 24 });
-    wireEdge(makeEdge(nid, id, 'image-out', 'image-in'));
+    wireEdge(makeWorkflowEdge(nid, id, 'image-out', 'image-in'));
   }, [addNode, selfPos, id, wireEdge]);
 
   const quickAddTextRight = useCallback(() => {
     const nid = addNode('textNode', { x: selfPos.x + 320, y: selfPos.y });
-    wireEdge(makeEdge(id, nid, 'text-out', 'text-in'));
+    wireEdge(makeWorkflowEdge(id, nid, 'text-out', 'text-in'));
   }, [addNode, selfPos, id, wireEdge]);
 
   const { connectMenuItems } = useQuickConnect(id, selfPos);
@@ -195,6 +180,7 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
       >
         <NodeActionBar
           variant="assistant"
+          runBusy={isStoreRunning}
           onRun={() => runFromNode(id)}
           onDuplicate={() => duplicateNode(id)}
           onDelete={() => deleteNode(id)}

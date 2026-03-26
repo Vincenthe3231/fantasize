@@ -50,18 +50,28 @@ export function logRemoteFlush(
     durationMs?: number;
     error?: unknown;
     skipReason?: 'not_dirty' | 'wrong_space';
+    payloadBytesBefore?: number;
+    payloadBytesAfter?: number;
+    attempt?: number;
+    statementTimeout?: boolean;
   }
 ) {
   const sid = detail.spaceId.slice(0, 8) + '…';
   switch (phase) {
     case 'start':
-      console.info(PREFIX, 'remoteFlush', 'started', { spaceId: sid, reason: detail.reason });
+      console.info(PREFIX, 'remoteFlush', 'started', {
+        spaceId: sid,
+        reason: detail.reason,
+        payloadBytesApprox: detail.payloadBytesAfter ?? detail.payloadBytesBefore,
+      });
       break;
     case 'ok':
       console.info(PREFIX, 'remoteFlush', 'completed', {
         spaceId: sid,
         reason: detail.reason,
         durationMs: detail.durationMs,
+        payloadBytesBefore: detail.payloadBytesBefore,
+        payloadBytesAfter: detail.payloadBytesAfter,
       });
       break;
     case 'fail':
@@ -69,6 +79,10 @@ export function logRemoteFlush(
         spaceId: sid,
         reason: detail.reason,
         error: detail.error,
+        attempt: detail.attempt,
+        payloadBytesBefore: detail.payloadBytesBefore,
+        payloadBytesAfter: detail.payloadBytesAfter,
+        statementTimeout: detail.statementTimeout,
       });
       break;
     case 'skip':

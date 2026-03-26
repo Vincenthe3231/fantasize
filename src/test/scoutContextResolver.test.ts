@@ -125,6 +125,38 @@ describe('scoutContextResolver', () => {
     expect(r.value.anchorImageUrls).toContain('https://example.com/x.jpg');
   });
 
+  it('extracts ordered promptItems from listNode text cells for queue mode', () => {
+    const nodes: Node[] = [
+      {
+        id: 'list-1',
+        type: 'listNode',
+        data: {
+          items: [
+            { id: 't1', type: 'text', text: 'Prompt A' },
+            { id: 't2', type: 'text', text: 'Prompt B' },
+          ],
+        },
+        position: { x: 0, y: 0 },
+      },
+      { id: 'ig', type: 'imageGeneratorNode', data: { prompt: '' }, position: { x: 0, y: 0 } },
+    ];
+    const edges = [
+      {
+        id: 'e-list-ig',
+        source: 'list-1',
+        target: 'ig',
+        sourceHandle: 'text-out',
+        targetHandle: 'text-in',
+        type: 'custom' as const,
+      },
+    ];
+    const r = resolveStage2ImageGeneratorContext(nodes, edges, 'ig');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.queueMode).toBe('perPromptSequential');
+    expect(r.value.promptItems).toEqual(['Prompt A', 'Prompt B']);
+  });
+
   it('resolves Stage 2 image generator with group-out-image aggregate', () => {
     const nodes: Node[] = [
       { id: 'g', type: 'group', data: {}, position: { x: 0, y: 0 } },

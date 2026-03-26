@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import {
   Play,
+  Loader2,
   ChevronDown,
   Maximize2,
   Lock,
@@ -42,6 +43,8 @@ export interface ConnectMenuItem {
 interface NodeActionBarProps {
   variant?: NodeActionBarVariant;
   onRun?: () => void;
+  /** Scout / long-running: show spinner on Run and disable Run actions */
+  runBusy?: boolean;
   onDuplicate?: () => void;
   onDelete?: () => void;
   onLock?: () => void;
@@ -62,21 +65,25 @@ const Btn = ({
   onClick,
   className = '',
   tooltip,
+  disabled = false,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
   className?: string;
   tooltip?: string;
+  disabled?: boolean;
 }) => (
   <div className="node-action-bar-icon">
     {tooltip && <span className="node-action-bar-tooltip">{tooltip}</span>}
     <button
       type="button"
+      disabled={disabled}
       onClick={(e) => {
         e.stopPropagation();
+        if (disabled) return;
         onClick?.();
       }}
-      className={`node-action-bar-btn flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 ease-in-out ${className}`}
+      className={`node-action-bar-btn flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 ease-in-out disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
     >
       {children}
     </button>
@@ -98,6 +105,7 @@ const NodeActionBar = memo(
     onOpenPreferences,
     showDownload,
     connectMenuItems = [],
+    runBusy = false,
   }: NodeActionBarProps) => {
     const isAssistant = variant === 'assistant';
     const isImageGen = variant === 'imageGen';
@@ -109,8 +117,8 @@ const NodeActionBar = memo(
         className={`${NODE_INTERACTIVE_CLASS} node-action-bar node-action-bar-pill absolute top-0 left-1/2 flex items-center gap-0.5 px-1.5 py-0.5 z-50`}
       >
         {onRun && (
-          <Btn onClick={onRun} tooltip="Run">
-            <Play size={12} />
+          <Btn onClick={onRun} tooltip="Run" disabled={runBusy}>
+            {runBusy ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
           </Btn>
         )}
 
@@ -125,7 +133,9 @@ const NodeActionBar = memo(
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="node-canvas-dropdown text-xs">
-            <DropdownMenuItem onClick={onRun}>Run this node</DropdownMenuItem>
+            <DropdownMenuItem onClick={onRun} disabled={runBusy}>
+              Run this node
+            </DropdownMenuItem>
             <DropdownMenuItem>Run from here</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
