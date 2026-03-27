@@ -73,10 +73,11 @@ import { useSystemNotificationStore } from '@/stores/systemNotificationStore';
 import {
   useWorkflowStore,
   type NodeType,
-  applyGroupDropReparent,
+  applyGroupDropReparentForMovedNodes,
 } from '@/stores/workflowStore';
 import { validateScoutConnection } from '@/lib/scoutPipeline';
 import { DEFAULT_FIT_VIEW_OPTIONS } from '@/lib/canvasViewport';
+import { canvasPerfFlags, runWithCanvasPerfMark } from '@/lib/canvasPerf';
 
 const nodeTypes = {
   textNode: TextNode,
@@ -245,6 +246,10 @@ const CanvasInner = ({
 
   const [nodes, setNodes] = useNodesState(storeNodes);
   const isNodeResizeActiveRef = useRef(false);
+  const dragTxnRef = useRef<{
+    movedNodeIds: Set<string>;
+    startById: Map<string, { x: number; y: number; parentId?: string; extent?: 'parent' }>;
+  } | null>(null);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -293,7 +298,6 @@ const CanvasInner = ({
   const pauseNotificationAutoDismiss = useSystemNotificationStore((s) => s.pauseAutoDismiss);
   const resumeNotificationAutoDismiss = useSystemNotificationStore((s) => s.resumeAutoDismiss);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const dragStartPositions = useRef<Record<string, { x: number; y: number }>>({});
   const dragGraphSnapshotRef = useRef<Node[] | null>(null);
   const selectionPrevRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null);
   const selectionSelectedIdsRef = useRef<{ nodeIds: Set<string>; edgeIds: Set<string> } | null>(null);
@@ -302,7 +306,7 @@ const CanvasInner = ({
   const moveHandleBoundsRafRef = useRef<number | null>(null);
   const { screenToFlowPosition, fitView, getNodes, getNode, getEdges, setViewport } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
-  const { refreshAllHandleBounds } = useViewportHandleBoundsSync();
+  const { refreshAllHandleBounds, queueHandleBoundsRefresh } = useViewportHandleBoundsSync();
   const storeApi = useStoreApi();
   const moveEndDebugLastTsRef = useRef(0);
 
@@ -519,6 +523,7 @@ const CanvasInner = ({
   }, []);
 
   useEffect(() => {
+    if (useWorkflowStore.getState().isDragging && canvasPerfFlags.deltaDragTxn) return;
     setNodes((current) => mergeStoreNodesWithFlowGeometry(storeNodes, current));
   }, [storeNodes, setNodes]);
   useEffect(() => {
@@ -1001,44 +1006,79 @@ const CanvasInner = ({
         connectionLineType={ConnectionLineType.Bezier}
         connectionLineStyle={{ stroke: 'var(--edge-stroke)', strokeWidth: 2 }}
         onNodeDragStart={(_, node) => {
-          setIsDragging(true);
-          const ns = getNodes();
-          dragGraphSnapshotRef.current = structuredClone(ns);
-          const targets = ns.filter((n) => n.selected || n.id === node.id);
-          dragStartPositions.current = Object.fromEntries(
-            targets.map((n) => [n.id, { x: n.position.x, y: n.position.y }])
-          );
+          runWithCanvasPerfMark('canvas.dragStart', () => {
+            setIsDragging(true);
+            const ns = getNodes();
+            const targets = ns.filter((n) => n.selected || n.id === node.id);
+            const movedNodeIds = new Set(targets.map((n) => n.id));
+            const startById = new Map(
+              targets.map((n) => [
+                n.id,
+                {
+                  x: n.position.x,
+                  y: n.position.y,
+                  parentId: n.parentId,
+                  extent: n.extent as 'parent' | undefined,
+                },
+              ])
+            );
+            dragTxnRef.current = { movedNodeIds, startById };
+            if (!canvasPerfFlags.deltaDragTxn) {
+              dragGraphSnapshotRef.current = structuredClone(ns);
+            } else {
+              dragGraphSnapshotRef.current = ns.map((n) => ({ ...n, position: { ...n.position } }));
+            }
+          });
         }}
         onNodeDragStop={() => {
-          setIsDragging(false);
-          const end = getNodes();
-          const start = dragStartPositions.current;
-          const deltas: Record<string, { from: { x: number; y: number }; to: { x: number; y: number } }> =
-            {};
-          for (const id of Object.keys(start)) {
-            const en = end.find((n) => n.id === id);
-            if (
-              en &&
-              (en.position.x !== start[id].x || en.position.y !== start[id].y)
-            ) {
-              deltas[id] = { from: start[id], to: { x: en.position.x, y: en.position.y } };
-            }
-          }
-          const beforeSnap = dragGraphSnapshotRef.current;
-          const draggedIds = new Set(Object.keys(start));
-          const reparented =
-            draggedIds.size > 0 ? applyGroupDropReparent(structuredClone(end), draggedIds) : end;
-          if (beforeSnap) {
-            commitNodesAfterFlowDrag(beforeSnap, reparented);
-            dragGraphSnapshotRef.current = null;
-          } else {
-            commitNodesAfterDrag(end, deltas);
-          }
-          dragStartPositions.current = {};
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              refreshAllHandleBounds();
+          runWithCanvasPerfMark('canvas.dragStop', () => {
+            setIsDragging(false);
+            const end = getNodes();
+            const txn = dragTxnRef.current;
+            const beforeSnap = dragGraphSnapshotRef.current;
+            if (!txn || !beforeSnap) return;
+
+            const movedIds = txn.movedNodeIds;
+            const byEndId = new Map(end.map((n) => [n.id, n]));
+            const changedIds = new Set<string>();
+
+            const positionPatches = [...txn.startById.entries()].flatMap(([id, s]) => {
+              const current = byEndId.get(id);
+              if (!current) return [];
+              const changed = current.position.x !== s.x || current.position.y !== s.y;
+              if (changed) changedIds.add(id);
+              return changed
+                ? [
+                    {
+                      id,
+                      from: { x: s.x, y: s.y },
+                      to: { x: current.position.x, y: current.position.y },
+                    },
+                  ]
+                : [];
             });
+
+            const { nextNodes: reparented } = applyGroupDropReparentForMovedNodes(end, movedIds);
+            commitNodesAfterFlowDrag(beforeSnap, reparented);
+
+            const affectedNodeIds = new Set<string>(changedIds);
+            const movedNodes = reparented.filter((n) => changedIds.has(n.id));
+            const touchedEdges = getConnectedEdges(movedNodes, getEdges());
+            for (const e of touchedEdges) {
+              affectedNodeIds.add(e.source);
+              affectedNodeIds.add(e.target);
+            }
+            queueHandleBoundsRefresh(affectedNodeIds);
+
+            if (!canvasPerfFlags.diffHistory && positionPatches.length > 0) {
+              const deltas = Object.fromEntries(
+                positionPatches.map((p) => [p.id, { from: p.from, to: p.to }])
+              );
+              commitNodesAfterDrag(end, deltas);
+            }
+
+            dragTxnRef.current = null;
+            dragGraphSnapshotRef.current = null;
           });
         }}
         onNodeMouseEnter={(_, node) => setHoveredNode(node.id)}

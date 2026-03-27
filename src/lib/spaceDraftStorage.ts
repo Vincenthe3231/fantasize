@@ -141,9 +141,33 @@ function stripEdgeForParity(e: Edge): Record<string, unknown> {
 /** Deep parity of two payloads (viewport ignored). Used after a successful save before query refetch. */
 export function canvasSnapshotPayloadParityEqual(a: CanvasSnapshotPayload, b: CanvasSnapshotPayload): boolean {
   try {
+    if (a.nodes.length !== b.nodes.length || a.edges.length !== b.edges.length) return false;
+    for (let i = 0; i < a.nodes.length; i++) {
+      const an = stripNodeForParity(a.nodes[i]);
+      const bn = stripNodeForParity(b.nodes[i]);
+      if (
+        an.id !== bn.id ||
+        JSON.stringify(an.position ?? null) !== JSON.stringify(bn.position ?? null) ||
+        JSON.stringify(an.parentId ?? null) !== JSON.stringify(bn.parentId ?? null) ||
+        JSON.stringify(an.data ?? null) !== JSON.stringify(bn.data ?? null)
+      ) {
+        return false;
+      }
+    }
+    for (let i = 0; i < a.edges.length; i++) {
+      const ae = stripEdgeForParity(a.edges[i]);
+      const be = stripEdgeForParity(b.edges[i]);
+      if (
+        ae.id !== be.id ||
+        ae.source !== be.source ||
+        ae.target !== be.target ||
+        ae.sourceHandle !== be.sourceHandle ||
+        ae.targetHandle !== be.targetHandle
+      ) {
+        return false;
+      }
+    }
     return (
-      JSON.stringify(a.nodes.map(stripNodeForParity)) === JSON.stringify(b.nodes.map(stripNodeForParity)) &&
-      JSON.stringify(a.edges.map(stripEdgeForParity)) === JSON.stringify(b.edges.map(stripEdgeForParity)) &&
       JSON.stringify(a.comments) === JSON.stringify(b.comments) &&
       JSON.stringify(a.node_grid_layouts) === JSON.stringify(b.node_grid_layouts) &&
       JSON.stringify(a.settings) === JSON.stringify(b.settings)
@@ -158,11 +182,37 @@ export function canvasSnapshotPayloadParityEqual(a: CanvasSnapshotPayload, b: Ca
  */
 export function canvasSnapshotMatchesSpaceRow(payload: CanvasSnapshotPayload, space: SpaceRow): boolean {
   try {
+    const spaceNodes = space.nodes ?? [];
+    const spaceEdges = space.edges ?? [];
+    if (payload.nodes.length !== spaceNodes.length || payload.edges.length !== spaceEdges.length) {
+      return false;
+    }
+    for (let i = 0; i < payload.nodes.length; i++) {
+      const pn = stripNodeForParity(payload.nodes[i]);
+      const sn = stripNodeForParity(spaceNodes[i]);
+      if (
+        pn.id !== sn.id ||
+        JSON.stringify(pn.position ?? null) !== JSON.stringify(sn.position ?? null) ||
+        JSON.stringify(pn.parentId ?? null) !== JSON.stringify(sn.parentId ?? null) ||
+        JSON.stringify(pn.data ?? null) !== JSON.stringify(sn.data ?? null)
+      ) {
+        return false;
+      }
+    }
+    for (let i = 0; i < payload.edges.length; i++) {
+      const pe = stripEdgeForParity(payload.edges[i]);
+      const se = stripEdgeForParity(spaceEdges[i]);
+      if (
+        pe.id !== se.id ||
+        pe.source !== se.source ||
+        pe.target !== se.target ||
+        pe.sourceHandle !== se.sourceHandle ||
+        pe.targetHandle !== se.targetHandle
+      ) {
+        return false;
+      }
+    }
     return (
-      JSON.stringify(payload.nodes.map(stripNodeForParity)) ===
-        JSON.stringify((space.nodes ?? []).map(stripNodeForParity)) &&
-      JSON.stringify(payload.edges.map(stripEdgeForParity)) ===
-        JSON.stringify((space.edges ?? []).map(stripEdgeForParity)) &&
       JSON.stringify(payload.comments) === JSON.stringify(space.comments ?? []) &&
       JSON.stringify(payload.node_grid_layouts) === JSON.stringify(space.node_grid_layouts ?? {}) &&
       JSON.stringify(payload.settings) === JSON.stringify(mergedSettingsFromSpace(space))

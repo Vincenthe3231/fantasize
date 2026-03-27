@@ -7,6 +7,7 @@ import { useWorkflowStore } from '@/stores/workflowStore';
 import { useNodeEntranceMotion } from '@/hooks/useNodeEntranceMotion';
 import { aggregatePortTypesForChildTypes } from '@/lib/nodePortDataTypes';
 import { EnhancedHandle, type HandleDataType } from './EnhancedHandle';
+import { canvasPerfFlags } from '@/lib/canvasPerf';
 
 const isValidColor = (s: unknown): s is string =>
   typeof s === 'string' && (s.startsWith('#') || s.startsWith('rgb'));
@@ -32,6 +33,8 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
   const selectedTool = useWorkflowStore((s) => s.selectedTool);
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
   const nodes = useWorkflowStore((s) => s.nodes);
+  const isDraggingCanvas = useWorkflowStore((s) => s.isDragging);
+  const performanceMode = useWorkflowStore((s) => s.settings.performanceMode);
 
   const portTypes = useMemo(() => {
     const children = nodes.filter((n) => n.parentId === id && n.type !== 'group');
@@ -123,6 +126,7 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
 
   const canResize = draggable !== false;
   const entranceMotion = useNodeEntranceMotion(id);
+  const reduceMotion = canvasPerfFlags.reduceMotionDuringDrag && (isDraggingCanvas || performanceMode);
 
   return (
     <motion.div
@@ -130,7 +134,7 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
       style={boxStyle}
       initial={entranceMotion.initial}
       animate={entranceMotion.animate}
-      transition={entranceMotion.transition}
+      transition={reduceMotion ? { duration: 0 } : entranceMotion.transition}
       onAnimationComplete={entranceMotion.onAnimationComplete}
     >
       <NodeResizer

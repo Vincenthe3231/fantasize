@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useStore, useUpdateNodeInternals, useReactFlow } from 'reactflow';
+import { canvasPerfFlags, runWithCanvasPerfMark } from '@/lib/canvasPerf';
 
 /**
  * React Flow recomputes handle bounds in `updateNodeDimensions` using the current viewport zoom.
@@ -13,14 +14,48 @@ import { useStore, useUpdateNodeInternals, useReactFlow } from 'reactflow';
  */
 export function useViewportHandleBoundsSync(): {
   refreshAllHandleBounds: () => void;
+  queueHandleBoundsRefresh: (nodeIds: Iterable<string>) => void;
 } {
   const updateNodeInternals = useUpdateNodeInternals();
   const { getNodes } = useReactFlow();
+  const dirtyIdsRef = useRef<Set<string>>(new Set());
+  const dirtyRafRef = useRef<number | null>(null);
+
+  const flushDirtyNodeInternals = useCallback(() => {
+    if (dirtyRafRef.current != null) {
+      cancelAnimationFrame(dirtyRafRef.current);
+      dirtyRafRef.current = null;
+    }
+    const ids = [...dirtyIdsRef.current];
+    dirtyIdsRef.current.clear();
+    if (ids.length === 0) return;
+    runWithCanvasPerfMark('canvas.refreshHandleBounds.scoped', () => {
+      updateNodeInternals(ids);
+    });
+  }, [updateNodeInternals]);
+
+  const queueHandleBoundsRefresh = useCallback(
+    (nodeIds: Iterable<string>) => {
+      for (const id of nodeIds) {
+        if (id) dirtyIdsRef.current.add(id);
+      }
+      if (!canvasPerfFlags.scopedInternalsRefresh) {
+        flushDirtyNodeInternals();
+        return;
+      }
+      if (dirtyRafRef.current != null) return;
+      dirtyRafRef.current = requestAnimationFrame(() => {
+        dirtyRafRef.current = null;
+        flushDirtyNodeInternals();
+      });
+    },
+    [flushDirtyNodeInternals]
+  );
 
   const refreshAllHandleBounds = useCallback(() => {
     const ids = getNodes().map((n) => n.id);
-    if (ids.length > 0) updateNodeInternals(ids);
-  }, [getNodes, updateNodeInternals]);
+    queueHandleBoundsRefresh(ids);
+  }, [getNodes, queueHandleBoundsRefresh]);
 
   const zoom = useStore((s) => s.transform[2]);
 
@@ -36,8 +71,12 @@ export function useViewportHandleBoundsSync(): {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
+      if (dirtyRafRef.current != null) {
+        cancelAnimationFrame(dirtyRafRef.current);
+        dirtyRafRef.current = null;
+      }
     };
   }, [zoom, refreshAllHandleBounds]);
 
-  return { refreshAllHandleBounds };
+  return { refreshAllHandleBounds, queueHandleBoundsRefresh };
 }

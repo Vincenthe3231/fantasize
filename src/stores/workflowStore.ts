@@ -22,18 +22,27 @@ import {
   bfsDownstream,
   capStack,
   edgesBetweenLevels,
+  type NodePositionPatch,
   nodeDragSnapshotEqual,
   topologicalOrderIdsForTypes,
   unionEdgeIdsByRunSource,
 } from '@/stores/workflowGraphUtils';
 import { createVirtualProductionScoutTemplate } from '@/stores/workflowScoutTemplate';
 import { migrateEdgesToScopedHandles } from '@/lib/portHandles';
+import { canvasPerfFlags, runWithCanvasPerfMark } from '@/lib/canvasPerf';
 export type { ScoutPipelineState } from '@/lib/scoutPipeline';
 export type { ScoutRunOptions } from '@/lib/scoutRunCoordinator';
 const pendingNodeDataUpdates = new Map<
   string,
   { timeoutId: number; before: Record<string, unknown>; keys: string[] }
 >();
+
+function clearPendingNodeDataHistoryCommits(): void {
+  for (const entry of pendingNodeDataUpdates.values()) {
+    clearTimeout(entry.timeoutId);
+  }
+  pendingNodeDataUpdates.clear();
+}
 
 function withTransientNodeDataStripped(node: Node): Node {
   if (!node.data || typeof node.data !== 'object') return node;
@@ -175,6 +184,11 @@ export interface CanvasCommand {
   undo: () => void;
 }
 
+interface NodePatchCommand extends CanvasCommand {
+  kind: 'node-position-patch';
+  patches: NodePositionPatch[];
+}
+
 interface GraphSnapshot {
   nodes: Node[];
   edges: Edge[];
@@ -233,6 +247,7 @@ export interface WorkflowState {
   commitNodesAfterDrag: (nodes: Node[], deltas: Record<string, { from: XYPosition; to: XYPosition }>) => void;
   /** Full graph undo after drag + optional group reparent (replaces commitNodesAfterDrag when used). */
   commitNodesAfterFlowDrag: (beforeNodes: Node[], afterNodes: Node[]) => void;
+  applyNodePositionPatches: (patches: NodePositionPatch[]) => void;
   connectEdgeWithHistory: (nextEdges: Edge[], newEdge: Edge) => void;
   applyEdgeRemoval: (nextEdges: Edge[], removed: Edge[]) => void;
   removeEdgeById: (id: string) => void;
@@ -292,10 +307,41 @@ export interface WorkflowState {
 const GRID_CYCLE: GridLayout[] = ['1x1', '2x2', '3x3'];
 let runAllInFlight = false;
 export { createVirtualProductionScoutTemplate } from '@/stores/workflowScoutTemplate';
-export { applyGroupDropReparent } from '@/stores/workflowGraphUtils';
+export { applyGroupDropReparent, applyGroupDropReparentForMovedNodes } from '@/stores/workflowGraphUtils';
 
 export const useWorkflowStore = create<WorkflowState>((set, get) => {
   const initialTemplate = createVirtualProductionScoutTemplate();
+
+  const reactiveQueueRef = {
+    ids: new Set<string>(),
+    rafId: null as number | null,
+  };
+
+  const flushReactiveQueue = () => {
+    if (reactiveQueueRef.rafId != null) {
+      cancelAnimationFrame(reactiveQueueRef.rafId);
+      reactiveQueueRef.rafId = null;
+    }
+    if (reactiveQueueRef.ids.size === 0) return;
+    const ids = [...reactiveQueueRef.ids];
+    reactiveQueueRef.ids.clear();
+    applyReactiveDataflow(ids);
+  };
+
+  const queueReactiveDataflow = (sourceIds: string[]) => {
+    if (!canvasPerfFlags.coalesceReactiveDataflow) {
+      applyReactiveDataflow(sourceIds);
+      return;
+    }
+    sourceIds.forEach((id) => {
+      if (id) reactiveQueueRef.ids.add(id);
+    });
+    if (reactiveQueueRef.rafId != null) return;
+    reactiveQueueRef.rafId = requestAnimationFrame(() => {
+      reactiveQueueRef.rafId = null;
+      flushReactiveQueue();
+    });
+  };
 
   const pushCmd = (cmd: CanvasCommand) => {
     set((s) => ({
@@ -584,14 +630,104 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     },
 
     commitNodesAfterFlowDrag: (beforeNodes, afterNodes) => {
-      const before = structuredClone(beforeNodes);
-      const after = structuredClone(afterNodes);
+      const before = beforeNodes;
+      const after = afterNodes;
       if (nodeDragSnapshotEqual(before, after)) return;
-      set({ nodes: after });
+
+      const byBefore = new Map(before.map((n) => [n.id, n]));
+      const patches: NodePositionPatch[] = [];
+      for (const n of after) {
+        const b = byBefore.get(n.id);
+        if (!b) continue;
+        const moved =
+          b.position.x !== n.position.x ||
+          b.position.y !== n.position.y ||
+          b.parentId !== n.parentId ||
+          b.extent !== n.extent;
+        if (!moved) continue;
+        patches.push({
+          id: n.id,
+          from: {
+            position: { ...b.position },
+            parentId: b.parentId,
+            extent: b.extent as 'parent' | undefined,
+          },
+          to: {
+            position: { ...n.position },
+            parentId: n.parentId,
+            extent: n.extent as 'parent' | undefined,
+          },
+        });
+      }
+
+      if (canvasPerfFlags.diffHistory && patches.length > 0) {
+        get().applyNodePositionPatches(patches);
+        return;
+      }
+
+      const beforeSnap = structuredClone(before);
+      const afterSnap = structuredClone(after);
+      set({ nodes: afterSnap });
       pushCmd({
-        undo: () => set({ nodes: structuredClone(before) }),
-        execute: () => set({ nodes: structuredClone(after) }),
+        undo: () => set({ nodes: structuredClone(beforeSnap) }),
+        execute: () => set({ nodes: structuredClone(afterSnap) }),
       });
+    },
+
+    applyNodePositionPatches: (patches) => {
+      if (patches.length === 0) return;
+      set((st) => {
+        const byId = new Map(patches.map((p) => [p.id, p]));
+        return {
+          nodes: st.nodes.map((n) => {
+            const patch = byId.get(n.id);
+            if (!patch) return n;
+            return {
+              ...n,
+              position: { ...patch.to.position },
+              parentId: patch.to.parentId,
+              extent: patch.to.extent,
+            };
+          }),
+        };
+      });
+      const cmd: NodePatchCommand = {
+        kind: 'node-position-patch',
+        patches: structuredClone(patches),
+        undo: () =>
+          set((st) => {
+            const byId = new Map(patches.map((p) => [p.id, p]));
+            return {
+              nodes: st.nodes.map((n) => {
+                const patch = byId.get(n.id);
+                if (!patch) return n;
+                return {
+                  ...n,
+                  position: { ...patch.from.position },
+                  parentId: patch.from.parentId,
+                  extent: patch.from.extent,
+                };
+              }),
+            };
+          }),
+        execute: () =>
+          set((st) => {
+            const byId = new Map(patches.map((p) => [p.id, p]));
+            return {
+              nodes: st.nodes.map((n) => {
+                const patch = byId.get(n.id);
+                if (!patch) return n;
+                return {
+                  ...n,
+                  position: { ...patch.to.position },
+                  parentId: patch.to.parentId,
+                  extent: patch.to.extent,
+                };
+              }),
+            };
+          }),
+      };
+      pushCmd(cmd);
     },
 
     connectEdgeWithHistory: (nextEdges, newEdge) => {
@@ -599,7 +735,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       set({ edges: nextEdges });
       // Let the connect interaction paint first, then propagate downstream patches.
       queueMicrotask(() => {
-        applyReactiveDataflow([edge.source]);
+        queueReactiveDataflow([edge.source]);
       });
       pushCmd({
         undo: () => set((st) => ({ edges: st.edges.filter((e) => e.id !== edge.id) })),
@@ -614,7 +750,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       }
       const clones = removed.map((e) => structuredClone(e));
       set({ edges: nextEdges });
-      applyReactiveDataflow([], true);
+      runWithCanvasPerfMark('canvas.dataflow.fullRecompute.edgeRemoval', () => {
+        applyReactiveDataflow([], true);
+      });
       pushCmd({
         undo: () => set((st) => ({ edges: [...st.edges, ...clones.map((c) => structuredClone(c))] })),
         execute: () =>
@@ -630,7 +768,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       if (!edge) return;
       const clone = structuredClone(edge);
       set({ edges: s.edges.filter((e) => e.id !== id) });
-      applyReactiveDataflow([], true);
+      runWithCanvasPerfMark('canvas.dataflow.fullRecompute.removeEdgeById', () => {
+        applyReactiveDataflow([], true);
+      });
       pushCmd({
         undo: () => set((st) => ({ edges: [...st.edges, structuredClone(clone)] })),
         execute: () => set((st) => ({ edges: st.edges.filter((e) => e.id !== id) })),
@@ -678,7 +818,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
             }
           : { id, type, position, data: withEntrance };
       set({ nodes: [...s.nodes, newNode] });
-      applyReactiveDataflow([id]);
+      queueReactiveDataflow([id]);
       pushCmd({
         undo: () => set((st) => ({ nodes: st.nodes.filter((n) => n.id !== id) })),
         execute: () => set((st) => ({ nodes: [...st.nodes, structuredClone(newNode)] })),
@@ -825,7 +965,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       const nextEdges = s.edges.filter((e) => e.source !== id && e.target !== id);
 
       set({ nodes: structuredClone(nextNodes), edges: structuredClone(nextEdges) });
-      applyReactiveDataflow([], true);
+      runWithCanvasPerfMark('canvas.dataflow.fullRecompute.deleteNode', () => {
+        applyReactiveDataflow([], true);
+      });
       pushCmd({
         undo: () => set({ nodes: beforeNodes, edges: beforeEdges }),
         execute: () => set({ nodes: structuredClone(nextNodes), edges: structuredClone(nextEdges) }),
@@ -892,7 +1034,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         return { nodes: nextNodes, scoutPipeline };
       });
       const reactiveSources = [id, n.parentId].filter((x): x is string => Boolean(x));
-      applyReactiveDataflow(reactiveSources);
+      queueReactiveDataflow(reactiveSources);
 
       const existing = pendingNodeDataUpdates.get(id);
       if (existing) {
@@ -971,7 +1113,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
           : st.scoutPipeline;
         return { nodes: nextNodes, scoutPipeline };
       });
-      applyReactiveDataflow([id]);
+      queueReactiveDataflow([id]);
     },
 
     commitNodeLabelRename: (id, nextTrimmed, before) => {
@@ -1248,6 +1390,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     },
 
     undo: () => {
+      // Prevent delayed debounced node-data history commits from clearing redo stack after undo.
+      clearPendingNodeDataHistoryCommits();
       const s = get();
       if (s.pastStack.length === 0) return;
       const cmd = s.pastStack[s.pastStack.length - 1];
@@ -1259,6 +1403,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     },
 
     redo: () => {
+      // Prevent delayed debounced node-data history commits from clearing redo stack after redo.
+      clearPendingNodeDataHistoryCommits();
       const s = get();
       if (s.futureStack.length === 0) return;
       const cmd = s.futureStack[s.futureStack.length - 1];

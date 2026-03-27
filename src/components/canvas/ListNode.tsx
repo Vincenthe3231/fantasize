@@ -10,6 +10,7 @@ import { NodeLabelRow } from './NodeLabelRow';
 import ResizableNodeWrapper from './ResizableNodeWrapper';
 import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { deleteWorkflowMediaByPublicUrl } from '@/lib/uploadStorage';
+import { canvasPerfFlags } from '@/lib/canvasPerf';
 
 type ListItemType = 'text' | 'image';
 
@@ -38,6 +39,9 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
   const addingText = Boolean(data.listAddingText);
   const textDraft = String(data.listTextDraft ?? '');
   const [hovered, setHovered] = useState(false);
+  const isDraggingCanvas = useWorkflowStore((s) => s.isDragging);
+  const performanceMode = useWorkflowStore((s) => s.settings.performanceMode);
+  const reduceMotion = canvasPerfFlags.reduceMotionDuringDrag && (isDraggingCanvas || performanceMode);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const setItems = useCallback((newItems: ListItem[]) => {
@@ -192,12 +196,12 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
           ) : (
             <>
               {/* Text entry bar */}
-              <AnimatePresence>
+              <AnimatePresence initial={false}>
                 {addingText && (
                   <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
+                    initial={reduceMotion ? false : { opacity: 0, height: 0 }}
+                    animate={reduceMotion ? { opacity: 1, height: 'auto' } : { opacity: 1, height: 'auto' }}
+                    exit={reduceMotion ? { opacity: 1, height: 'auto' } : { opacity: 0, height: 0 }}
                     className="mb-2"
                   >
                     <div className="rounded-lg border border-[var(--node-control-border)] bg-[var(--node-control-bg)] p-2">
@@ -232,7 +236,7 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                 <ScrollArea className="nowheel max-h-[300px] flex-1">
                   <div className="space-y-1 pr-2">
                   {/* Text items always in list */}
-                  {textItems.length > 0 && (
+                  {textItems.length > 0 && !reduceMotion && (
                     <Reorder.Group
                       axis="y"
                       values={textItems}
@@ -252,9 +256,20 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                       ))}
                     </Reorder.Group>
                   )}
+                  {textItems.length > 0 && reduceMotion && (
+                    <div className="mb-2 space-y-1">
+                      {textItems.map((item) => (
+                        <div key={item.id} className="group flex items-start gap-2 rounded-lg px-2 py-1.5">
+                          <Type size={11} className="mt-0.5 shrink-0 text-[var(--node-control-muted)]" />
+                          <span className="flex-1 break-words text-[12px] text-[var(--node-control-text)]" style={{ fontFamily: 'Inter, sans-serif' }}>{item.text}</span>
+                          <button type="button" onClick={() => removeItem(item.id)} className="shrink-0 text-[var(--node-control-muted)] hover:text-destructive"><X size={11} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Media items — list or grid */}
-                  {viewMode === 'list' ? (
+                  {viewMode === 'list' && !reduceMotion ? (
                     <Reorder.Group
                       axis="y"
                       values={imageItems}
@@ -295,6 +310,22 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                         </Reorder.Item>
                       ))}
                     </Reorder.Group>
+                  ) : viewMode === 'list' ? (
+                    <div className="space-y-0.5">
+                      {imageItems.map((item) => (
+                        <div key={item.id} className="group flex items-center gap-2.5 rounded-lg border-b border-[var(--node-divider)] px-2 py-1.5 last:border-b-0">
+                          <img src={item.mediaUrl || '/placeholder.svg'} alt={item.mediaName} className="h-14 w-14 shrink-0 rounded-lg bg-[var(--node-control-bg)] object-cover" />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[12px] text-[var(--node-control-text)]" style={{ fontFamily: 'Inter, sans-serif' }}>{item.mediaName}</p>
+                            <p className="mt-0.5 font-mono text-[11px] text-[var(--node-control-muted)]">
+                              {item.generatedBy ? 'Generated' : 'Uploaded'}
+                              {item.referer ? ` • ${item.referer}` : ''}
+                            </p>
+                          </div>
+                          <button type="button" onClick={() => removeItem(item.id)} className="shrink-0 text-[var(--node-control-muted)] hover:text-destructive"><X size={11} /></button>
+                        </div>
+                      ))}
+                    </div>
                   ) : (
                     <div className="grid grid-cols-3 gap-2 p-1">
                       {imageItems.map((item) => (

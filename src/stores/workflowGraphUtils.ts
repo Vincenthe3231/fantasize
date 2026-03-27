@@ -106,6 +106,24 @@ export function nodeDragSnapshotEqual(a: Node[], b: Node[]): boolean {
   return true;
 }
 
+export type NodePositionPatch = {
+  id: string;
+  from: {
+    position: XYPosition;
+    parentId?: string;
+    extent?: 'parent';
+  };
+  to: {
+    position: XYPosition;
+    parentId?: string;
+    extent?: 'parent';
+  };
+};
+
+function buildNodeMap(nodes: Node[]): Map<string, Node> {
+  return new Map(nodes.map((n) => [n.id, n]));
+}
+
 export function applyGroupDropReparent(nodes: Node[], draggedIds: Set<string>): Node[] {
   const list = nodes.map((n) => {
     const c = { ...n, position: { ...n.position } } as Node;
@@ -185,4 +203,94 @@ export function applyGroupDropReparent(nodes: Node[], draggedIds: Set<string>): 
   }
 
   return list;
+}
+
+export function applyGroupDropReparentForMovedNodes(
+  nodes: Node[],
+  movedNodeIds: Set<string>
+): { nextNodes: Node[]; patches: NodePositionPatch[] } {
+  if (movedNodeIds.size === 0) return { nextNodes: nodes, patches: [] };
+
+  const nextNodes = nodes.map((n) => ({ ...n, position: { ...n.position } }));
+  const byId = buildNodeMap(nextNodes);
+  const patches: NodePositionPatch[] = [];
+
+  const absPos = (n: Node): { x: number; y: number } => {
+    let x = n.position.x;
+    let y = n.position.y;
+    let pid = n.parentId;
+    while (pid) {
+      const p = byId.get(pid);
+      if (!p) break;
+      x += p.position.x;
+      y += p.position.y;
+      pid = p.parentId;
+    }
+    return { x, y };
+  };
+
+  const groups = nextNodes.filter((n) => n.type === 'group');
+  const groupBounds = groups.map((g) => {
+    const style = g.style as { width?: number; height?: number } | undefined;
+    const w = typeof style?.width === 'number' && style.width > 0 ? style.width : DEFAULT_GROUP_W;
+    const h = typeof style?.height === 'number' && style.height > 0 ? style.height : DEFAULT_GROUP_H;
+    const p = absPos(g);
+    return { groupId: g.id, x: p.x, y: p.y, w, h, area: w * h };
+  });
+  groupBounds.sort((a, b) => a.area - b.area);
+
+  for (const node of nextNodes) {
+    if (!movedNodeIds.has(node.id) || node.type === 'group' || node.draggable === false) continue;
+
+    const originalParent = node.parentId;
+    const originalExtent = node.extent as 'parent' | undefined;
+    const originalPosition = { ...node.position };
+
+    const p = absPos(node);
+    const w = typeof node.width === 'number' && node.width > 0 ? node.width : DEFAULT_NODE_W;
+    const h = typeof node.height === 'number' && node.height > 0 ? node.height : DEFAULT_NODE_H;
+    const cx = p.x + w / 2;
+    const cy = p.y + h / 2;
+
+    let nextParentId: string | undefined;
+    for (const gb of groupBounds) {
+      if (gb.groupId === node.id) continue;
+      if (cx >= gb.x && cx <= gb.x + gb.w && cy >= gb.y && cy <= gb.y + gb.h) {
+        nextParentId = gb.groupId;
+        break;
+      }
+    }
+
+    if (nextParentId) {
+      const parent = byId.get(nextParentId);
+      if (!parent) continue;
+      const parentAbs = absPos(parent);
+      node.parentId = nextParentId;
+      node.extent = 'parent';
+      node.position = { x: p.x - parentAbs.x, y: p.y - parentAbs.y };
+    } else if (node.parentId) {
+      node.parentId = undefined;
+      node.extent = undefined;
+      node.position = { x: p.x, y: p.y };
+    }
+
+    if (
+      node.parentId !== originalParent ||
+      node.extent !== originalExtent ||
+      node.position.x !== originalPosition.x ||
+      node.position.y !== originalPosition.y
+    ) {
+      patches.push({
+        id: node.id,
+        from: { position: originalPosition, parentId: originalParent, extent: originalExtent },
+        to: {
+          position: { ...node.position },
+          parentId: node.parentId,
+          extent: node.extent as 'parent' | undefined,
+        },
+      });
+    }
+  }
+
+  return { nextNodes, patches };
 }

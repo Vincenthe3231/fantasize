@@ -68,6 +68,8 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
   const runAll = useWorkflowStore((s) => s.runAll);
   const undo = useWorkflowStore((s) => s.undo);
   const redo = useWorkflowStore((s) => s.redo);
+  const canUndo = useWorkflowStore((s) => s.pastStack.length > 0);
+  const canRedo = useWorkflowStore((s) => s.futureStack.length > 0);
 
   const [activeSubIndex, setActiveSubIndex] = useState<Record<string, number>>({
     pointer: 0,
@@ -209,7 +211,6 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
               align="start"
               sideOffset={10}
               className={`${panelClass} w-auto`}
-              onOpenAutoFocus={(e) => e.preventDefault()}
             >
               <div className="flex flex-col gap-0.5">
                 {group.subTools.map((sub, i) => (
@@ -269,7 +270,13 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
       <button
         type="button"
         onClick={undo}
-        className="p-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+        disabled={!canUndo}
+        aria-disabled={!canUndo}
+        className={`p-2.5 rounded-lg transition-colors ${
+          canUndo
+            ? 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
+            : 'text-muted-foreground/40 cursor-not-allowed opacity-60'
+        }`}
         title="Undo (Ctrl+Z)"
       >
         <Undo2 size={16} />
@@ -277,7 +284,13 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
       <button
         type="button"
         onClick={redo}
-        className="p-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+        disabled={!canRedo}
+        aria-disabled={!canRedo}
+        className={`p-2.5 rounded-lg transition-colors ${
+          canRedo
+            ? 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
+            : 'text-muted-foreground/40 cursor-not-allowed opacity-60'
+        }`}
         title="Redo (Ctrl+Shift+Z or Ctrl+Y)"
       >
         <Redo2 size={16} />

@@ -26,6 +26,7 @@ import {
   listLargestNodeDataFields,
   isPostgresStatementTimeoutError,
 } from '@/lib/spacePayloadOptimizer';
+import { canvasPerfFlags, runWithCanvasPerfMark } from '@/lib/canvasPerf';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -104,12 +105,34 @@ function normalizedGraphDiffers(
   bEdges: Edge[]
 ): boolean {
   if (aNodes.length !== bNodes.length || aEdges.length !== bEdges.length) return true;
-  const sa = JSON.stringify(aNodes.map(stripNodeForRemoteDirtyCompare));
-  const sb = JSON.stringify(bNodes.map(stripNodeForRemoteDirtyCompare));
-  if (sa !== sb) return true;
-  const sea = JSON.stringify(aEdges.map(stripEdgeForRemoteDirtyCompare));
-  const seb = JSON.stringify(bEdges.map(stripEdgeForRemoteDirtyCompare));
-  return sea !== seb;
+  for (let i = 0; i < aNodes.length; i++) {
+    const an = stripNodeForRemoteDirtyCompare(aNodes[i]);
+    const bn = stripNodeForRemoteDirtyCompare(bNodes[i]);
+    if (
+      an.id !== bn.id ||
+      (an as { parentId?: string }).parentId !== (bn as { parentId?: string }).parentId
+    ) {
+      return true;
+    }
+    const ap = an.position as { x?: number; y?: number } | undefined;
+    const bp = bn.position as { x?: number; y?: number } | undefined;
+    if ((ap?.x ?? 0) !== (bp?.x ?? 0) || (ap?.y ?? 0) !== (bp?.y ?? 0)) return true;
+    if (JSON.stringify(an.data ?? null) !== JSON.stringify(bn.data ?? null)) return true;
+  }
+  for (let i = 0; i < aEdges.length; i++) {
+    const ae = stripEdgeForRemoteDirtyCompare(aEdges[i]);
+    const be = stripEdgeForRemoteDirtyCompare(bEdges[i]);
+    if (
+      ae.id !== be.id ||
+      ae.source !== be.source ||
+      ae.target !== be.target ||
+      ae.sourceHandle !== be.sourceHandle ||
+      ae.targetHandle !== be.targetHandle
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Content changes that should bump IndexedDB draft. Excludes viewport-only and selection-only churn. */
@@ -159,6 +182,7 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
 
   const lastLocalWriteAtRef = useRef(initialLastWriteAt);
   const rafPendingRef = useRef(false);
+  const idlePendingRef = useRef<number | null>(null);
   const pendingFlushReasonRef = useRef<RemoteFlushReason>('explicit');
 
   const [isRemoteDirtyPending, setIsRemoteDirtyPending] = useState(false);
@@ -307,14 +331,29 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
   };
 
   const queueIdbWrite = useCallback(() => {
+    if (canvasPerfFlags.deferSavesDuringDrag && useWorkflowStore.getState().isDragging) {
+      return;
+    }
     if (rafPendingRef.current) return;
     rafPendingRef.current = true;
-    requestAnimationFrame(() => {
+    const schedule = () => {
       rafPendingRef.current = false;
       const sid = spaceIdRef.current;
-      void writeSpaceDraft(sid, remoteBaselineRef.current, snapshotFromStore()).then((t) => {
-        if (t != null) lastLocalWriteAtRef.current = t;
+      runWithCanvasPerfMark('canvas.persist.idbDraftWrite', () => {
+        void writeSpaceDraft(sid, remoteBaselineRef.current, snapshotFromStore()).then((t) => {
+          if (t != null) lastLocalWriteAtRef.current = t;
+        });
       });
+    };
+    requestAnimationFrame(() => {
+      if ('requestIdleCallback' in window) {
+        idlePendingRef.current = window.requestIdleCallback(() => {
+          idlePendingRef.current = null;
+          schedule();
+        });
+      } else {
+        schedule();
+      }
     });
   }, []);
 
@@ -332,6 +371,10 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
     });
     return () => {
       unsub();
+      if (idlePendingRef.current != null && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idlePendingRef.current);
+        idlePendingRef.current = null;
+      }
     };
   }, [space.id, queueIdbWrite, refreshParity]);
 
