@@ -60,7 +60,7 @@
     --text-muted: rgba(255, 255, 255, 0.38);
     --shadow-node: 0 8px 32px rgba(0, 0, 0, 0.45);
     --radius-node: 14px;
-    --edge-stroke: #7c6ff7;
+    --edge-stroke: #22d3ee;
 
     /* Node UI chrome (canvas nodes — toggles with data-theme) */
     --port-handle-border: rgba(255, 255, 255, 0.28);
@@ -221,28 +221,26 @@
   border: 1px solid var(--border-node);
 }
 
-/* Port styling */
+/* Port styling — no transform on .react-flow__handle roots; RF uses measured bounds for edges. */
 .port-input {
   width: 11px !important;
   height: 11px !important;
   background: var(--port-input) !important;
   border: 1px solid var(--port-handle-border) !important;
-  transition: box-shadow 0.2s, transform 0.15s;
+  transition: box-shadow 0.2s;
 }
 .port-input:hover {
   box-shadow: 0 0 10px 3px var(--port-input);
-  transform: scale(1.08);
 }
 .port-output {
   width: 11px !important;
   height: 11px !important;
   background: var(--port-output) !important;
   border: 1px solid var(--port-handle-border) !important;
-  transition: box-shadow 0.2s, transform 0.15s;
+  transition: box-shadow 0.2s;
 }
 .port-output:hover {
   box-shadow: 0 0 10px 3px var(--port-output);
-  transform: scale(1.08);
 }
 
 /* Secondary source port (e.g. text bundle on props node) */
@@ -261,7 +259,7 @@
   min-height: 20px !important;
   background: transparent !important;
   border: none !important;
-  transition: box-shadow 0.2s, transform 0.15s;
+  transition: box-shadow 0.2s;
 }
 .react-flow__handle.port-with-type-glyph.port-input {
   box-shadow:
@@ -272,7 +270,6 @@
   box-shadow:
     0 0 0 2px var(--port-input),
     0 0 14px 5px color-mix(in srgb, var(--port-input) 55%, transparent) !important;
-  transform: scale(1.06);
 }
 .react-flow__handle.port-with-type-glyph.port-output {
   box-shadow:
@@ -283,7 +280,6 @@
   box-shadow:
     0 0 0 2px var(--port-output),
     0 0 14px 5px color-mix(in srgb, var(--port-output) 55%, transparent) !important;
-  transform: scale(1.06);
 }
 .react-flow__handle.port-with-type-glyph.port-output.port-output-accent {
   box-shadow:
@@ -294,13 +290,16 @@
   box-shadow:
     0 0 0 2px var(--accent-color),
     0 0 14px 5px color-mix(in srgb, var(--accent-color) 55%, transparent) !important;
-  transform: scale(1.06);
 }
 
 .port-type-glyph-inner {
   background: var(--handle-icon-chip-bg);
   border: 1px solid var(--handle-icon-chip-border);
   box-shadow: var(--handle-icon-chip-shadow);
+  transition: transform 0.15s ease;
+}
+.react-flow__handle.port-with-type-glyph:hover .port-type-glyph-inner {
+  transform: scale(1.08);
 }
 
 /* Animated edge */
@@ -482,7 +481,7 @@
 }
 
 /* CustomEdge: smooth hover / selection / running opacity & stroke */
-.vf-custom-edge .vf-custom-edge-stroke {
+.vf-custom-edge-stroke {
   transition:
     stroke 0.2s ease,
     stroke-width 0.2s ease,
@@ -762,7 +761,7 @@
   --shadow-node: 0 4px 20px rgba(0, 0, 0, 0.12);
   --accent-color: #5b4cdb;
   --accent-hover: #6f62e8;
-  --edge-stroke: #5b4cdb;
+  --edge-stroke: #0891b2;
   --port-input: #059669;
   --port-output: #6d28d9;
   --port-handle-border: rgba(0, 0, 0, 0.22);

@@ -1,0 +1,15 @@
+---
+description: Global protocol for planning, subagent use, and self-improvement
+globs: *
+alwaysApply: true
+---
+
+# AI Assistant Operational Protocol
+
+## Workflow Orchestration
+1. **Plan Mode Default**: For any task involving >3 steps or architectural decisions, enter `PLAN MODE`. Write detailed specs to `tasks/todo.md` before writing code. If implementation deviates, STOP and re-plan.
+2. **Subagent Strategy**: Delegate research, parallel analysis, and exploration to subagents to maintain a clean main context window.
+3. **Self-Improvement Loop**: After every user correction, update `tasks/lessons.md` with the identified pattern. Review this file at the start of every session.
+4. **Verification**: Never mark a task as complete without proof. Run tests, check logs, and perform a `diff` analysis. Ask: "Would a staff engineer approve this?"
+5. **Demand Elegance**: Prioritize elegant solutions over hacky fixes. If a fix feels suboptimal, pause and refactor using current project knowledge.
+6. **Autonomous Bug Fixing**: When a bug is reported, analyze logs and errors to resolve it independently. Do not ask for hand-holding; fix failing CI tests as found.

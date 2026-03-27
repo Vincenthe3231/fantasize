@@ -8,6 +8,30 @@ import {
 
 export type NodePatchMap = Record<string, Partial<Record<string, unknown>>>;
 
+type GraphIndexes = {
+  nodesById: Map<string, Node>;
+  incomingByTarget: Map<string, Edge[]>;
+  outgoingBySource: Map<string, Edge[]>;
+};
+
+function buildGraphIndexes(nodes: Node[], edges: Edge[]): GraphIndexes {
+  const nodesById = new Map(nodes.map((n) => [n.id, n]));
+  const incomingByTarget = new Map<string, Edge[]>();
+  const outgoingBySource = new Map<string, Edge[]>();
+
+  for (const edge of edges) {
+    const incoming = incomingByTarget.get(edge.target);
+    if (incoming) incoming.push(edge);
+    else incomingByTarget.set(edge.target, [edge]);
+
+    const outgoing = outgoingBySource.get(edge.source);
+    if (outgoing) outgoing.push(edge);
+    else outgoingBySource.set(edge.source, [edge]);
+  }
+
+  return { nodesById, incomingByTarget, outgoingBySource };
+}
+
 function mergeTextConcatDedupe(packets: NodeDataflowPacket[]): NodeDataflowPacket | null {
   const parts: string[] = [];
   for (const p of packets) {
@@ -96,20 +120,19 @@ function mergeByMode(mode: NodeDataflowMergeMode, packets: NodeDataflowPacket[])
   }
 }
 
-function incomingEdgesForTarget(edges: Edge[], targetId: string): Edge[] {
-  return edges.filter((e) => e.target === targetId);
-}
-
-export function computeNodeInputPatch(node: Node, nodes: Node[], edges: Edge[]): Partial<Record<string, unknown>> | null {
-  const incomings = incomingEdgesForTarget(edges, node.id);
+function computeNodeInputPatchFromIndexes(
+  node: Node,
+  indexes: GraphIndexes,
+  nodesSnapshot: Node[]
+): Partial<Record<string, unknown>> | null {
+  const incomings = indexes.incomingByTarget.get(node.id) ?? [];
   if (incomings.length === 0) return null;
 
   const byHandle = new Map<string, NodeDataflowPacket[]>();
-  const nodesById = new Map(nodes.map((n) => [n.id, n]));
 
   for (const e of incomings) {
     const targetHandle = e.targetHandle ?? 'default';
-    const src = nodesById.get(e.source);
+    const src = indexes.nodesById.get(e.source);
     if (!src) continue;
     const outContract = resolveOutputContractForEdge(
       src.type,
@@ -121,7 +144,7 @@ export function computeNodeInputPatch(node: Node, nodes: Node[], edges: Edge[]):
     const inContract = inputContractForHandle(node.type, targetHandle);
     if (!inContract) continue;
     if (inContract.dataType !== 'generic' && outContract.dataType !== inContract.dataType) continue;
-    const packet = outContract.read(src, { nodes });
+    const packet = outContract.read(src, { nodes: nodesSnapshot });
     if (!packet) continue;
     const list = byHandle.get(targetHandle) ?? [];
     list.push(packet);
@@ -141,6 +164,11 @@ export function computeNodeInputPatch(node: Node, nodes: Node[], edges: Edge[]):
   return Object.keys(patch).length > 0 ? patch : null;
 }
 
+export function computeNodeInputPatch(node: Node, nodes: Node[], edges: Edge[]): Partial<Record<string, unknown>> | null {
+  const indexes = buildGraphIndexes(nodes, edges);
+  return computeNodeInputPatchFromIndexes(node, indexes, nodes);
+}
+
 export function computeReactivePatchesFromSources(
   changedSourceIds: string[],
   nodes: Node[],
@@ -151,16 +179,20 @@ export function computeReactivePatchesFromSources(
 
   const visited = new Set<string>();
   const workingNodes = new Map<string, Node>(nodes.map((n) => [n.id, { ...n, data: { ...(n.data ?? {}) } }]));
+  const indexes = buildGraphIndexes(nodes, edges);
+  indexes.nodesById = workingNodes;
   const queue = [...new Set(changedSourceIds)];
 
   while (queue.length > 0) {
     const sourceId = queue.shift()!;
-    for (const edge of edges) {
-      if (edge.source !== sourceId) continue;
+    const outgoing = indexes.outgoingBySource.get(sourceId);
+    if (!outgoing) continue;
+    const nodesSnapshot = [...workingNodes.values()];
+    for (const edge of outgoing) {
       const targetId = edge.target;
       const targetNode = workingNodes.get(targetId);
       if (!targetNode) continue;
-      const patch = computeNodeInputPatch(targetNode, [...workingNodes.values()], edges);
+      const patch = computeNodeInputPatchFromIndexes(targetNode, indexes, nodesSnapshot);
       if (patch && Object.keys(patch).length > 0) {
         out[targetId] = { ...(out[targetId] ?? {}), ...patch };
         workingNodes.set(targetId, {

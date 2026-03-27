@@ -1,5 +1,5 @@
-import { memo, useState, useCallback, useRef, useMemo } from 'react';
-import { Position, type NodeProps } from 'reactflow';
+import { memo, useState, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
+import { Position, type NodeProps, useUpdateNodeInternals } from 'reactflow';
 import { NodeResizer } from '@reactflow/node-resizer';
 
 import { useWorkflowStore } from '@/stores/workflowStore';
@@ -24,6 +24,9 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
   const width = typeof style?.width === 'number' ? style.width : undefined;
   const height = typeof style?.height === 'number' ? style.height : undefined;
 
+  const updateNodeInternals = useUpdateNodeInternals();
+  const resizeInternalsRaf = useRef<number | null>(null);
+
   const selectedTool = useWorkflowStore((s) => s.selectedTool);
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
   const nodes = useWorkflowStore((s) => s.nodes);
@@ -33,6 +36,30 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
     const merged = aggregatePortTypesForChildTypes(children.map((c) => String(c.type)));
     return merged.length > 0 ? merged : DEFAULT_GROUP_PORT_TYPES;
   }, [nodes, id]);
+  const portTypesKey = portTypes.join('|');
+  const dimKey = `${String(style?.width ?? '')}×${String(style?.height ?? '')}`;
+
+  useLayoutEffect(() => {
+    updateNodeInternals(id);
+    const raf = requestAnimationFrame(() => updateNodeInternals(id));
+    return () => cancelAnimationFrame(raf);
+  }, [id, portTypesKey, dimKey, updateNodeInternals]);
+
+  const scheduleResizeInternalsUpdate = useCallback(() => {
+    if (resizeInternalsRaf.current != null) return;
+    resizeInternalsRaf.current = requestAnimationFrame(() => {
+      resizeInternalsRaf.current = null;
+      updateNodeInternals(id);
+    });
+  }, [id, updateNodeInternals]);
+
+  const onNodeResizeEnd = useCallback(() => {
+    if (resizeInternalsRaf.current != null) {
+      cancelAnimationFrame(resizeInternalsRaf.current);
+      resizeInternalsRaf.current = null;
+    }
+    updateNodeInternals(id);
+  }, [id, updateNodeInternals]);
   // When connecting, let pointer interactions pass through the group container
   // so child nodes' handles remain clickable/connectable.
   const pointerEvents = selectedTool === 'connection' ? 'none' : 'auto';
@@ -81,6 +108,17 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
     height: height ?? style?.height ?? '100%',
   };
 
+  /** Pixel `top` matches RF node `width`/`height` (avoids %-vs-measured-box mismatch with the floating label). */
+  const hForHandles =
+    typeof height === 'number' && height > 0
+      ? height
+      : typeof style?.height === 'number' && style.height > 0
+        ? style.height
+        : 320;
+  const handleTopStyle = (i: number) => ({
+    top: `${((i + 1) / (portTypes.length + 1)) * hForHandles}px`,
+  });
+
   const canResize = draggable !== false;
 
   return (
@@ -89,6 +127,8 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
         isVisible={!!selected && canResize}
         minWidth={200}
         minHeight={120}
+        onResize={scheduleResizeInternalsUpdate}
+        onResizeEnd={onNodeResizeEnd}
         handleStyle={{
           width: 8,
           height: 8,
@@ -147,34 +187,28 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
         }}
         data-group-node-selected={selected || undefined}
       />
-      {portTypes.map((dt, i) => {
-        const topPct = `${((i + 1) / (portTypes.length + 1)) * 100}%`;
-        return (
-          <EnhancedHandle
-            key={`group-in-${dt}`}
-            type="target"
-            position={Position.Left}
-            id={`group-in-${dt}`}
-            className="port-input"
-            style={{ top: topPct }}
-            dataType={dt}
-          />
-        );
-      })}
-      {portTypes.map((dt, i) => {
-        const topPct = `${((i + 1) / (portTypes.length + 1)) * 100}%`;
-        return (
-          <EnhancedHandle
-            key={`group-out-${dt}`}
-            type="source"
-            position={Position.Right}
-            id={`group-out-${dt}`}
-            className={`port-output ${dt === 'text' ? 'port-output-accent' : ''}`}
-            style={{ top: topPct }}
-            dataType={dt}
-          />
-        );
-      })}
+      {portTypes.map((dt, i) => (
+        <EnhancedHandle
+          key={`group-in-${dt}`}
+          type="target"
+          position={Position.Left}
+          id={`group-in-${dt}`}
+          className="port-input"
+          style={handleTopStyle(i)}
+          dataType={dt}
+        />
+      ))}
+      {portTypes.map((dt, i) => (
+        <EnhancedHandle
+          key={`group-out-${dt}`}
+          type="source"
+          position={Position.Right}
+          id={`group-out-${dt}`}
+          className={`port-output ${dt === 'text' ? 'port-output-accent' : ''}`}
+          style={handleTopStyle(i)}
+          dataType={dt}
+        />
+      ))}
     </div>
   );
 });

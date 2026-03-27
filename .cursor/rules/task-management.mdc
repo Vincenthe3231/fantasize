@@ -1,0 +1,19 @@
+---
+description: Standards for managing task logs and lesson captures
+globs: tasks/**
+alwaysApply: true
+---
+
+# Task Management Process
+
+1. **Plan**: Define checkable items in `tasks/todo.md`.
+2. **Verify**: Confirm the plan with the user before implementation.
+3. **Track**: Mark items as completed in real-time.
+4. **Explain**: Provide high-level summaries of changes at each step.
+5. **Document**: Add a summary of results to the `review` section of `tasks/todo.md`.
+6. **Capture**: Update `tasks/lessons.md` immediately following any corrections.
+
+## Core Principles
+- **Simplicity First**: Keep changes minimal and impact localized.
+- **No Laziness**: Address root causes; avoid temporary "band-aid" fixes. 
+- **Minimal Impact**: Ensure changes only touch necessary files to prevent regression.

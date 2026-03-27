@@ -99,19 +99,17 @@ const CustomEdge = memo(({
   const midX = labelX;
   const midY = labelY;
 
-  const strokeColor = selected ? '#3b82f6' : hovered ? '#7c6ff7' : 'var(--edge-stroke)';
+  const strokeColor = 'var(--edge-stroke)';
   const strokeW = hovered || selected ? 2 : 1.5;
   const opacity = isRunning ? 1 : hovered || selected ? 0.9 : 0.7;
-
   const showSnipControl = hovered || selected;
-  /** foreignObject top-left so button is centered on midpoint */
   const foSize = 32;
   const foHalf = foSize / 2;
   const anchorX = hovered && hoverPoint ? hoverPoint.x : midX;
   const anchorY = hovered && hoverPoint ? hoverPoint.y : midY;
 
   return (
-    <g className="vf-custom-edge">
+    <>
       <path
         d={edgePath}
         fill="none"
@@ -130,10 +128,9 @@ const CustomEdge = memo(({
         id={id}
         d={edgePath}
         fill="none"
-        stroke={strokeColor}
         strokeWidth={strokeW}
-        className={`vf-custom-edge-stroke ${isRunning && edgeAnimation ? 'animated-edge' : ''}`}
-        style={{ opacity, pointerEvents: 'none' }}
+        className={`react-flow__edge-path vf-custom-edge-stroke ${isRunning && edgeAnimation ? 'animated-edge' : ''}`}
+        style={{ stroke: strokeColor, opacity, pointerEvents: 'none' }}
       />
       {showSnipControl && (
         <foreignObject
@@ -144,8 +141,11 @@ const CustomEdge = memo(({
           className="overflow-visible"
         >
           <div
-            className="flex h-full w-full items-center justify-center"
-            onPointerEnter={onEdgePointerEnter}
+            className="flex h-full w-full items-center justify-center nodrag nopan"
+            onPointerEnter={() => {
+              clearLeaveTimer();
+              setHovered(true);
+            }}
             onPointerLeave={onEdgePointerLeave}
           >
             <button
@@ -164,7 +164,7 @@ const CustomEdge = memo(({
           </div>
         </foreignObject>
       )}
-    </g>
+    </>
   );
 });
 

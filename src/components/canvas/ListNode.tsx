@@ -9,6 +9,8 @@ import NodeActionBar from './NodeActionBar';
 import { NodeLabelRow } from './NodeLabelRow';
 import ResizableNodeWrapper from './ResizableNodeWrapper';
 import { DefaultNodePortHandles } from './DefaultNodePortHandles';
+import { deleteWorkflowMediaByPublicUrl } from '@/lib/uploadStorage';
+
 type ListItemType = 'text' | 'image';
 
 interface ListItem {
@@ -60,9 +62,38 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
     setItems([...items, { id: `m-${Date.now()}`, type: 'image', mediaUrl: url, mediaName: file.name }]);
   };
 
+  const removeListImageFromStorage = useCallback((item: ListItem) => {
+    if (item.type !== 'image') return;
+    const supabaseOrHttps =
+      item.supabaseUrl?.trim() ||
+      (item.mediaUrl?.trim() && /^https?:\/\//i.test(item.mediaUrl.trim()) ? item.mediaUrl.trim() : '');
+    if (supabaseOrHttps) void deleteWorkflowMediaByPublicUrl(supabaseOrHttps);
+    const media = item.mediaUrl?.trim() ?? '';
+    if (media.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(media);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
   const removeItem = (itemId: string) => {
+    const item = items.find((i) => i.id === itemId);
+    if (item) removeListImageFromStorage(item);
     setItems(items.filter((i) => i.id !== itemId));
   };
+
+  const clearAllItems = useCallback(() => {
+    for (const it of items) {
+      removeListImageFromStorage(it);
+    }
+    updateNodeData(id, {
+      items: [],
+      listAddingText: false,
+      listTextDraft: '',
+    });
+  }, [items, id, removeListImageFromStorage, updateNodeData]);
 
   const openImage = (url: string) => {
     const u = url.trim();
@@ -326,13 +357,7 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
               <button type="button" className="w-full rounded-md px-2.5 py-1.5 text-left text-[11px] text-[var(--node-popover-text)] hover:bg-[var(--node-action-bar-hover-bg)]">Replace Items</button>
               <button
                 type="button"
-                onClick={() =>
-                  updateNodeData(id, {
-                    items: [],
-                    listAddingText: false,
-                    listTextDraft: '',
-                  })
-                }
+                onClick={clearAllItems}
                 className="w-full rounded-md px-2.5 py-1.5 text-left text-[11px] text-destructive hover:bg-[var(--node-action-bar-hover-bg)]"
               >
                 Clear All

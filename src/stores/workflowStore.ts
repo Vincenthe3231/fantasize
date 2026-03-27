@@ -303,15 +303,6 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     if (sourceIds.length === 0) return;
     const patches = computeReactivePatchesFromSources(sourceIds, s.nodes, s.edges);
     if (Object.keys(patches).length === 0) return;
-    if (get().settings.experimentalTools) {
-      for (const [nid, patch] of Object.entries(patches)) {
-        const n = s.nodes.find((x) => x.id === nid);
-        if (n?.type === 'imageGeneratorNode' && patch.prompt != null) {
-          const plen = String(patch.prompt).length;
-          console.debug('[Scout]', 'Dataflow: image generator prompt updated', { nodeId: nid, chars: plen });
-        }
-      }
-    }
     set((st) => {
       let changed = false;
       let nextPipeline = st.scoutPipeline;
@@ -323,6 +314,12 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         const hasAnyChange = keys.some((k) => node.data?.[k] !== patch[k]);
         if (!hasAnyChange) return node;
         changed = true;
+        if (get().settings.experimentalTools) {
+          if (node.type === 'imageGeneratorNode' && patch.prompt != null) {
+            const plen = String(patch.prompt).length;
+            console.debug('[Scout]', 'Dataflow: image generator prompt updated', { nodeId: node.id, chars: plen });
+          }
+        }
         nextPipeline = applyScoutStaleOnDataChange(nextPipeline, node.type, keys);
         return { ...node, data: { ...node.data, ...patch } };
       });
@@ -534,13 +531,12 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       applyReactiveDataflow([], true);
     },
 
+    /** Sync from React Flow without undo (selection, resize). Full dataflow here caused stalls when selection fired in tight loops. */
     setNodesSilently: (nodes) => {
       set({ nodes });
-      applyReactiveDataflow([], true);
     },
     setEdgesSilently: (edges) => {
       set({ edges });
-      applyReactiveDataflow([], true);
     },
 
     pushSelectionCommand: (prevNodes, prevEdges, nextNodes, nextEdges) => {
@@ -593,7 +589,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     connectEdgeWithHistory: (nextEdges, newEdge) => {
       const edge = structuredClone(newEdge);
       set({ edges: nextEdges });
-      applyReactiveDataflow([edge.source]);
+      // Let the connect interaction paint first, then propagate downstream patches.
+      queueMicrotask(() => {
+        applyReactiveDataflow([edge.source]);
+      });
       pushCmd({
         undo: () => set((st) => ({ edges: st.edges.filter((e) => e.id !== edge.id) })),
         execute: () => set((st) => ({ edges: [...st.edges, structuredClone(edge)] })),

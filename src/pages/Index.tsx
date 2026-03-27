@@ -1,6 +1,15 @@
-import { useCallback, useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useRef, useMemo, startTransition } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useViewportHandleBoundsSync } from '@/hooks/useViewportHandleBoundsSync';
+import {
+  installCanvasEdgeDebugWindowApi,
+  isCanvasEdgeDebugEnabled,
+  logCanvasEdgeAudit,
+  logCanvasEdgeConnectStart,
+  logCanvasEdgeGlobal,
+  logCanvasEdgeMoveEnd,
+} from '@/lib/canvasEdgeDebug';
 import { fetchOrCreateSpace, fetchSpaceById, isUuidParam, type SpaceRow } from '@/lib/spaceApi';
 import { shouldRestoreDraftFromLocal, type StoredSpaceDraft } from '@/lib/spaceDraftStorage';
 import { SpacePersistenceContext } from '@/contexts/SpacePersistenceContext';
@@ -25,6 +34,7 @@ import ReactFlow, {
   SelectionMode,
   getConnectedEdges,
   ConnectionLineType,
+  useUpdateNodeInternals,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import '@reactflow/node-resizer/dist/style.css';
@@ -147,9 +157,10 @@ function mergeNodesWithSelection(
 }
 
 /**
- * While the store lags behind React Flow during drag/resize, re-applying `storeNodes`
- * would stomp live width/height/position and cause jitter. Keep store fields (data, type,
- * …) but preserve measured geometry from the current flow snapshot.
+ * Merge Zustand graph fields into React Flow’s live snapshot so measured geometry wins:
+ * `width` / `height` / `position` / `style` from RF (auto-resize, content growth, drag in progress)
+ * while `data`, `type`, `parentId`, etc. come from the store. Without this, any `storeNodes`
+ * effect that substitutes the store array would revert RF to stale dimensions and desync handles/edges.
  */
 function mergeStoreNodesWithFlowGeometry(storeNodes: Node[], flowNodes: Node[]): Node[] {
   const flowById = new Map(flowNodes.map((n) => [n.id, n]));
@@ -227,7 +238,9 @@ const CanvasInner = ({
   const hydrateFromSpace = useWorkflowStore((s) => s.hydrateFromSpace);
   const setLastViewport = useWorkflowStore((s) => s.setLastViewport);
   const pushSelectionCommand = useWorkflowStore((s) => s.pushSelectionCommand);
-  const isDragging = useWorkflowStore((s) => s.isDragging);
+  const [searchParams] = useSearchParams();
+  const debugNodeParam = useMemo(() => searchParams.get('debugNode')?.trim() ?? '', [searchParams]);
+  const canvasEdgeDebugOn = useMemo(() => isCanvasEdgeDebugEnabled(searchParams), [searchParams]);
 
   const [nodes, setNodes] = useNodesState(storeNodes);
   const isNodeResizeActiveRef = useRef(false);
@@ -236,23 +249,32 @@ const CanvasInner = ({
     (changes: NodeChange[]) => {
       setNodes((nds) => {
         let resizeEnded = false;
+        /** Persist RF dimensions to Zustand for organic ResizeObserver growth (no `resizing` flag) and resize end — not every `resizing: true` tick to limit churn. */
+        let shouldPersistDimensions = false;
         for (const c of changes) {
-          if (c.type === 'dimensions' && 'resizing' in c) {
-            if (c.resizing === true) {
-              isNodeResizeActiveRef.current = true;
-            } else {
-              // Keep merge mode until the store catches up (microtask), or a stale
-              // storeNodes effect can replace RF dimensions before setNodesSilently runs.
-              isNodeResizeActiveRef.current = true;
-              resizeEnded = true;
+          if (c.type === 'dimensions') {
+            const isResizeDrag =
+              'resizing' in c && (c as { resizing?: boolean }).resizing === true;
+            if (!isResizeDrag) {
+              shouldPersistDimensions = true;
+            }
+            if ('resizing' in c) {
+              if ((c as { resizing?: boolean }).resizing === true) {
+                isNodeResizeActiveRef.current = true;
+              } else {
+                isNodeResizeActiveRef.current = true;
+                resizeEnded = true;
+              }
             }
           }
         }
         const next = applyNodeChanges(changes, nds);
-        if (resizeEnded) {
+        if (resizeEnded || shouldPersistDimensions) {
           queueMicrotask(() => {
             setNodesSilently(structuredClone(next));
-            isNodeResizeActiveRef.current = false;
+            if (resizeEnded) {
+              isNodeResizeActiveRef.current = false;
+            }
           });
         }
         return next;
@@ -276,10 +298,140 @@ const CanvasInner = ({
   const selectionSelectedIdsRef = useRef<{ nodeIds: Set<string>; edgeIds: Set<string> } | null>(null);
   const selectionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userSelectionRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
-  const { screenToFlowPosition, fitView, getNodes, setViewport } = useReactFlow();
+  const moveHandleBoundsRafRef = useRef<number | null>(null);
+  const { screenToFlowPosition, fitView, getNodes, getNode, getEdges, setViewport } = useReactFlow();
+  const updateNodeInternals = useUpdateNodeInternals();
+  const { refreshAllHandleBounds } = useViewportHandleBoundsSync();
   const storeApi = useStoreApi();
+  const moveEndDebugLastTsRef = useRef(0);
+
+  const onConnectStart = useCallback(
+    (
+      _event: unknown,
+      meta: { nodeId?: string | null; handleId?: string | null; handleType?: string | null }
+    ) => {
+      const nodeId = meta?.nodeId ?? undefined;
+      if (import.meta.env.DEV && canvasEdgeDebugOn) {
+        logCanvasEdgeConnectStart({
+          rfGetState: () => storeApi.getState(),
+          workflowNodes: useWorkflowStore.getState().nodes,
+          meta: {
+            nodeId: meta?.nodeId ?? null,
+            handleId: meta?.handleId ?? null,
+            handleType: meta?.handleType != null ? String(meta.handleType) : null,
+          },
+        });
+      }
+      if (nodeId) {
+        const chain: string[] = [];
+        let cur: string | undefined = nodeId;
+        const seen = new Set<string>();
+        while (cur && !seen.has(cur)) {
+          seen.add(cur);
+          chain.push(cur);
+          cur = getNode(cur)?.parentId;
+        }
+        refreshAllHandleBounds();
+        if (chain.length > 0) updateNodeInternals(chain);
+        requestAnimationFrame(() => {
+          refreshAllHandleBounds();
+          if (chain.length > 0) updateNodeInternals(chain);
+        });
+      }
+      startTransition(() => {
+        setIsConnectingFromHandle(true);
+      });
+    },
+    [
+      canvasEdgeDebugOn,
+      storeApi,
+      refreshAllHandleBounds,
+      updateNodeInternals,
+      getNode,
+    ]
+  );
+  const onConnectEnd = useCallback(() => {
+    setIsConnectingFromHandle(false);
+  }, []);
+
+  const onMoveEnd = useCallback(
+    (_: MouseEvent | TouchEvent | null, vp: { x: number; y: number; zoom: number }) => {
+      setLastViewport({ x: vp.x, y: vp.y, zoom: vp.zoom });
+      requestAnimationFrame(() => {
+        refreshAllHandleBounds();
+      });
+      if (import.meta.env.DEV && canvasEdgeDebugOn) {
+        const now = Date.now();
+        if (now - moveEndDebugLastTsRef.current >= 600) {
+          moveEndDebugLastTsRef.current = now;
+          const wf = useWorkflowStore.getState();
+          logCanvasEdgeMoveEnd({
+            tag: 'onMoveEnd',
+            rfGetState: () => storeApi.getState(),
+            workflowNodeCount: wf.nodes.length,
+            workflowEdgeCount: wf.edges.length,
+            viewport: vp,
+          });
+        }
+      }
+    },
+    [setLastViewport, refreshAllHandleBounds, canvasEdgeDebugOn, storeApi]
+  );
+
+  const onMove = useCallback(() => {
+    if (moveHandleBoundsRafRef.current != null) return;
+    moveHandleBoundsRafRef.current = requestAnimationFrame(() => {
+      moveHandleBoundsRafRef.current = null;
+      refreshAllHandleBounds();
+    });
+  }, [refreshAllHandleBounds]);
+
+  useEffect(() => {
+    return () => {
+      if (moveHandleBoundsRafRef.current != null) {
+        cancelAnimationFrame(moveHandleBoundsRafRef.current);
+        moveHandleBoundsRafRef.current = null;
+      }
+    };
+  }, []);
+
   const userSelectionRect = useStore((s) => s.userSelectionRect);
   const hydratedSpaceId = useRef<string | null>(null);
+
+  /** Console instrumentation: `?canvasEdgeDebug=1` and/or `?debugNode=<id>` (dev only). */
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    if (!debugNodeParam && !canvasEdgeDebugOn) return;
+    const id = window.setInterval(() => {
+      const wf = useWorkflowStore.getState();
+      if (canvasEdgeDebugOn) {
+        logCanvasEdgeGlobal({
+          tag: 'interval-2s',
+          rfGetState: () => storeApi.getState(),
+          workflowNodeCount: wf.nodes.length,
+          workflowEdgeCount: wf.edges.length,
+        });
+      }
+      if (debugNodeParam) {
+        logCanvasEdgeAudit({
+          tag: 'interval-2s',
+          nodeId: debugNodeParam,
+          rfGetState: () => storeApi.getState(),
+          workflowNodes: wf.nodes,
+        });
+      }
+    }, 2000);
+    return () => clearInterval(id);
+  }, [debugNodeParam, canvasEdgeDebugOn, storeApi]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || !canvasEdgeDebugOn) return;
+    return installCanvasEdgeDebugWindowApi({
+      rfGetState: () => storeApi.getState(),
+      getWorkflowNodes: () => useWorkflowStore.getState().nodes,
+      getWorkflowEdgeCount: () => useWorkflowStore.getState().edges.length,
+    });
+  }, [canvasEdgeDebugOn, storeApi]);
 
   useEffect(() => {
     userSelectionRectRef.current = userSelectionRect ?? null;
@@ -308,9 +460,14 @@ const CanvasInner = ({
         } else {
           fitView({ padding: 0.2, duration: 0 });
         }
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            refreshAllHandleBounds();
+          });
+        });
       });
     },
-    [space.id, hydrateFromSpace, setViewport, fitView]
+    [space.id, hydrateFromSpace, setViewport, fitView, refreshAllHandleBounds]
   );
 
   const persistence = useSpaceLocalPersistence(space, {
@@ -346,8 +503,13 @@ const CanvasInner = ({
       } else {
         fitView({ padding: 0.2, duration: 0 });
       }
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          refreshAllHandleBounds();
+        });
+      });
     });
-  }, [space, resolvedDraft, hydrateFromSpace, setViewport, fitView]);
+  }, [space, resolvedDraft, hydrateFromSpace, setViewport, fitView, refreshAllHandleBounds]);
 
   useEffect(() => {
     const st = useWorkflowStore.getState().settings;
@@ -356,13 +518,8 @@ const CanvasInner = ({
   }, []);
 
   useEffect(() => {
-    setNodes((current) => {
-      if (isDragging || isNodeResizeActiveRef.current) {
-        return mergeStoreNodesWithFlowGeometry(storeNodes, current);
-      }
-      return storeNodes;
-    });
-  }, [storeNodes, setNodes, isDragging]);
+    setNodes((current) => mergeStoreNodesWithFlowGeometry(storeNodes, current));
+  }, [storeNodes, setNodes]);
   useEffect(() => {
     setEdges(storeEdges);
   }, [storeEdges, setEdges]);
@@ -377,30 +534,34 @@ const CanvasInner = ({
       const store = useWorkflowStore.getState();
       const v = validateScoutConnection(connection, store.edges);
       if (!v.ok) return;
-      setEdges((eds) => {
-        const next = addEdge({ ...connection, type: 'custom' }, eds);
-        const added = next.find((e) => !eds.some((oe) => oe.id === e.id));
-        if (added) connectEdgeWithHistory(next, added);
-        return next;
-      });
+      const eds = getEdges();
+      const next = addEdge({ ...connection, type: 'custom' }, eds);
+      const added = next.find((e) => !eds.some((oe) => oe.id === e.id));
+      setEdges(next);
+      if (added) {
+        queueMicrotask(() => {
+          connectEdgeWithHistory(next, added);
+        });
+      }
     },
-    [setEdges, connectEdgeWithHistory]
+    [setEdges, connectEdgeWithHistory, getEdges]
   );
 
   const onEdgesChangeTracked = useCallback(
     (changes: Parameters<typeof applyEdgeChanges>[0]) => {
-      setEdges((eds) => {
-        const next = applyEdgeChanges(changes, eds);
-        const removed = eds.filter((e) => !next.some((ne) => ne.id === e.id));
+      const eds = getEdges();
+      const next = applyEdgeChanges(changes, eds);
+      const removed = eds.filter((e) => !next.some((ne) => ne.id === e.id));
+      setEdges(next);
+      queueMicrotask(() => {
         if (removed.length > 0) {
           applyEdgeRemoval(next, removed);
         } else {
           setEdgesSilently(next);
         }
-        return next;
       });
     },
-    [setEdges, applyEdgeRemoval, setEdgesSilently]
+    [setEdges, applyEdgeRemoval, setEdgesSilently, getEdges]
   );
 
   const onSelectionChange = useCallback(
@@ -833,8 +994,8 @@ const CanvasInner = ({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChangeTracked}
         onConnect={onConnect}
-        onConnectStart={() => setIsConnectingFromHandle(true)}
-        onConnectEnd={() => setIsConnectingFromHandle(false)}
+        onConnectStart={onConnectStart}
+        onConnectEnd={onConnectEnd}
         isValidConnection={isValidConnection}
         connectionLineType={ConnectionLineType.Bezier}
         connectionLineStyle={{ stroke: 'var(--edge-stroke)', strokeWidth: 2 }}
@@ -873,14 +1034,18 @@ const CanvasInner = ({
             commitNodesAfterDrag(end, deltas);
           }
           dragStartPositions.current = {};
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              refreshAllHandleBounds();
+            });
+          });
         }}
         onNodeMouseEnter={(_, node) => setHoveredNode(node.id)}
         onNodeMouseLeave={() => setHoveredNode(null)}
         onNodeContextMenu={onNodeContextMenu}
         onMoveStart={() => setContextMenu(null)}
-        onMoveEnd={(_, vp) =>
-          setLastViewport({ x: vp.x, y: vp.y, zoom: vp.zoom })
-        }
+        onMove={onMove}
+        onMoveEnd={onMoveEnd}
         onPaneClick={() => setFocusedNodeContentId(null)}
         onSelectionChange={onSelectionChange}
         onSelectionStart={onSelectionStart}
@@ -1109,10 +1274,12 @@ function CanvasRootWithDraft({ space }: { space: SpaceRow }) {
   );
 }
 
-const Index = () => (
-  <ReactFlowProvider>
-    <CanvasRoot />
-  </ReactFlowProvider>
-);
+function Index() {
+  return (
+    <ReactFlowProvider>
+      <CanvasRoot />
+    </ReactFlowProvider>
+  );
+}
 
 export default Index;
