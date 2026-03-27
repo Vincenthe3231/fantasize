@@ -1,7 +1,9 @@
 import { memo, useCallback, useRef, type ReactNode } from 'react';
 import { NodeResizer } from '@reactflow/node-resizer';
 import { useNodeId, useUpdateNodeInternals } from 'reactflow';
+import { motion } from 'framer-motion';
 import '@reactflow/node-resizer/dist/style.css';
+import { useNodeEntranceMotion } from '@/hooks/useNodeEntranceMotion';
 
 interface ResizableNodeWrapperProps {
   selected: boolean;
@@ -15,6 +17,7 @@ const ResizableNodeWrapper = memo(({ selected, minWidth = 200, minHeight = 80, c
   const nodeId = useNodeId();
   const updateNodeInternals = useUpdateNodeInternals();
   const resizeInternalsRaf = useRef<number | null>(null);
+  const entranceMotion = useNodeEntranceMotion(nodeId ?? undefined);
 
   const scheduleResizeInternalsUpdate = useCallback(() => {
     if (!nodeId || resizeInternalsRaf.current != null) return;
@@ -33,7 +36,13 @@ const ResizableNodeWrapper = memo(({ selected, minWidth = 200, minHeight = 80, c
   }, [nodeId, updateNodeInternals]);
 
   return (
-    <div className={`w-full h-full ${className}`}>
+    <motion.div
+      className={`w-full h-full ${className}`}
+      initial={entranceMotion.initial}
+      animate={entranceMotion.animate}
+      transition={entranceMotion.transition}
+      onAnimationComplete={entranceMotion.onAnimationComplete}
+    >
       <NodeResizer
         isVisible={selected}
         minWidth={minWidth}
@@ -48,7 +57,7 @@ const ResizableNodeWrapper = memo(({ selected, minWidth = 200, minHeight = 80, c
         }}
       />
       {children}
-    </div>
+    </motion.div>
   );
 });
 

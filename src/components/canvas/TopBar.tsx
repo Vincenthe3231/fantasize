@@ -21,14 +21,20 @@ const TopBar = () => {
       <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-5 py-3">
         {/* Breadcrumb */}
         <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg glass-toolbar">
-          <span className="text-[12px] text-muted-foreground font-mono-display">Project</span>
-          <ChevronRight size={12} className="text-muted-foreground opacity-50" />
-          <span className="text-[12px] text-foreground font-mono-display">Virtual Production Scout</span>
-          <ChevronRight size={12} className="text-muted-foreground opacity-50" />
-          <span className="text-[12px] text-muted-foreground font-mono-display">Space</span>
-        </div>
-        <RemoteSavePanel />
+          <img
+            src="/logo.png"
+            alt="BeLive"
+            className="h-8 w-auto object-contain object-left select-none"
+            draggable={false}
+          />
+          <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg glass-toolbar">
+            <span className="text-[12px] text-muted-foreground font-mono-display">Project</span>
+            <ChevronRight size={12} className="text-muted-foreground opacity-50" />
+            <span className="text-[12px] text-foreground font-mono-display">Virtual Production Scout</span>
+            <ChevronRight size={12} className="text-muted-foreground opacity-50" />
+            <span className="text-[12px] text-muted-foreground font-mono-display">Space</span>
+          </div>
+          <RemoteSavePanel />
         </div>
 
         {/* Right side */}

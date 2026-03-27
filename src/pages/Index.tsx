@@ -76,6 +76,7 @@ import {
   applyGroupDropReparent,
 } from '@/stores/workflowStore';
 import { validateScoutConnection } from '@/lib/scoutPipeline';
+import { DEFAULT_FIT_VIEW_OPTIONS } from '@/lib/canvasViewport';
 
 const nodeTypes = {
   textNode: TextNode,
@@ -723,7 +724,7 @@ const CanvasInner = ({
   }, [nodes, setNodes, setNodesSilently, setContextMenu]);
 
   const zoomToFit = useCallback(() => {
-    fitView({ padding: 0.25, duration: 300 });
+    fitView(DEFAULT_FIT_VIEW_OPTIONS);
     setContextMenu(null);
   }, [fitView, setContextMenu]);
 
@@ -757,7 +758,7 @@ const CanvasInner = ({
       }
       if ((e.ctrlKey || e.metaKey) && e.key === '1') {
         e.preventDefault();
-        fitView({ padding: 0.25, duration: 300 });
+        fitView(DEFAULT_FIT_VIEW_OPTIONS);
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'c' && nodes.some((n) => n.selected)) {
         e.preventDefault();

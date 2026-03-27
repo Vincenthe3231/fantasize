@@ -1,8 +1,10 @@
 import { memo, useState, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { Position, type NodeProps, useUpdateNodeInternals } from 'reactflow';
 import { NodeResizer } from '@reactflow/node-resizer';
+import { motion } from 'framer-motion';
 
 import { useWorkflowStore } from '@/stores/workflowStore';
+import { useNodeEntranceMotion } from '@/hooks/useNodeEntranceMotion';
 import { aggregatePortTypesForChildTypes } from '@/lib/nodePortDataTypes';
 import { EnhancedHandle, type HandleDataType } from './EnhancedHandle';
 
@@ -120,9 +122,17 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
   });
 
   const canResize = draggable !== false;
+  const entranceMotion = useNodeEntranceMotion(id);
 
   return (
-    <div className="relative h-full w-full min-h-0 min-w-0" style={boxStyle}>
+    <motion.div
+      className="relative h-full w-full min-h-0 min-w-0"
+      style={boxStyle}
+      initial={entranceMotion.initial}
+      animate={entranceMotion.animate}
+      transition={entranceMotion.transition}
+      onAnimationComplete={entranceMotion.onAnimationComplete}
+    >
       <NodeResizer
         isVisible={!!selected && canResize}
         minWidth={200}
@@ -209,7 +219,7 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
           dataType={dt}
         />
       ))}
-    </div>
+    </motion.div>
   );
 });
 

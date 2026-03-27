@@ -35,6 +35,14 @@ const pendingNodeDataUpdates = new Map<
   { timeoutId: number; before: Record<string, unknown>; keys: string[] }
 >();
 
+function withTransientNodeDataStripped(node: Node): Node {
+  if (!node.data || typeof node.data !== 'object') return node;
+  if (!('_animateEntrance' in node.data)) return node;
+  const nextData = { ...(node.data as Record<string, unknown>) };
+  delete nextData._animateEntrance;
+  return { ...node, data: nextData };
+}
+
 // ── Types ──────────────────────────────────────────────
 
 export type NodeType =
@@ -475,7 +483,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       };
       const vp = space.viewport ?? { x: 0, y: 0, zoom: 1 };
       set({
-        nodes: structuredClone(space.nodes),
+        nodes: structuredClone(space.nodes).map(withTransientNodeDataStripped),
         edges: migrateEdgesToScopedHandles(structuredClone(space.edges)),
         comments: structuredClone(space.comments || []),
         nodeGridLayouts: structuredClone(space.node_grid_layouts || {}),
@@ -506,7 +514,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       const nextNodes = space.nodes.map((sn) => {
         const live = byId.get(sn.id);
         return {
-          ...structuredClone(sn),
+          ...withTransientNodeDataStripped(structuredClone(sn)),
           selected: live?.selected ?? false,
           dragging: false,
           resizing: false,
@@ -656,18 +664,19 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     addNode: (type, position, data = {}) => {
       const s = get();
       const id = `${type.replace('Node', '')}-${Date.now()}`;
+      const withEntrance = { ...data, _animateEntrance: true };
       const newNode: Node =
         type === 'group'
           ? {
               id,
               type: 'group',
               position,
-              data: { labelText: 'Group', ...data },
+              data: { labelText: 'Group', ...withEntrance },
               style: { width: DEFAULT_GROUP_W, height: DEFAULT_GROUP_H },
               draggable: true,
               selectable: true,
             }
-          : { id, type, position, data };
+          : { id, type, position, data: withEntrance };
       set({ nodes: [...s.nodes, newNode] });
       applyReactiveDataflow([id]);
       pushCmd({

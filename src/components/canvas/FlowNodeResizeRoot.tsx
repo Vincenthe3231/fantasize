@@ -1,6 +1,8 @@
 import { memo, useCallback, useRef, type ReactNode } from 'react';
 import { NodeResizer } from '@reactflow/node-resizer';
 import { useNodeId, useStore, useUpdateNodeInternals } from 'reactflow';
+import { motion } from 'framer-motion';
+import { useNodeEntranceMotion } from '@/hooks/useNodeEntranceMotion';
 
 type Props = {
   minWidth?: number;
@@ -58,9 +60,16 @@ const FlowNodeResizeRoot = memo(function FlowNodeResizeRoot({
       [nodeId]
     )
   );
+  const entranceMotion = useNodeEntranceMotion(nodeId ?? undefined);
 
   return (
-    <div className={`h-full w-full min-h-0 min-w-0 bg-transparent ${className}`}>
+    <motion.div
+      className={`h-full w-full min-h-0 min-w-0 bg-transparent ${className}`}
+      initial={entranceMotion.initial}
+      animate={entranceMotion.animate}
+      transition={entranceMotion.transition}
+      onAnimationComplete={entranceMotion.onAnimationComplete}
+    >
       <NodeResizer
         isVisible={showResizeHandles}
         minWidth={minWidth}
@@ -75,7 +84,7 @@ const FlowNodeResizeRoot = memo(function FlowNodeResizeRoot({
         }}
       />
       {children}
-    </div>
+    </motion.div>
   );
 });
 

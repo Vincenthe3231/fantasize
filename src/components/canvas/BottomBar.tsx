@@ -1,6 +1,7 @@
 import { ZoomIn, ZoomOut, Maximize2, Map, Zap } from 'lucide-react';
 import { useReactFlow, useViewport } from 'reactflow';
 import { useWorkflowStore } from '@/stores/workflowStore';
+import { DEFAULT_FIT_VIEW_OPTIONS } from '@/lib/canvasViewport';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,7 +55,7 @@ const BottomBar = () => {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="bg-popover text-popover-foreground border-border text-xs">
-          <DropdownMenuItem onClick={() => fitView({ padding: 0.25, duration: 300 })}>Fit to view</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => fitView(DEFAULT_FIT_VIEW_OPTIONS)}>Fit to view</DropdownMenuItem>
           <DropdownMenuItem onClick={() => zoomIn({ duration: 200 })}>Zoom in</DropdownMenuItem>
           <DropdownMenuItem onClick={() => zoomOut({ duration: 200 })}>Zoom out</DropdownMenuItem>
         </DropdownMenuContent>
@@ -71,7 +72,7 @@ const BottomBar = () => {
 
       <button
         type="button"
-        onClick={() => fitView({ padding: 0.25, duration: 300 })}
+        onClick={() => fitView(DEFAULT_FIT_VIEW_OPTIONS)}
         className="p-2 rounded-lg text-muted-foreground hover:bg-muted/80 hover:text-foreground"
         title="Fit view"
       >

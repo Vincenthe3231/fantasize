@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/popover';
 import { RichTextField } from '@/components/rich-text/RichTextField';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { IMAGE_GENERATOR_MODES } from '@/lib/imageGeneratorModes';
 import { notifyInfo } from '@/lib/systemNotify';
 import { makeWorkflowEdge } from '@/lib/portHandles';
@@ -91,6 +92,12 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
     : [];
   const generatedUrl = generatedUrls[0] || (data.generatedUrl as string) || '';
   const negativePromptOpen = Boolean(data.negativePromptOpen);
+  const previewAspectRatio = useMemo(() => {
+    if (aspect === 'custom') return 16 / 9;
+    const [w, h] = aspect.split(':').map((part) => Number(part.trim()));
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return 16 / 9;
+    return w / h;
+  }, [aspect]);
 
   const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
 
@@ -236,8 +243,14 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
                 </div>
               )}
               {status === 'generating' && (
-                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 py-8">
-                  <Loader2 size={24} className="animate-spin text-[var(--accent-color)]" />
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-3 py-6">
+                  <div
+                    className="w-full max-w-[250px] overflow-hidden rounded-lg border border-[var(--node-control-border)] bg-[var(--node-control-bg)] p-2"
+                    style={{ aspectRatio: String(previewAspectRatio) }}
+                  >
+                    <Skeleton className="h-full w-full rounded-md" />
+                  </div>
+                  <Loader2 size={18} className="animate-spin text-[var(--accent-color)]" />
                   <span className="text-[11px] font-mono-display text-[var(--text-muted)]">
                     {queueTotal > 0 ?
                       `Prompt ${Math.min(queueCurrentPrompt, queueTotal)}/${queueTotal} • ${images} image${images === 1 ? '' : 's'} each`
