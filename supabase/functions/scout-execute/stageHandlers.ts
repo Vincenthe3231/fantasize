@@ -50,7 +50,7 @@ export async function handleScoutStage(
           'OPENROUTER_API_KEY is not set on scout-execute — Stage 2 image generator requires OpenRouter.'
         );
       }
-      const { generatedUrls, meta: imageGenMeta } = await generateStage2ImagesViaOpenRouter(
+      const { generatedUrls, generatedCreatedAt, meta: imageGenMeta } = await generateStage2ImagesViaOpenRouter(
         context,
         apiKey!.trim()
       );
@@ -60,6 +60,7 @@ export async function handleScoutStage(
           kind: 'stage2_image_generator',
           generatedUrl: generatedUrls[0] ?? '',
           generatedUrls,
+          generatedCreatedAt,
           status: 'success' as const,
         },
         meta: imageGenMeta,

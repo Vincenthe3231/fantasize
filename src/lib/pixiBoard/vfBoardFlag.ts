@@ -14,3 +14,20 @@ export function readVfPixiBoardEnabled(): boolean {
   }
   return false;
 }
+
+/**
+ * WebGL grid behind React Flow DOM nodes (hybrid layered canvas).
+ * - URL: `?vfBoard=hybrid`
+ * - localStorage: `vf.perf.board` = `hybrid`
+ */
+export function readVfHybridBoardEnabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  const q = new URLSearchParams(window.location.search).get('vfBoard');
+  if (q === 'hybrid') return true;
+  try {
+    if (window.localStorage.getItem('vf.perf.board') === 'hybrid') return true;
+  } catch {
+    /* private mode */
+  }
+  return false;
+}

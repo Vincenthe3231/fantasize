@@ -155,6 +155,7 @@ export async function generateStage2ImagesViaOpenRouter(
       context.seed
     : Number(Date.now() % 1000000);
   const generatedUrls: string[] = [];
+  const generatedCreatedAt: string[] = [];
   const perImageMeta: Record<string, unknown>[] = [];
   for (let idx = 0; idx < requested; idx++) {
     const nextContext: Record<string, unknown> = {
@@ -171,10 +172,12 @@ export async function generateStage2ImagesViaOpenRouter(
     };
     const { generatedUrl, meta } = await generateStage2ImageViaOpenRouter(nextContext, apiKey);
     generatedUrls.push(generatedUrl);
+    generatedCreatedAt.push(new Date().toISOString());
     perImageMeta.push(meta);
   }
   return {
     generatedUrls,
+    generatedCreatedAt,
     meta: {
       executionKind: 'stage2_image_generator',
       requested,

@@ -69,6 +69,7 @@ import GroupNode from '@/components/canvas/GroupNode';
 import BeLiveLoader from '@/components/canvas/BeLiveLoader';
 import { SystemNotificationToast } from '@/components/SystemNotificationToast';
 import { CanvasCursor } from '@/components/canvas/CanvasCursor';
+import { PixiHybridBackground } from '@/components/canvas/PixiHybridBackground';
 import { useMinLoadingDisplay } from '@/hooks/useMinLoadingDisplay';
 import { useSystemNotificationStore } from '@/stores/systemNotificationStore';
 import {
@@ -81,6 +82,7 @@ import { DEFAULT_FIT_VIEW_OPTIONS } from '@/lib/canvasViewport';
 import { canvasPerfFlags, runWithCanvasPerfMark } from '@/lib/canvasPerf';
 import { canvasWorkerClient } from '@/lib/canvasWorkerClient';
 import type { SpatialNodeBounds, SpatialNodeDelta } from '@/lib/canvasWorkerProtocol';
+import { readVfHybridBoardEnabled } from '@/lib/pixiBoard/vfBoardFlag';
 const nodeTypes = {
   textNode: TextNode,
   uploadNode: UploadNode,
@@ -233,16 +235,21 @@ const CanvasInnerReactFlow = ({
   space,
   resolvedDraft,
   initialLastWriteAt,
+  hybridBackground = false,
 }: {
   space: SpaceRow;
   resolvedDraft: StoredSpaceDraft | null;
   initialLastWriteAt: number;
+  /** WebGL grid behind React Flow; `?vfBoard=hybrid` or `vf.perf.board=hybrid` */
+  hybridBackground?: boolean;
 }) => {
   const storeNodes = useWorkflowStore((s) => s.nodes);
   const storeEdges = useWorkflowStore((s) => s.edges);
   const comments = useWorkflowStore((s) => s.comments);
   const selectedTool = useWorkflowStore((s) => s.selectedTool);
   const settings = useWorkflowStore((s) => s.settings);
+  /** Avoid CSS pattern + WebGL grid double-draw in hybrid mode */
+  const shellCanvasClass = hybridBackground ? 'canvas-plain' : canvasClass(settings.canvasPattern);
   const addComment = useWorkflowStore((s) => s.addComment);
   const addNodeAction = useWorkflowStore((s) => s.addNode);
   const setNodesSilently = useWorkflowStore((s) => s.setNodesSilently);
@@ -925,7 +932,7 @@ const CanvasInnerReactFlow = ({
       }}
     >
     <div
-      className={`w-screen h-screen ${canvasClass(settings.canvasPattern)} ${cursorClass} ${settings.showNodeLabels ? '' : 'workflow-hide-labels'} ${isConnectingFromHandle ? 'vf-connecting-edge' : ''} ${selectedTool === 'cut' ? 'vf-snip-tool' : ''}`}
+      className={`w-screen h-screen ${hybridBackground ? 'flex min-h-0 flex-col' : ''} ${shellCanvasClass} ${cursorClass} ${settings.showNodeLabels ? '' : 'workflow-hide-labels'} ${isConnectingFromHandle ? 'vf-connecting-edge' : ''} ${selectedTool === 'cut' ? 'vf-snip-tool' : ''}`}
       onClick={handleCanvasClick}
       onContextMenu={handleContextMenu}
       ref={reactFlowWrapper}
@@ -1079,7 +1086,16 @@ const CanvasInnerReactFlow = ({
         )}
       </AnimatePresence>
 
-      <ReactFlow
+      <div
+        className={
+          hybridBackground ? 'relative flex min-h-0 w-full flex-1 flex-col' : 'contents'
+        }
+      >
+        {hybridBackground ? <PixiHybridBackground /> : null}
+        <ReactFlow
+        className={
+          hybridBackground ? 'relative z-10 min-h-0 flex-1 !bg-transparent' : undefined
+        }
         nodes={nodes}
         edges={edges}
         onlyRenderVisibleElements
@@ -1200,11 +1216,13 @@ const CanvasInnerReactFlow = ({
           gap={28}
           size={1}
           color={
-            settings.canvasPattern === 'none'
+            hybridBackground
               ? 'transparent'
-              : settings.darkMode
-                ? 'rgba(255,255,255,0.03)'
-                : 'rgba(0,0,0,0.08)'
+              : settings.canvasPattern === 'none'
+                ? 'transparent'
+                : settings.darkMode
+                  ? 'rgba(255,255,255,0.03)'
+                  : 'rgba(0,0,0,0.08)'
           }
         />
         {settings.showMinimap && (
@@ -1216,6 +1234,7 @@ const CanvasInnerReactFlow = ({
           />
         )}
       </ReactFlow>
+      </div>
       <BottomBar />
       {notifications.length > 0 ? (
         <div className="fixed bottom-24 right-4 z-[55] flex w-[min(300px,calc(100vw-2rem))] max-w-[300px] flex-col gap-2 max-sm:right-3">
@@ -1406,6 +1425,7 @@ function CanvasRootWithDraft({ space }: { space: SpaceRow }) {
       space={space}
       resolvedDraft={draftBoot.draft}
       initialLastWriteAt={initialLastWriteAt}
+      hybridBackground={readVfHybridBoardEnabled()}
     />
   );
 }

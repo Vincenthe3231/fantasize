@@ -23,21 +23,31 @@ export type GeneratedImageMeta = {
   referer?: string;
   generatedBy?: string;
   timestamp?: number;
+  /** ISO-8601 creation time (server or client) */
+  created_at?: string;
   supabaseUrl?: string;
 };
 
 export async function uploadGeneratedImagesWithMetadata(
   urls: string[],
-  metadata: { referer?: string; generatedBy?: string }
+  metadata: { referer?: string; generatedBy?: string },
+  /** Optional per-URL ISO times from scout-execute (same order as `urls`) */
+  serverCreatedAt?: string[]
 ): Promise<Record<string, GeneratedImageMeta>> {
   const out: Record<string, GeneratedImageMeta> = {};
-  for (const url of urls) {
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i]!;
     const trimmed = String(url ?? '').trim();
     if (!trimmed) continue;
+    const serverIso = serverCreatedAt?.[i]?.trim();
+    const created_at =
+      serverIso && !Number.isNaN(Date.parse(serverIso)) ? new Date(serverIso).toISOString() : new Date().toISOString();
+    const ts = Date.parse(created_at);
     const base: GeneratedImageMeta = {
       referer: metadata.referer,
       generatedBy: metadata.generatedBy,
-      timestamp: Date.now(),
+      timestamp: Number.isFinite(ts) ? ts : Date.now(),
+      created_at,
     };
     if (/^https?:\/\//i.test(trimmed)) {
       out[trimmed] = base;

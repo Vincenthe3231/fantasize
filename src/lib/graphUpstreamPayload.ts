@@ -46,6 +46,7 @@ type ListNodeItem = {
   referer?: string;
   generatedBy?: string;
   timestamp?: number;
+  created_at?: string;
   supabaseUrl?: string;
 };
 
@@ -129,10 +130,11 @@ export type UpstreamMediaItem = {
   referer?: string;
   generatedBy?: string;
   timestamp?: number;
+  created_at?: string;
   supabaseUrl?: string;
 };
 
-/** Non-video image URLs from listNode `items` (order preserved). */
+/** Non-video image URLs from listNode `items` (newest-first: `created_at` / `timestamp`). */
 export function listNodeImageItemsFromNode(n: Node): UpstreamMediaItem[] {
   if (n.type !== 'listNode') return [];
   const items = ((n.data as { items?: ListNodeItem[] })?.items ?? []) as ListNodeItem[];
@@ -145,6 +147,9 @@ export function listNodeImageItemsFromNode(n: Node): UpstreamMediaItem[] {
     const referer = String(it.referer ?? '').trim() || undefined;
     const generatedBy = String(it.generatedBy ?? '').trim() || undefined;
     const timestamp = typeof it.timestamp === 'number' ? it.timestamp : undefined;
+    const createdRaw = String(it.created_at ?? '').trim();
+    const created_at =
+      createdRaw && !Number.isNaN(Date.parse(createdRaw)) ? new Date(createdRaw).toISOString() : undefined;
     const supabaseUrl = String(it.supabaseUrl ?? '').trim() || undefined;
     out.push({
       url,
@@ -152,6 +157,7 @@ export function listNodeImageItemsFromNode(n: Node): UpstreamMediaItem[] {
       ...(referer ? { referer } : {}),
       ...(generatedBy ? { generatedBy } : {}),
       ...(timestamp ? { timestamp } : {}),
+      ...(created_at ? { created_at } : {}),
       ...(supabaseUrl ? { supabaseUrl } : {}),
     });
   }
@@ -175,7 +181,7 @@ export function leafImageItemsFromNode(n: Node): UpstreamMediaItem[] {
       labelText?: string;
       generatedImageMetaByUrl?: Record<
         string,
-        { referer?: string; generatedBy?: string; timestamp?: number; supabaseUrl?: string }
+        { referer?: string; generatedBy?: string; timestamp?: number; created_at?: string; supabaseUrl?: string }
       >;
     };
     const urls = [

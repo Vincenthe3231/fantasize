@@ -12,6 +12,7 @@ import ResizableNodeWrapper from './ResizableNodeWrapper';
 import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { deleteWorkflowMediaByPublicUrl } from '@/lib/uploadStorage';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
+import { mergeTextAndSortedListImages } from '@/lib/listNodeImageSort';
 
 type ListItemType = 'text' | 'image';
 
@@ -24,7 +25,24 @@ interface ListItem {
   referer?: string;
   generatedBy?: string;
   timestamp?: number;
+  /** ISO-8601; used with timestamp for newest-first image order */
+  created_at?: string;
   supabaseUrl?: string;
+}
+
+/** Preserve invariant: all text items first, then all image items (required by Reorder merge). New images prepend (newest first); new text appends after existing text. */
+function splitListItems(items: ListItem[]) {
+  const text: ListItem[] = [];
+  const image: ListItem[] = [];
+  for (const it of items) {
+    if (it.type === 'text') text.push(it);
+    else image.push(it);
+  }
+  return { text, image };
+}
+
+function mergeListItems(text: ListItem[], image: ListItem[]) {
+  return [...text, ...image];
 }
 
 const ListNode = memo(({ id, data, selected }: NodeProps) => {
@@ -63,8 +81,12 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
 
   const addTextItem = () => {
     if (!textDraft.trim()) return;
+    const { text, image } = splitListItems(items);
     updateNodeData(id, {
-      items: [...items, { id: `t-${Date.now()}`, type: 'text', text: textDraft.trim() }],
+      items: mergeListItems(
+        [...text, { id: `t-${Date.now()}`, type: 'text', text: textDraft.trim() }],
+        image
+      ),
       listAddingText: false,
       listTextDraft: '',
     });
@@ -72,7 +94,15 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
 
   const addMediaItem = (file: File) => {
     const url = URL.createObjectURL(file);
-    setItems([...items, { id: `m-${Date.now()}`, type: 'image', mediaUrl: url, mediaName: file.name }]);
+    const { text, image } = splitListItems(items);
+    const now = Date.now();
+    const created_at = new Date(now).toISOString();
+    setItems(
+      mergeTextAndSortedListImages(text, [
+        { id: `m-${now}`, type: 'image', mediaUrl: url, mediaName: file.name, timestamp: now, created_at },
+        ...image,
+      ])
+    );
   };
 
   const removeListImageFromStorage = useCallback((item: ListItem) => {

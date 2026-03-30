@@ -281,12 +281,15 @@ export const ScoutExecutionResultSchema = z.discriminatedUnion('kind', [
     kind: z.literal('stage2_image_generator'),
     generatedUrl: z.string(),
     generatedUrls: z.array(z.string()).optional(),
+    /** ISO-8601 per image, same order as `generatedUrls` (from scout-execute) */
+    generatedCreatedAt: z.array(z.string()).optional(),
     generatedImageMetaByUrl: z
       .record(
         z.object({
           referer: z.string().optional(),
           generatedBy: z.string().optional(),
           timestamp: z.number().optional(),
+          created_at: z.string().optional(),
           supabaseUrl: z.string().optional(),
         })
       )

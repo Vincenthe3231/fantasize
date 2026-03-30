@@ -192,13 +192,23 @@ async function applyStage2ImageResult(
   const referer = window.location.origin;
   let generatedImageMetaByUrl: Record<
     string,
-    { referer?: string; generatedBy?: string; timestamp?: number; supabaseUrl?: string }
+    {
+      referer?: string;
+      generatedBy?: string;
+      timestamp?: number;
+      created_at?: string;
+      supabaseUrl?: string;
+    }
   > = {};
   try {
-    generatedImageMetaByUrl = await uploadGeneratedImagesWithMetadata(urls, {
-      referer,
-      generatedBy: nodeId,
-    });
+    generatedImageMetaByUrl = await uploadGeneratedImagesWithMetadata(
+      urls,
+      {
+        referer,
+        generatedBy: nodeId,
+      },
+      result.generatedCreatedAt
+    );
   } catch (e: unknown) {
     console.warn('[Scout] generated image upload failed', e);
   }

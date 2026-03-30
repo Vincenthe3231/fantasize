@@ -59,6 +59,7 @@ function mergeImageLike(
     referer?: string;
     generatedBy?: string;
     timestamp?: number;
+    created_at?: string;
     supabaseUrl?: string;
   }[] = [];
   const seen = new Set<string>();
@@ -82,6 +83,10 @@ function mergeImageLike(
             timestamp:
               'timestamp' in item && typeof (item as { timestamp?: unknown }).timestamp === 'number' ?
                 (item as { timestamp?: number }).timestamp
+              : undefined,
+            created_at:
+              'created_at' in item ?
+                String((item as { created_at?: string }).created_at ?? '').trim() || undefined
               : undefined,
             supabaseUrl:
               'supabaseUrl' in item ?

@@ -7,6 +7,7 @@ import {
   listNodeTextFromNode,
   mergeTextPartsDedupe,
 } from '@/lib/graphUpstreamPayload';
+import { mergeTextAndSortedListImages } from '@/lib/listNodeImageSort';
 import { richTextToPlainForScout } from '@/lib/richTextForScout';
 
 /** Order handles consistently on group nodes. */
@@ -63,6 +64,8 @@ export type NodeDataflowPacket =
         referer?: string;
         generatedBy?: string;
         timestamp?: number;
+        /** ISO-8601 from server or client when the asset was created */
+        created_at?: string;
         supabaseUrl?: string;
       }[];
     }
@@ -147,16 +150,22 @@ function imagePacketFromNode(source: Node): NodeDataflowPacket | null {
       referer?: string;
       generatedBy?: string;
       timestamp?: number;
+      created_at?: string;
       supabaseUrl?: string;
     }
   >;
   if (unique.length === 0) return null;
   return {
     kind: 'image',
-    value: unique.map((url) => ({
-      url,
-      ...(imageMetaByUrl[url] ?? {}),
-    })),
+    value: unique.map((url, idx) => {
+      const meta = imageMetaByUrl[url] ?? {};
+      const hasTime = meta.created_at != null || meta.timestamp != null;
+      return {
+        url,
+        ...meta,
+        ...(!hasTime ? { timestamp: Date.now() - idx } : {}),
+      };
+    }),
   };
 }
 
@@ -188,14 +197,29 @@ function imageInputApply(targetField: string) {
 function listImageInputApply(target: Node, merged: NodeDataflowPacket): Partial<Record<string, unknown>> | null {
   if (merged.kind !== 'image') return null;
   const incoming = merged.value
-    .map((item) => ({
-      url: String(item.url ?? '').trim(),
-      label: String(item.label ?? '').trim(),
-      referer: String(item.referer ?? '').trim(),
-      generatedBy: String(item.generatedBy ?? '').trim(),
-      timestamp: typeof item.timestamp === 'number' ? item.timestamp : Date.now(),
-      supabaseUrl: String(item.supabaseUrl ?? '').trim(),
-    }))
+    .map((item) => {
+      const url = String(item.url ?? '').trim();
+      const tsRaw = item.timestamp;
+      const ts =
+        typeof tsRaw === 'number' && Number.isFinite(tsRaw) ? tsRaw : undefined;
+      const createdRaw = String(item.created_at ?? '').trim();
+      const created_at =
+        createdRaw && !Number.isNaN(Date.parse(createdRaw)) ?
+          new Date(createdRaw).toISOString()
+        : ts != null ?
+          new Date(ts).toISOString()
+        : new Date().toISOString();
+      const timestamp = ts ?? Date.parse(created_at);
+      return {
+        url,
+        label: String(item.label ?? '').trim(),
+        referer: String(item.referer ?? '').trim(),
+        generatedBy: String(item.generatedBy ?? '').trim(),
+        timestamp,
+        created_at,
+        supabaseUrl: String(item.supabaseUrl ?? '').trim(),
+      };
+    })
     .filter((item) => item.url);
   if (incoming.length === 0) return null;
 
@@ -203,27 +227,26 @@ function listImageInputApply(target: Node, merged: NodeDataflowPacket): Partial<
     (((target.data ?? {}) as { items?: Array<Record<string, unknown>> }).items ?? []).map((it) => ({
       ...it,
     })) ?? [];
-  const seenUrls = new Set(
-    existing
-      .filter((it) => String(it.type ?? '') === 'image')
-      .map((it) => String(it.mediaUrl ?? '').trim())
-      .filter(Boolean)
-  );
+  const text = existing.filter((it) => String(it.type ?? '') === 'text');
+  const imageRows = existing.filter((it) => String(it.type ?? '') === 'image');
+
+  const seenUrls = new Set(imageRows.map((it) => String(it.mediaUrl ?? '').trim()).filter(Boolean));
 
   const additions = incoming
     .filter((it) => !seenUrls.has(it.url))
     .map((it) => ({
-      id: `m-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
-      type: 'image',
+      id: `m-${it.timestamp}-${crypto.randomUUID().slice(0, 8)}`,
+      type: 'image' as const,
       mediaUrl: it.url,
       mediaName: it.label || 'Generated image',
       referer: it.referer || undefined,
       generatedBy: it.generatedBy || undefined,
       timestamp: it.timestamp,
+      created_at: it.created_at,
       supabaseUrl: it.supabaseUrl || undefined,
     }));
   if (additions.length === 0) return null;
-  return { items: [...existing, ...additions] };
+  return { items: mergeTextAndSortedListImages(text, [...imageRows, ...additions]) };
 }
 
 const CONTRACTS: Record<string, NodeDataflowContract> = {

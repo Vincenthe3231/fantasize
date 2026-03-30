@@ -32,6 +32,7 @@ import {
 import { createVirtualProductionScoutTemplate } from '@/stores/workflowScoutTemplate';
 import { migrateEdgesToScopedHandles } from '@/lib/portHandles';
 import { canvasPerfFlags, runWithCanvasPerfMark } from '@/lib/canvasPerf';
+import { normalizeListNodeImageItemsInNodeData } from '@/lib/listNodeImageSort';
 export type { ScoutPipelineState } from '@/lib/scoutPipeline';
 export type { ScoutRunOptions } from '@/lib/scoutRunCoordinator';
 const pendingNodeDataUpdates = new Map<
@@ -535,7 +536,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       };
       const vp = space.viewport ?? { x: 0, y: 0, zoom: 1 };
       set({
-        nodes: structuredClone(space.nodes).map(withTransientNodeDataStripped),
+        nodes: structuredClone(space.nodes).map((n) =>
+          normalizeListNodeImageItemsInNodeData(withTransientNodeDataStripped(n))
+        ),
         edges: migrateEdgesToScopedHandles(structuredClone(space.edges)),
         comments: structuredClone(space.comments || []),
         nodeGridLayouts: structuredClone(space.node_grid_layouts || {}),
@@ -566,7 +569,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       const nextNodes = space.nodes.map((sn) => {
         const live = byId.get(sn.id);
         return {
-          ...withTransientNodeDataStripped(structuredClone(sn)),
+          ...normalizeListNodeImageItemsInNodeData(withTransientNodeDataStripped(structuredClone(sn))),
           selected: live?.selected ?? false,
           dragging: false,
           resizing: false,
