@@ -11,6 +11,9 @@ import { canvasPerfFlags, runWithCanvasPerfMark } from '@/lib/canvasPerf';
  * large canvases. Pure translation uses stable flow-space handle geometry; **`onMoveEnd` in
  * `Index.tsx`** still calls `refreshAllHandleBounds()` when a pan gesture finishes to correct any
  * drift. Zoom changes still need timely refresh because scale affects how RF caches bounds.
+ *
+ * Keep this behavior intact: connection UX relies on fresh handle internals so newly connected
+ * edges can anchor immediately to the visible handle position.
  */
 export function useViewportHandleBoundsSync(): {
   refreshAllHandleBounds: () => void;

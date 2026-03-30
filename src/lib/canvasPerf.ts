@@ -28,6 +28,9 @@ export const canvasPerfFlags = {
   deferSavesDuringDrag: readBoolFlag('canvasDeferSaves', true),
   coalesceReactiveDataflow: readBoolFlag('canvasCoalesceDataflow', true),
   reduceMotionDuringDrag: readBoolFlag('canvasReduceMotion', true),
+  enableCanvasWorkerBridge: readBoolFlag('canvasWorkerBridge', true),
+  enableSpatialIndexing: readBoolFlag('canvasSpatialIndex', false),
+  spatialIndexThreshold: 250,
 } as const;
 
 export function markCanvasPerfStart(name: string): number {

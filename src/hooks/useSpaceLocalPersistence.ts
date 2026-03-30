@@ -20,12 +20,10 @@ import { useWorkflowStore, type WorkflowState } from '@/stores/workflowStore';
 import { queryClient } from '@/lib/queryClient';
 import { notifyError } from '@/lib/systemNotify';
 import {
-  sanitizeSnapshotForRemoteSave,
   normalizeSnapshotMediaForRemoteSave,
-  estimateSnapshotBytes,
-  listLargestNodeDataFields,
   isPostgresStatementTimeoutError,
 } from '@/lib/spacePayloadOptimizer';
+import { canvasWorkerClient } from '@/lib/canvasWorkerClient';
 import { canvasPerfFlags, runWithCanvasPerfMark } from '@/lib/canvasPerf';
 
 function sleep(ms: number): Promise<void> {
@@ -256,11 +254,13 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
       for (let attempt = 0; attempt < MAX_SAVE_ATTEMPTS; attempt++) {
         await waitForPersistenceSettled();
         const lastSnap = snapshotFromStore();
-        const sanitized = sanitizeSnapshotForRemoteSave(lastSnap);
-        const bytesBefore = estimateSnapshotBytes(sanitized);
+        const revision = canvasWorkerClient.nextRevision();
+        const preparedForSave = await canvasWorkerClient.prepareRemoteSave(lastSnap, revision, 8);
+        const sanitized = preparedForSave.sanitized;
+        const bytesBefore = preparedForSave.bytesBefore;
         lastPayloadBytesBefore = bytesBefore;
         if (import.meta.env.DEV) {
-          const top = listLargestNodeDataFields(sanitized.nodes, 8);
+          const top = preparedForSave.largestFields;
           if (top.length) {
             console.info('[VF:persistence] largest node.data fields (UTF-8 bytes)', top);
           }

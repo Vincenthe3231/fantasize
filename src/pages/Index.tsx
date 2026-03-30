@@ -79,6 +79,8 @@ import {
 import { validateScoutConnection } from '@/lib/scoutPipeline';
 import { DEFAULT_FIT_VIEW_OPTIONS } from '@/lib/canvasViewport';
 import { canvasPerfFlags, runWithCanvasPerfMark } from '@/lib/canvasPerf';
+import { canvasWorkerClient } from '@/lib/canvasWorkerClient';
+import type { SpatialNodeBounds, SpatialNodeDelta } from '@/lib/canvasWorkerProtocol';
 const nodeTypes = {
   textNode: TextNode,
   uploadNode: UploadNode,
@@ -137,6 +139,26 @@ function getNodesFullyInsideRect(
     const overlap = getOverlappingArea(flowRect, nodeRect);
     return overlap >= area;
   });
+}
+
+function toSpatialNodeBounds(node: Node): SpatialNodeBounds | null {
+  const w = node.width ?? 0;
+  const h = node.height ?? 0;
+  if (typeof node.width !== 'number' || typeof node.height !== 'number' || w <= 0 || h <= 0) {
+    return null;
+  }
+  const pos = node.positionAbsolute ?? node.position;
+  return {
+    id: node.id,
+    x: pos.x,
+    y: pos.y,
+    width: w,
+    height: h,
+  };
+}
+
+function spatialBoundsEqual(a: SpatialNodeBounds, b: SpatialNodeBounds): boolean {
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 }
 
 /**
@@ -325,6 +347,10 @@ const CanvasInnerReactFlow = ({
   const dragGraphSnapshotRef = useRef<Node[] | null>(null);
   const userSelectionRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const moveHandleBoundsRafRef = useRef<number | null>(null);
+  const spatialBoundsByIdRef = useRef<Map<string, SpatialNodeBounds>>(new Map());
+  const spatialPendingDeltasRef = useRef<Map<string, SpatialNodeDelta>>(new Map());
+  const spatialUpdateRafRef = useRef<number | null>(null);
+  const spatialRevisionRef = useRef(0);
   const { screenToFlowPosition, fitView, getNodes, getNode, getEdges, setViewport } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
   const { refreshAllHandleBounds, queueHandleBoundsRefresh } = useViewportHandleBoundsSync();
@@ -377,6 +403,7 @@ const CanvasInnerReactFlow = ({
   const onMoveEnd = useCallback(
     (_: MouseEvent | TouchEvent | null, vp: { x: number; y: number; zoom: number }) => {
       setLastViewport({ x: vp.x, y: vp.y, zoom: vp.zoom });
+      // Keep post-gesture internals refresh: edges/handles must stay in sync immediately after pan/zoom.
       requestAnimationFrame(() => {
         refreshAllHandleBounds();
       });
@@ -400,6 +427,7 @@ const CanvasInnerReactFlow = ({
 
   const onMove = useCallback(() => {
     if (moveHandleBoundsRafRef.current != null) return;
+    // Throttle to one refresh per frame while moving; behavior stays unchanged for connection correctness.
     moveHandleBoundsRafRef.current = requestAnimationFrame(() => {
       moveHandleBoundsRafRef.current = null;
       refreshAllHandleBounds();
@@ -414,6 +442,71 @@ const CanvasInnerReactFlow = ({
       }
     };
   }, []);
+
+  useEffect(() => {
+    const enabled =
+      canvasPerfFlags.enableSpatialIndexing &&
+      nodes.length >= canvasPerfFlags.spatialIndexThreshold;
+    if (!enabled) {
+      spatialBoundsByIdRef.current.clear();
+      spatialPendingDeltasRef.current.clear();
+      if (spatialUpdateRafRef.current != null) {
+        cancelAnimationFrame(spatialUpdateRafRef.current);
+        spatialUpdateRafRef.current = null;
+      }
+      return;
+    }
+
+    const nextById = new Map<string, SpatialNodeBounds>();
+    for (const n of nodes) {
+      const b = toSpatialNodeBounds(n);
+      if (b) nextById.set(b.id, b);
+    }
+
+    const prevById = spatialBoundsByIdRef.current;
+    const deltas: SpatialNodeDelta[] = [];
+    for (const [id, next] of nextById.entries()) {
+      const prev = prevById.get(id);
+      if (!prev) {
+        deltas.push({ id, to: next });
+        continue;
+      }
+      if (!spatialBoundsEqual(prev, next)) {
+        deltas.push({ id, from: prev, to: next });
+      }
+    }
+    for (const [id, prev] of prevById.entries()) {
+      if (!nextById.has(id)) deltas.push({ id, from: prev, to: null });
+    }
+
+    spatialBoundsByIdRef.current = nextById;
+    if (deltas.length === 0) return;
+
+    for (const delta of deltas) {
+      spatialPendingDeltasRef.current.set(delta.id, delta);
+    }
+    if (spatialUpdateRafRef.current != null) return;
+    spatialUpdateRafRef.current = requestAnimationFrame(() => {
+      spatialUpdateRafRef.current = null;
+      const batched = [...spatialPendingDeltasRef.current.values()];
+      spatialPendingDeltasRef.current.clear();
+      if (batched.length === 0) return;
+      const nextRevision = ++spatialRevisionRef.current;
+      const hasBaseline = nextRevision > 1;
+      if (!hasBaseline) {
+        void canvasWorkerClient.spatialInit([...spatialBoundsByIdRef.current.values()], nextRevision);
+        return;
+      }
+      void canvasWorkerClient.spatialUpdate(batched, nextRevision);
+    });
+
+    return () => {
+      if (spatialUpdateRafRef.current != null) {
+        cancelAnimationFrame(spatialUpdateRafRef.current);
+        spatialUpdateRafRef.current = null;
+      }
+    };
+  }, [nodes]);
 
   const userSelectionRect = useStore((s) => s.userSelectionRect);
   const hydratedSpaceId = useRef<string | null>(null);
@@ -619,7 +712,7 @@ const CanvasInnerReactFlow = ({
     [getNodes, setNodesSilently, setEdgesSilently]
   );
 
-  const onSelectionEnd = useCallback(() => {
+  const onSelectionEnd = useCallback(async () => {
     const rect = userSelectionRectRef.current;
     const store = useWorkflowStore.getState();
     const { transform } = storeApi.getState();
@@ -639,7 +732,27 @@ const CanvasInnerReactFlow = ({
         height: rect.height / tScale,
       };
       const allNodes = storeApi.getState().getNodes();
-      const validNodes = getNodesFullyInsideRect(flowRect, allNodes);
+      let candidateNodes = allNodes;
+      const shouldUseSpatial =
+        canvasPerfFlags.enableSpatialIndexing &&
+        allNodes.length >= canvasPerfFlags.spatialIndexThreshold &&
+        spatialRevisionRef.current > 0;
+      if (shouldUseSpatial) {
+        try {
+          const candidateIds = await canvasWorkerClient.spatialQueryRect(
+            flowRect,
+            spatialRevisionRef.current
+          );
+          if (candidateIds.length > 0) {
+            const candidateSet = new Set(candidateIds);
+            candidateNodes = allNodes.filter((n) => candidateSet.has(n.id));
+          }
+        } catch {
+          // Keep marquee selection resilient: fall back to exact full-scan if worker/index fails.
+          candidateNodes = allNodes;
+        }
+      }
+      const validNodes = getNodesFullyInsideRect(flowRect, candidateNodes);
       selectedNodeIds = new Set(validNodes.map((n) => n.id));
       selectedEdgeIds = new Set(
         getConnectedEdges(validNodes, store.edges).map((e) => e.id)
@@ -797,7 +910,7 @@ const CanvasInnerReactFlow = ({
   const nodeContentFocusActive = focusedNodeContentId != null;
   /** With hand tool, left-drag normally pans the pane — that steals node drags when a node is focused. */
   const canvasPanOnDrag =
-    !nodeContentFocusActive && selectedTool === 'hand' ? true : ([1] as const);
+    !nodeContentFocusActive && selectedTool === 'hand' ? true : [1];
   const canvasPanOnScroll = !nodeContentFocusActive && settings.mouseWheelBehavior === 'pan';
   const canvasZoomOnScroll = !nodeContentFocusActive && settings.mouseWheelBehavior === 'zoom';
 
