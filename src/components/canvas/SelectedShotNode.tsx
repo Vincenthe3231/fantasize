@@ -10,6 +10,7 @@ import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
+import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 
 const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -34,6 +35,7 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
   const { connectMenuItems } = useQuickConnect(id, selfPos, quickOverrides);
   const [hovered, setHovered] = useState(false);
   const replaceInputRef = useRef<HTMLInputElement>(null);
+  const reduceMotion = useCanvasReduceMotion();
 
   const mediaUrl =
     (data.mediaUrl as string) || 'https://picsum.photos/seed/vps-final/800/444';
@@ -98,10 +100,10 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
             <AnimatePresence>
               {hovered && (
                 <motion.button
-                  initial={{ opacity: 0 }}
+                  initial={reduceMotion ? false : { opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.12 }}
+                  exit={reduceMotion ? { opacity: 1 } : { opacity: 0 }}
+                  transition={reduceMotion ? { duration: 0 } : { duration: 0.12 }}
                   type="button"
                   className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-lg bg-[var(--node-overlay-dark)] px-2.5 py-1 text-[11px] text-[var(--node-overlay-text)] transition-colors hover:opacity-95"
                   onClick={(e) => {

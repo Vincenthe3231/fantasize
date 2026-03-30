@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { useViewport, type Node, type Edge } from 'reactflow';
+import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 
 const GROUP_COLOR_PRESETS: { label: string; value: string | undefined }[] = [
   { label: 'Accent', value: undefined },
@@ -77,6 +78,7 @@ export default function SelectionOverlay({ nodes, edges, wrapperRef }: Selection
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
 
   const [groupColorChoice, setGroupColorChoice] = useState<string | undefined>(undefined);
+  const reduceMotion = useCanvasReduceMotion();
 
   const selectedNodes = useMemo(() => nodes.filter((n) => n.selected), [nodes]);
   const selectedEdges = useMemo(() => edges.filter((e) => e.selected), [edges]);
@@ -127,10 +129,10 @@ export default function SelectionOverlay({ nodes, edges, wrapperRef }: Selection
       <motion.div
         className="fixed z-[60] flex flex-col items-center gap-2"
         style={{ left: position.left, top: position.top }}
-        initial={{ opacity: 0, y: 6 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 6 }}
-        transition={{ duration: 0.2, ease: 'easeOut' }}
+        exit={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }}
+        transition={reduceMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeOut' }}
       >
         {showGroupColors && (
           <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1 backdrop-blur-sm bg-[var(--node-action-bar-bg)] border border-[var(--node-action-bar-border)] shadow-md">

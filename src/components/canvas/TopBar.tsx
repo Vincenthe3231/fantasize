@@ -24,7 +24,7 @@ const TopBar = () => {
           <img
             src="/logo.png"
             alt="BeLive"
-            className="h-8 w-auto object-contain object-left select-none"
+            className="block h-8 w-auto bg-transparent object-contain object-left select-none"
             draggable={false}
           />
           <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg glass-toolbar">

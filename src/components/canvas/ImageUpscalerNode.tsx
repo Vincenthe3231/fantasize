@@ -11,6 +11,8 @@ import { NodeLabelRow } from './NodeLabelRow';
 import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
+
 const ImageUpscalerNode = memo(({ id, data }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
@@ -21,6 +23,7 @@ const ImageUpscalerNode = memo(({ id, data }: NodeProps) => {
   const nodes = useWorkflowStore((s) => s.nodes);
   const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
   const { connectMenuItems } = useQuickConnect(id, selfPos);
+  const reduceMotion = useCanvasReduceMotion();
 
   const mode = (data.mode as string) || 'creative';
   const scale = (data.scale as string) || '2x';
@@ -86,7 +89,7 @@ const ImageUpscalerNode = memo(({ id, data }: NodeProps) => {
                 className="h-full rounded-full bg-[var(--accent-color)]"
                 initial={{ width: '0%' }}
                 animate={{ width: `${progress}%` }}
-                transition={{ duration: 0.1 }}
+                transition={reduceMotion ? { duration: 0 } : { duration: 0.1 }}
               />
             </div>
             <span className="text-[10px] font-mono-display text-[var(--text-muted)]">{progress}%</span>
@@ -96,8 +99,9 @@ const ImageUpscalerNode = memo(({ id, data }: NodeProps) => {
         <AnimatePresence>
           {status === 'success' && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.97 }}
+              initial={reduceMotion ? false : { opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
+              transition={reduceMotion ? { duration: 0 } : undefined}
               className="group relative min-h-[100px] flex-1 flex flex-col overflow-hidden rounded-lg"
             >
               <div className="flex min-h-[100px] flex-1 items-center justify-center bg-gradient-to-br from-orange-900/20 to-amber-900/20">

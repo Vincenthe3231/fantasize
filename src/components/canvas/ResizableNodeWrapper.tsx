@@ -4,6 +4,7 @@ import { useNodeId, useUpdateNodeInternals } from 'reactflow';
 import { motion } from 'framer-motion';
 import '@reactflow/node-resizer/dist/style.css';
 import { useNodeEntranceMotion } from '@/hooks/useNodeEntranceMotion';
+import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 
 interface ResizableNodeWrapperProps {
   selected: boolean;
@@ -18,6 +19,7 @@ const ResizableNodeWrapper = memo(({ selected, minWidth = 200, minHeight = 80, c
   const updateNodeInternals = useUpdateNodeInternals();
   const resizeInternalsRaf = useRef<number | null>(null);
   const entranceMotion = useNodeEntranceMotion(nodeId ?? undefined);
+  const reduceMotion = useCanvasReduceMotion();
 
   const scheduleResizeInternalsUpdate = useCallback(() => {
     if (!nodeId || resizeInternalsRaf.current != null) return;
@@ -40,7 +42,7 @@ const ResizableNodeWrapper = memo(({ selected, minWidth = 200, minHeight = 80, c
       className={`w-full h-full ${className}`}
       initial={entranceMotion.initial}
       animate={entranceMotion.animate}
-      transition={entranceMotion.transition}
+      transition={reduceMotion ? { duration: 0 } : entranceMotion.transition}
       onAnimationComplete={entranceMotion.onAnimationComplete}
     >
       <NodeResizer

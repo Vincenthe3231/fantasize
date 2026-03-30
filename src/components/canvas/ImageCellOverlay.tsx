@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 
 interface ImageCellOverlayProps {
   src: string;
@@ -30,6 +31,7 @@ const ImageCellOverlay = ({
 }: ImageCellOverlayProps) => {
   const [hovered, setHovered] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const reduceMotion = useCanvasReduceMotion();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -64,15 +66,19 @@ const ImageCellOverlay = ({
       )}
 
       <div className="relative aspect-[4/3] bg-[var(--node-control-bg)] border border-[var(--node-control-border)] rounded-xl overflow-hidden group/cell">
-        <img src={src} alt={label || 'image'} className="w-full h-full object-cover transition-transform duration-300 group-hover/cell:scale-[1.02]" />
+        <img
+          src={src}
+          alt={label || 'image'}
+          className={`w-full h-full object-cover ${reduceMotion ? '' : 'transition-transform duration-300 group-hover/cell:scale-[1.02]'}`}
+        />
 
         <AnimatePresence>
           {hovered && (
             <motion.div
-              initial={{ opacity: 0 }}
+              initial={reduceMotion ? false : { opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
+              exit={reduceMotion ? { opacity: 1 } : { opacity: 0 }}
+              transition={reduceMotion ? { duration: 0 } : { duration: 0.18 }}
               className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none bg-[var(--node-overlay-dark)]"
             >
               <div className="flex items-center gap-1.5 pointer-events-auto">
@@ -125,6 +131,7 @@ const ImageCellOverlay = ({
           <motion.div
             initial={false}
             animate={{ opacity: hovered ? 0 : 1 }}
+            transition={reduceMotion ? { duration: 0 } : undefined}
             className="absolute top-1.5 right-1.5 rounded px-1.5 py-0.5 text-[10px] font-mono text-[var(--node-on-accent)] bg-[var(--node-badge-bg)]"
           >
             {resolution}

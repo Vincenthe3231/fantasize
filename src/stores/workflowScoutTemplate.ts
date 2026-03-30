@@ -83,16 +83,6 @@ const defaultNodes: Node[] = [
     position: { x: 1920, y: 700 },
     data: { mediaUrl: MOCK.selectedShot, resolution: '3840 × 2133', committed: false },
   },
-  {
-    id: 'annotation-1',
-    type: 'annotationNode',
-    position: { x: 1520, y: 960 },
-    data: {
-      text: '💡 Scout: Approve Stage 2 → run angles → pick in list → Commit hero shot → Lighting batch → Text/Reference atmosphere → Finalize.',
-    },
-    selectable: false,
-    draggable: false,
-  },
 ];
 
 const defaultEdges: Edge[] = [

@@ -13,6 +13,8 @@ import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
 import { RichTextField } from '@/components/rich-text/RichTextField';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
+
 const VideoGeneratorNode = memo(({ id, data }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
@@ -23,6 +25,7 @@ const VideoGeneratorNode = memo(({ id, data }: NodeProps) => {
   const nodes = useWorkflowStore((s) => s.nodes);
   const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
   const { connectMenuItems } = useQuickConnect(id, selfPos);
+  const reduceMotion = useCanvasReduceMotion();
 
   const mode = (data.mode as string) || 'text-to-video';
   const duration = (data.duration as string) || '5s';
@@ -111,8 +114,9 @@ const VideoGeneratorNode = memo(({ id, data }: NodeProps) => {
         <AnimatePresence>
           {status === 'success' && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.97 }}
+              initial={reduceMotion ? false : { opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
+              transition={reduceMotion ? { duration: 0 } : undefined}
               className="group relative min-h-[120px] flex-1 flex flex-col overflow-hidden rounded-lg"
             >
               <div className="flex min-h-[120px] flex-1 items-center justify-center bg-gradient-to-br from-blue-900/30 to-purple-900/30">

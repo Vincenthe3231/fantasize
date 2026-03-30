@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useCallback, memo } from 'react';
 import {
   Type, Clapperboard, Video, Sparkles, ArrowUpCircle, List,
   Upload, FolderOpen, ShoppingBag, Search, Clock, Grid3X3, Image,
@@ -100,39 +100,46 @@ const sectionOrder: { key: string; label: string; cats: Category[] }[] = [
   { key: 'utilities', label: 'Utilities', cats: ['utilities'] },
 ];
 
-const AddNodePanel = ({ onAddNode }: AddNodePanelProps) => {
+const AddNodePanel = memo(function AddNodePanel({ onAddNode }: AddNodePanelProps) {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<Category>('all');
 
-  const filteredNodes = allNodes.filter((n) => {
-    const matchSearch = n.label.toLowerCase().includes(search.toLowerCase());
-    const matchCategory =
-      activeCategory === 'all' ||
-      activeCategory === 'recent' ||
-      n.category.includes(activeCategory);
-    return matchSearch && matchCategory;
-  });
+  const filteredNodes = useMemo(
+    () =>
+      allNodes.filter((n) => {
+        const matchSearch = n.label.toLowerCase().includes(search.toLowerCase());
+        const matchCategory =
+          activeCategory === 'all' ||
+          activeCategory === 'recent' ||
+          n.category.includes(activeCategory);
+        return matchSearch && matchCategory;
+      }),
+    [search, activeCategory]
+  );
 
-  const renderNodeButton = (n: NodeEntry) => (
-    <button
-      key={n.type}
-      onClick={() => n.enabled && onAddNode(n.type)}
-      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] transition-colors ${
-        n.enabled
-          ? 'text-foreground hover:bg-muted/80 cursor-pointer'
-          : 'text-muted-foreground cursor-not-allowed opacity-50'
-      }`}
-      style={{ fontFamily: 'Inter, sans-serif' }}
-      disabled={!n.enabled}
-    >
-      <n.icon size={16} style={{ color: n.enabled ? n.color : undefined }} />
-      <span className="flex-1 text-left">{n.label}</span>
-      {n.isNew && (
-        <span className="text-[9px] font-mono-display uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--accent-color)]/20 text-[var(--accent-color)]">
-          New
-        </span>
-      )}
-    </button>
+  const renderNodeButton = useCallback(
+    (n: NodeEntry) => (
+      <button
+        key={n.type}
+        onClick={() => n.enabled && onAddNode(n.type)}
+        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] transition-colors ${
+          n.enabled
+            ? 'text-foreground hover:bg-muted/80 cursor-pointer'
+            : 'text-muted-foreground cursor-not-allowed opacity-50'
+        }`}
+        style={{ fontFamily: 'Inter, sans-serif' }}
+        disabled={!n.enabled}
+      >
+        <n.icon size={16} style={{ color: n.enabled ? n.color : undefined }} />
+        <span className="flex-1 text-left">{n.label}</span>
+        {n.isNew && (
+          <span className="text-[9px] font-mono-display uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--accent-color)]/20 text-[var(--accent-color)]">
+            New
+          </span>
+        )}
+      </button>
+    ),
+    [onAddNode]
   );
 
   return (
@@ -212,6 +219,8 @@ const AddNodePanel = ({ onAddNode }: AddNodePanelProps) => {
       </div>
     </div>
   );
-};
+});
+
+AddNodePanel.displayName = 'AddNodePanel';
 
 export default AddNodePanel;

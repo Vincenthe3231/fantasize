@@ -26,6 +26,9 @@ export function migrateEdgesToScopedHandles(edges: Edge[]): Edge[] {
     if (e.targetHandle && !e.targetHandle.includes(SCOPED_PORT_SEP)) {
       next = { ...next, targetHandle: scopedPortHandle(e.target, e.targetHandle) };
     }
+    if (next.type == null || next.type === '') {
+      next = { ...next, type: 'custom' };
+    }
     return next;
   });
 }

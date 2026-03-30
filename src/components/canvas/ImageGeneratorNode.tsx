@@ -37,6 +37,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { IMAGE_GENERATOR_MODES } from '@/lib/imageGeneratorModes';
 import { notifyInfo } from '@/lib/systemNotify';
 import { makeWorkflowEdge } from '@/lib/portHandles';
+import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 
 function downloadFromImageUrl(url: string, basename: string) {
   const trimmed = url.trim();
@@ -75,6 +76,7 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
   const connectEdgeWithHistory = useWorkflowStore((s) => s.connectEdgeWithHistory);
   const nodes = useWorkflowStore((s) => s.nodes);
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
+  const reduceMotion = useCanvasReduceMotion();
 
   const prompt = (data.prompt as string) || '';
   const mode = (data.mode as string) || 'Auto';
@@ -201,8 +203,9 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
               <AnimatePresence>
                 {status === 'success' && generatedUrl && generatedUrls.length <= 1 && (
                   <motion.div
-                    initial={{ opacity: 0 }}
+                    initial={reduceMotion ? false : { opacity: 0 }}
                     animate={{ opacity: 1 }}
+                    transition={reduceMotion ? { duration: 0 } : undefined}
                     className="absolute inset-0 min-h-0 min-w-0 overflow-hidden"
                   >
                     <img

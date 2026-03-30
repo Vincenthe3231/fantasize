@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useWorkflowStore, createVirtualProductionScoutTemplate } from '@/stores/workflowStore';
 import type { Node, Edge } from 'reactflow';
+import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 
 interface TemplateGalleryProps {
   open: boolean;
@@ -67,6 +68,7 @@ const templates: Template[] = [
 
 const TemplateGallery = ({ open, onClose }: TemplateGalleryProps) => {
   const loadTemplate = useWorkflowStore((s) => s.loadTemplate);
+  const reduceMotion = useCanvasReduceMotion();
 
   const handleSelect = (template: Template) => {
     if (template.loadFullScout) {
@@ -82,17 +84,19 @@ const TemplateGallery = ({ open, onClose }: TemplateGalleryProps) => {
     <AnimatePresence>
       {open && (
         <motion.div
-          initial={{ opacity: 0 }}
+          initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={reduceMotion ? { opacity: 1 } : { opacity: 0 }}
+          transition={reduceMotion ? { duration: 0 } : undefined}
           className="fixed inset-0 z-[100] flex items-center justify-center backdrop-blur-sm"
           style={{ backgroundColor: 'var(--canvas-modal-scrim)' }}
           onClick={onClose}
         >
           <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
+            initial={reduceMotion ? false : { scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
+            exit={reduceMotion ? { scale: 1, opacity: 1 } : { scale: 0.95, opacity: 0 }}
+            transition={reduceMotion ? { duration: 0 } : undefined}
             className="glass-toolbar rounded-2xl p-6 w-[700px] max-w-[90vw] space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
@@ -109,9 +113,9 @@ const TemplateGallery = ({ open, onClose }: TemplateGalleryProps) => {
               {templates.map((t, i) => (
                 <motion.button
                   key={t.name}
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={reduceMotion ? false : { opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.08 }}
+                  transition={reduceMotion ? { duration: 0 } : { delay: i * 0.08 }}
                   onClick={() => handleSelect(t)}
                   className="text-left rounded-xl overflow-hidden border border-border hover:border-[var(--accent-color)]/40 transition-colors group"
                 >

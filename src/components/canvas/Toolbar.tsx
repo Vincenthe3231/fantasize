@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { useWorkflowStore, type SelectedTool } from '@/stores/workflowStore';
 import AddNodePanel from './AddNodePanel';
+import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 
 interface ToolbarProps {
   onAddNode: (type: string) => void;
@@ -70,6 +71,7 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
   const redo = useWorkflowStore((s) => s.redo);
   const canUndo = useWorkflowStore((s) => s.pastStack.length > 0);
   const canRedo = useWorkflowStore((s) => s.futureStack.length > 0);
+  const reduceMotion = useCanvasReduceMotion();
 
   const [activeSubIndex, setActiveSubIndex] = useState<Record<string, number>>({
     pointer: 0,
@@ -142,7 +144,7 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
     <motion.div
       initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
+      transition={reduceMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeOut' }}
       className="fixed left-4 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-0.5 p-1.5 rounded-xl glass-toolbar transition-opacity duration-200"
     >
       <Popover open={addOpen} onOpenChange={setAddOpen}>

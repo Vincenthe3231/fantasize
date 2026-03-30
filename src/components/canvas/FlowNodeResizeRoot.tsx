@@ -3,6 +3,7 @@ import { NodeResizer } from '@reactflow/node-resizer';
 import { useNodeId, useStore, useUpdateNodeInternals } from 'reactflow';
 import { motion } from 'framer-motion';
 import { useNodeEntranceMotion } from '@/hooks/useNodeEntranceMotion';
+import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 
 type Props = {
   minWidth?: number;
@@ -61,13 +62,14 @@ const FlowNodeResizeRoot = memo(function FlowNodeResizeRoot({
     )
   );
   const entranceMotion = useNodeEntranceMotion(nodeId ?? undefined);
+  const reduceMotion = useCanvasReduceMotion();
 
   return (
     <motion.div
       className={`h-full w-full min-h-0 min-w-0 bg-transparent ${className}`}
       initial={entranceMotion.initial}
       animate={entranceMotion.animate}
-      transition={entranceMotion.transition}
+      transition={reduceMotion ? { duration: 0 } : entranceMotion.transition}
       onAnimationComplete={entranceMotion.onAnimationComplete}
     >
       <NodeResizer

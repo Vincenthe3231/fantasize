@@ -50,4 +50,14 @@ describe('portHandles', () => {
     expect(edgeHandleForNode('n', full)).toBe(full);
     expect(edgeHandleForNode('n', 'image-in')).toBe(full);
   });
+
+  it('migrateEdgesToScopedHandles sets type custom when missing', () => {
+    const legacy: Edge = {
+      id: 'e1',
+      source: 'a',
+      target: 'b',
+    };
+    const [e] = migrateEdgesToScopedHandles([legacy]);
+    expect(e.type).toBe('custom');
+  });
 });

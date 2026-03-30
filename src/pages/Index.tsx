@@ -65,7 +65,7 @@ import BottomBar from '@/components/canvas/BottomBar';
 import CommentPin from '@/components/canvas/CommentPin';
 import SelectionOverlay from '@/components/canvas/SelectionOverlay';
 import GroupNode from '@/components/canvas/GroupNode';
-import { WorkspacePyramidLoader } from '@/components/canvas/WorkspacePyramidLoader';
+import BeLiveLoader from '@/components/canvas/BeLiveLoader';
 import { SystemNotificationToast } from '@/components/SystemNotificationToast';
 import { CanvasCursor } from '@/components/canvas/CanvasCursor';
 import { useMinLoadingDisplay } from '@/hooks/useMinLoadingDisplay';
@@ -78,6 +78,8 @@ import {
 import { validateScoutConnection } from '@/lib/scoutPipeline';
 import { DEFAULT_FIT_VIEW_OPTIONS } from '@/lib/canvasViewport';
 import { canvasPerfFlags, runWithCanvasPerfMark } from '@/lib/canvasPerf';
+import { readVfPixiBoardEnabled } from '@/lib/pixiBoard/vfBoardFlag';
+import { CanvasInnerPixi } from './CanvasInnerPixi';
 
 const nodeTypes = {
   textNode: TextNode,
@@ -199,7 +201,7 @@ function canvasClass(pattern: string) {
   }
 }
 
-const CanvasInner = ({
+const CanvasInnerReactFlow = ({
   space,
   resolvedDraft,
   initialLastWriteAt,
@@ -239,7 +241,6 @@ const CanvasInner = ({
   const focusedNodeContentId = useWorkflowStore((s) => s.focusedNodeContentId);
   const hydrateFromSpace = useWorkflowStore((s) => s.hydrateFromSpace);
   const setLastViewport = useWorkflowStore((s) => s.setLastViewport);
-  const pushSelectionCommand = useWorkflowStore((s) => s.pushSelectionCommand);
   const [searchParams] = useSearchParams();
   const debugNodeParam = useMemo(() => searchParams.get('debugNode')?.trim() ?? '', [searchParams]);
   const canvasEdgeDebugOn = useMemo(() => isCanvasEdgeDebugEnabled(searchParams), [searchParams]);
@@ -255,22 +256,39 @@ const CanvasInner = ({
     (changes: NodeChange[]) => {
       setNodes((nds) => {
         let resizeEnded = false;
-        /** Persist RF dimensions to Zustand for organic ResizeObserver growth (no `resizing` flag) and resize end — not every `resizing: true` tick to limit churn. */
+        /**
+         * Persist RF dimensions to Zustand for:
+         * - resize end
+         * - organic ResizeObserver growth (changes without `resizing` metadata)
+         *
+         * During active resize drags, some RF dimension events may omit `resizing`.
+         * Treat those as in-progress when a resize is already active to avoid
+         * high-frequency structuredClone/store writes that can freeze the canvas.
+         */
         let shouldPersistDimensions = false;
         for (const c of changes) {
           if (c.type === 'dimensions') {
-            const isResizeDrag =
-              'resizing' in c && (c as { resizing?: boolean }).resizing === true;
-            if (!isResizeDrag) {
-              shouldPersistDimensions = true;
+            const hasResizeMeta = 'resizing' in c;
+            const resizeMeta = hasResizeMeta
+              ? (c as { resizing?: boolean }).resizing
+              : undefined;
+            const isResizeDrag = resizeMeta === true;
+            const isResizeEnd = resizeMeta === false;
+
+            if (isResizeDrag) {
+              isNodeResizeActiveRef.current = true;
+              continue;
             }
-            if ('resizing' in c) {
-              if ((c as { resizing?: boolean }).resizing === true) {
-                isNodeResizeActiveRef.current = true;
-              } else {
-                isNodeResizeActiveRef.current = true;
-                resizeEnded = true;
-              }
+
+            if (isResizeEnd) {
+              resizeEnded = true;
+              shouldPersistDimensions = true;
+              continue;
+            }
+
+            // No explicit `resizing` flag: persist only when no resize drag is active.
+            if (!isNodeResizeActiveRef.current) {
+              shouldPersistDimensions = true;
             }
           }
         }
@@ -299,9 +317,6 @@ const CanvasInner = ({
   const resumeNotificationAutoDismiss = useSystemNotificationStore((s) => s.resumeAutoDismiss);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const dragGraphSnapshotRef = useRef<Node[] | null>(null);
-  const selectionPrevRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null);
-  const selectionSelectedIdsRef = useRef<{ nodeIds: Set<string>; edgeIds: Set<string> } | null>(null);
-  const selectionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userSelectionRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const moveHandleBoundsRafRef = useRef<number | null>(null);
   const { screenToFlowPosition, fitView, getNodes, getNode, getEdges, setViewport } = useReactFlow();
@@ -573,9 +588,6 @@ const CanvasInner = ({
   const onSelectionChange = useCallback(
     ({ nodes: selectedNodes, edges: selectedEdges }: { nodes: Node[]; edges: Edge[] }) => {
       const store = useWorkflowStore.getState();
-      if (!selectionPrevRef.current) {
-        selectionPrevRef.current = { nodes: [...store.nodes], edges: [...store.edges] };
-      }
       // Prefer nodes with measured dimensions (avoids marquee phantom selections). For a
       // single-node click, keep selection even before width/height exist so NodeResizer shows
       // on the first click.
@@ -603,46 +615,11 @@ const CanvasInner = ({
       const nextEdges = applyEdgeSelection(store.edges, selectedEdgeIds);
       setNodesSilently(nextNodes);
       setEdgesSilently(nextEdges);
-      selectionSelectedIdsRef.current = { nodeIds: selectedNodeIds, edgeIds: selectedEdgeIds };
-      if (selectionDebounceRef.current) clearTimeout(selectionDebounceRef.current);
-      selectionDebounceRef.current = setTimeout(() => {
-        selectionDebounceRef.current = null;
-        const prev = selectionPrevRef.current;
-        const ids = selectionSelectedIdsRef.current;
-        selectionPrevRef.current = null;
-        selectionSelectedIdsRef.current = null;
-        if (prev && ids) {
-          const current = useWorkflowStore.getState();
-          const flowNodesAtCommit = getNodes();
-          const nextNodesFromStore = mergeNodesWithSelection(
-            current.nodes,
-            flowNodesAtCommit,
-            ids.nodeIds
-          );
-          const nextEdgesFromStore = applyEdgeSelection(current.edges, ids.edgeIds);
-          pushSelectionCommand(prev.nodes, prev.edges, nextNodesFromStore, nextEdgesFromStore);
-        }
-      }, 120);
     },
-    [getNodes, setNodesSilently, setEdgesSilently, pushSelectionCommand]
+    [getNodes, setNodesSilently, setEdgesSilently]
   );
 
-  useEffect(() => {
-    return () => {
-      if (selectionDebounceRef.current) clearTimeout(selectionDebounceRef.current);
-    };
-  }, []);
-
-  const onSelectionStart = useCallback(() => {
-    const store = useWorkflowStore.getState();
-    selectionPrevRef.current = { nodes: [...store.nodes], edges: [...store.edges] };
-  }, []);
-
   const onSelectionEnd = useCallback(() => {
-    if (selectionDebounceRef.current) {
-      clearTimeout(selectionDebounceRef.current);
-      selectionDebounceRef.current = null;
-    }
     const rect = userSelectionRectRef.current;
     const store = useWorkflowStore.getState();
     const { transform } = storeApi.getState();
@@ -674,12 +651,7 @@ const CanvasInner = ({
     const nextEdges = applyEdgeSelection(store.edges, selectedEdgeIds);
     setNodesSilently(nextNodes);
     setEdgesSilently(nextEdges);
-    const prev = selectionPrevRef.current;
-    selectionPrevRef.current = null;
-    if (prev) {
-      pushSelectionCommand(prev.nodes, prev.edges, nextNodes, nextEdges);
-    }
-  }, [storeApi, setNodesSilently, setEdgesSilently, pushSelectionCommand]);
+  }, [storeApi, setNodesSilently, setEdgesSilently]);
 
   const handleAddNode = useCallback(
     (type: string) => {
@@ -768,6 +740,12 @@ const CanvasInner = ({
       if ((e.ctrlKey || e.metaKey) && e.key === 'c' && nodes.some((n) => n.selected)) {
         e.preventDefault();
         copyNodesByIds(nodes.filter((n) => n.selected).map((n) => n.id));
+      }
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyX' && nodes.some((n) => n.selected)) {
+        e.preventDefault();
+        const ids = nodes.filter((n) => n.selected).map((n) => n.id);
+        copyNodesByIds(ids);
+        ids.forEach((id) => deleteNode(id));
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
         e.preventDefault();
@@ -1089,7 +1067,6 @@ const CanvasInner = ({
         onMoveEnd={onMoveEnd}
         onPaneClick={() => setFocusedNodeContentId(null)}
         onSelectionChange={onSelectionChange}
-        onSelectionStart={onSelectionStart}
         onSelectionEnd={onSelectionEnd}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
@@ -1145,6 +1122,32 @@ const CanvasInner = ({
   );
 };
 
+function CanvasInner(props: {
+  space: SpaceRow;
+  resolvedDraft: StoredSpaceDraft | null;
+  initialLastWriteAt: number;
+}) {
+  if (readVfPixiBoardEnabled()) {
+    return <CanvasInnerPixi {...props} />;
+  }
+  return <CanvasInnerReactFlow {...props} />;
+}
+
+function CanvasLoadingShell({ caption }: { caption?: string }) {
+  return (
+    <div className="flex h-screen w-screen items-center justify-center bg-[var(--canvas-bg)]">
+      <div className="flex flex-col items-center gap-6">
+        <BeLiveLoader size="lg" />
+        {caption ? (
+          <p className="text-sm text-muted-foreground" role="status">
+            {caption}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function CanvasRoot() {
   const { userId, isLoading: authLoading } = useAuth();
   const { spaceId: spaceIdParam } = useParams<{ spaceId: string }>();
@@ -1195,11 +1198,7 @@ function CanvasRoot() {
   const holdWorkspaceFetchLoader = useMinLoadingDisplay(spacePending, WORKSPACE_LOADER_MIN_MS);
 
   if (authLoading || !userId) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[var(--canvas-bg)]">
-        <WorkspacePyramidLoader caption="Connecting…" />
-      </div>
-    );
+    return <CanvasLoadingShell caption="Connecting…" />;
   }
 
   if (explicitRouteInvalid) {
@@ -1237,9 +1236,9 @@ function CanvasRoot() {
 
   if (holdWorkspaceFetchLoader) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[var(--canvas-bg)]">
-        <WorkspacePyramidLoader caption={needsSpaceRedirect ? 'Opening workspace…' : 'Loading workspace…'} />
-      </div>
+      <CanvasLoadingShell
+        caption={needsSpaceRedirect ? 'Opening workspace…' : 'Loading workspace…'}
+      />
     );
   }
 
@@ -1264,11 +1263,7 @@ function CanvasRoot() {
   }
 
   if (!space) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[var(--canvas-bg)]">
-        <WorkspacePyramidLoader caption="Loading workspace…" />
-      </div>
-    );
+    return <CanvasLoadingShell caption="Loading workspace…" />;
   }
 
   return <CanvasRootWithDraft space={space} />;
@@ -1295,11 +1290,7 @@ function CanvasRootWithDraft({ space }: { space: SpaceRow }) {
   const holdDraftLoader = useMinLoadingDisplay(draftPending, WORKSPACE_LOADER_MIN_MS);
 
   if (holdDraftLoader) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[var(--canvas-bg)]">
-        <WorkspacePyramidLoader caption="Loading workspace…" />
-      </div>
-    );
+    return <CanvasLoadingShell caption="Loading workspace…" />;
   }
 
   const serverMs = Date.parse(space.updated_at);
@@ -1316,10 +1307,37 @@ function CanvasRootWithDraft({ space }: { space: SpaceRow }) {
 }
 
 function Index() {
+  const [entrySplash, setEntrySplash] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setEntrySplash(false), 2000);
+    return () => clearTimeout(t);
+  }, []);
   return (
-    <ReactFlowProvider>
-      <CanvasRoot />
-    </ReactFlowProvider>
+    <AnimatePresence mode="wait">
+      {entrySplash ? (
+        <motion.div
+          key="splash"
+          className="fixed inset-0 z-[200] flex items-center justify-center"
+          style={{ background: 'hsl(var(--background))' }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <BeLiveLoader size="lg" />
+        </motion.div>
+      ) : (
+        <motion.div
+          key="canvas"
+          className="h-full w-full min-h-0"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          <ReactFlowProvider>
+            <CanvasRoot />
+          </ReactFlowProvider>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 

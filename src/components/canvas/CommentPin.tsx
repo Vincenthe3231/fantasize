@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X } from 'lucide-react';
 import { useWorkflowStore, type Comment } from '@/stores/workflowStore';
 import { RichTextField } from '@/components/rich-text/RichTextField';
+import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 
 interface CommentPinProps {
   comment: Comment;
@@ -13,6 +14,7 @@ const CommentPin = ({ comment }: CommentPinProps) => {
   const updateComment = useWorkflowStore((s) => s.updateComment);
   const resolveComment = useWorkflowStore((s) => s.resolveComment);
   const deleteComment = useWorkflowStore((s) => s.deleteComment);
+  const reduceMotion = useCanvasReduceMotion();
 
   return (
     <div className="absolute" style={{ left: comment.x, top: comment.y, zIndex: 60 }}>
@@ -26,9 +28,10 @@ const CommentPin = ({ comment }: CommentPinProps) => {
       <AnimatePresence>
         {expanded && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: -4 }}
+            initial={reduceMotion ? false : { opacity: 0, scale: 0.9, y: -4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: -4 }}
+            exit={reduceMotion ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.9, y: -4 }}
+            transition={reduceMotion ? { duration: 0 } : undefined}
             className="comment-pin-popover absolute top-8 left-0 w-[220px] rounded-xl p-3 space-y-2 shadow-lg bg-[var(--node-inner-mid)] border border-[var(--accent-color)]/40"
           >
             <RichTextField

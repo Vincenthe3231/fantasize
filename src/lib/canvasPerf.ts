@@ -1,3 +1,8 @@
+import { CANVAS_PERF_SCENARIOS } from '@/lib/pixiBoard/canvasScenarios';
+
+/** Documented perf scenarios for Chrome Performance recordings (WebGL hybrid plan — Phase 0). */
+export { CANVAS_PERF_SCENARIOS };
+
 const FLAG_PREFIX = 'vf.perf.';
 
 function readBoolFlag(name: string, defaultValue: boolean): boolean {

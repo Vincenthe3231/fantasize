@@ -3,7 +3,8 @@ import { getBezierPath, type EdgeProps } from 'reactflow';
 import { Scissors } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
-import { canvasPerfFlags } from '@/lib/canvasPerf';
+import { effectiveEdgeAnimation } from '@/lib/canvasEffectiveSettings';
+import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 
 const HOVER_LEAVE_MS = 140;
 
@@ -32,11 +33,11 @@ const CustomEdge = memo(({
   selected,
 }: EdgeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningEdges.has(id));
-  const edgeAnimation = useWorkflowStore((s) => s.settings.edgeAnimation);
+  const settings = useWorkflowStore((s) => s.settings);
+  const edgeAnimation = effectiveEdgeAnimation(settings);
   const selectedTool = useWorkflowStore((s) => s.selectedTool);
   const removeEdgeById = useWorkflowStore((s) => s.removeEdgeById);
-  const isDraggingCanvas = useWorkflowStore((s) => s.isDragging);
-  const performanceMode = useWorkflowStore((s) => s.settings.performanceMode);
+  const reduceMotion = useCanvasReduceMotion();
   const [hovered, setHovered] = useState(false);
   const [hoverPoint, setHoverPoint] = useState<{ x: number; y: number } | null>(null);
   const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -55,11 +56,14 @@ const CustomEdge = memo(({
     setHovered(true);
   }, [clearLeaveTimer]);
 
-  const onEdgePointerMove = useCallback((e: React.PointerEvent<SVGPathElement>) => {
-    if (canvasPerfFlags.reduceMotionDuringDrag && (isDraggingCanvas || performanceMode)) return;
-    const p = pointerToSvgPoint(e);
-    if (p) setHoverPoint(p);
-  }, [isDraggingCanvas, performanceMode]);
+  const onEdgePointerMove = useCallback(
+    (e: React.PointerEvent<SVGPathElement>) => {
+      if (reduceMotion) return;
+      const p = pointerToSvgPoint(e);
+      if (p) setHoverPoint(p);
+    },
+    [reduceMotion]
+  );
 
   const onEdgePointerLeave = useCallback(() => {
     clearLeaveTimer();
@@ -106,7 +110,7 @@ const CustomEdge = memo(({
   const strokeColor = 'var(--edge-stroke)';
   const strokeW = hovered || selected ? 2 : 1.5;
   const opacity = isRunning ? 1 : hovered || selected ? 0.9 : 0.7;
-  const showSnipControl = (hovered || selected) && !(canvasPerfFlags.reduceMotionDuringDrag && (isDraggingCanvas || performanceMode));
+  const showSnipControl = (hovered || selected) && !reduceMotion;
   const foSize = 32;
   const foHalf = foSize / 2;
   const anchorX = hovered && hoverPoint ? hoverPoint.x : midX;

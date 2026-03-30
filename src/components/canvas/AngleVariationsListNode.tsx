@@ -1,4 +1,6 @@
-import { memo, useMemo, useCallback } from 'react';
+import { memo, useMemo, useCallback, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { useShallow } from 'zustand/react/shallow';
 import { type NodeProps } from 'reactflow';
 import { Plus, Grid3X3, List, Settings, CircleDot } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
@@ -20,11 +22,20 @@ export type AccumulatedAngle = {
   label?: string;
 };
 
+/** Beyond this count, render the angle grid with row virtualization to cap DOM nodes. */
+const ANGLE_GRID_VIRTUAL_THRESHOLD = 48;
+const ANGLE_GRID_COLS = 3;
+const ANGLE_GRID_ROW_HEIGHT_PX = 118;
+
 const AngleVariationsListNode = memo(({ id, selected, data }: NodeProps) => {
-  const runFromNode = useWorkflowStore((s) => s.runFromNode);
-  const deleteNode = useWorkflowStore((s) => s.deleteNode);
-  const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
-  const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
+  const { runFromNode, deleteNode, duplicateNode, updateNodeData } = useWorkflowStore(
+    useShallow((s) => ({
+      runFromNode: s.runFromNode,
+      deleteNode: s.deleteNode,
+      duplicateNode: s.duplicateNode,
+      updateNodeData: s.updateNodeData,
+    }))
+  );
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const contentFocused = useWorkflowStore((s) => s.focusedNodeContentId === id);
   const nodes = useWorkflowStore((s) => s.nodes);
@@ -35,9 +46,10 @@ const AngleVariationsListNode = memo(({ id, selected, data }: NodeProps) => {
   const viewMode =
     (data as { angleListViewMode?: 'grid' | 'list' }).angleListViewMode === 'list' ? 'list' : 'grid';
 
-  const accumulatedAngles: AccumulatedAngle[] = Array.isArray((data as { accumulatedAngles?: AccumulatedAngle[] })?.accumulatedAngles)
-    ? ((data as { accumulatedAngles: AccumulatedAngle[] }).accumulatedAngles as AccumulatedAngle[])
-    : [];
+  const accumulatedAngles: AccumulatedAngle[] = useMemo(() => {
+    const raw = (data as { accumulatedAngles?: AccumulatedAngle[] })?.accumulatedAngles;
+    return Array.isArray(raw) ? raw : [];
+  }, [data]);
   const selectedAngleId = (data as { selectedAngleId?: string | null })?.selectedAngleId ?? null;
 
   const shotId = useMemo(() => {
@@ -63,6 +75,16 @@ const AngleVariationsListNode = memo(({ id, selected, data }: NodeProps) => {
   }, [accumulatedAngles, selectedAngleId, shotId, updateNodeData]);
 
   const totalImages = accumulatedAngles.length;
+
+  const scrollParentRef = useRef<HTMLDivElement>(null);
+  const angleRowCount = Math.ceil(accumulatedAngles.length / ANGLE_GRID_COLS);
+  const useAngleVirtual = accumulatedAngles.length >= ANGLE_GRID_VIRTUAL_THRESHOLD;
+  const rowVirtualizer = useVirtualizer({
+    count: useAngleVirtual ? angleRowCount : 0,
+    getScrollElement: () => scrollParentRef.current,
+    estimateSize: () => ANGLE_GRID_ROW_HEIGHT_PX,
+    overscan: 2,
+  });
 
   return (
     <FlowNodeResizeRoot
@@ -90,33 +112,80 @@ const AngleVariationsListNode = memo(({ id, selected, data }: NodeProps) => {
               <span className="text-[11px] text-[var(--text-muted)]">{totalImages} images</span>
             </div>
 
-            <ScrollArea className="nowheel min-h-0 flex-1">
-              <div className="grid min-h-0 grid-cols-3 gap-2 p-3 pr-2">
-              {accumulatedAngles.length === 0 ? (
-                <div className="col-span-3 py-8 text-center text-[11px] text-[var(--text-muted)]">
-                  Run Angle variations to accumulate shots here.
+            {accumulatedAngles.length === 0 ? (
+              <ScrollArea className="nowheel min-h-0 flex-1">
+                <div className="grid min-h-0 grid-cols-3 gap-2 p-3 pr-2">
+                  <div className="col-span-3 py-8 text-center text-[11px] text-[var(--text-muted)]">
+                    Run Angle variations to accumulate shots here.
+                  </div>
                 </div>
-              ) : (
-                accumulatedAngles.map((a, i) => (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => selectAngle(a.id)}
-                    className={`relative rounded-lg ring-2 ring-transparent transition-all ${
-                      selectedAngleId === a.id ? 'ring-[var(--accent-color)]' : 'hover:ring-white/20'
-                    }`}
-                  >
-                    <ImageCellOverlay
-                      src={a.src}
-                      index={i}
-                      nodeId={id}
-                      resolution={a.resolution ?? 'HD'}
-                    />
-                  </button>
-                ))
-              )}
+              </ScrollArea>
+            ) : useAngleVirtual ? (
+              <div
+                ref={scrollParentRef}
+                className="nowheel min-h-0 flex-1 overflow-y-auto p-3 pr-2"
+              >
+                <div
+                  className="relative w-full"
+                  style={{ height: rowVirtualizer.getTotalSize() }}
+                >
+                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const start = virtualRow.index * ANGLE_GRID_COLS;
+                    const rowAngles = accumulatedAngles.slice(start, start + ANGLE_GRID_COLS);
+                    return (
+                      <div
+                        key={virtualRow.key}
+                        className="absolute left-0 top-0 grid w-full grid-cols-3 gap-2"
+                        style={{
+                          height: virtualRow.size,
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                      >
+                        {rowAngles.map((a, i) => (
+                          <button
+                            key={a.id}
+                            type="button"
+                            onClick={() => selectAngle(a.id)}
+                            className={`relative rounded-lg ring-2 ring-transparent transition-all ${
+                              selectedAngleId === a.id ? 'ring-[var(--accent-color)]' : 'hover:ring-white/20'
+                            }`}
+                          >
+                            <ImageCellOverlay
+                              src={a.src}
+                              index={start + i}
+                              nodeId={id}
+                              resolution={a.resolution ?? 'HD'}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </ScrollArea>
+            ) : (
+              <ScrollArea className="nowheel min-h-0 flex-1">
+                <div className="grid min-h-0 grid-cols-3 gap-2 p-3 pr-2">
+                  {accumulatedAngles.map((a, i) => (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => selectAngle(a.id)}
+                      className={`relative rounded-lg ring-2 ring-transparent transition-all ${
+                        selectedAngleId === a.id ? 'ring-[var(--accent-color)]' : 'hover:ring-white/20'
+                      }`}
+                    >
+                      <ImageCellOverlay
+                        src={a.src}
+                        index={i}
+                        nodeId={id}
+                        resolution={a.resolution ?? 'HD'}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
 
             <div className="flex items-center justify-between border-t border-border px-3 py-2">
               <button

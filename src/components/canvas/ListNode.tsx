@@ -1,4 +1,5 @@
-import { memo, useState, useRef, useCallback } from 'react';
+import { memo, useState, useRef, useCallback, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { type NodeProps } from 'reactflow';
 import { List, Plus, X, Check, Type, ImageIcon, Copy, FolderOpen, SlidersHorizontal, Sparkles, LayoutList, LayoutGrid, Settings, ChevronDown, Download, ExternalLink } from 'lucide-react';
 import { Reorder, AnimatePresence, motion } from 'framer-motion';
@@ -10,7 +11,7 @@ import { NodeLabelRow } from './NodeLabelRow';
 import ResizableNodeWrapper from './ResizableNodeWrapper';
 import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { deleteWorkflowMediaByPublicUrl } from '@/lib/uploadStorage';
-import { canvasPerfFlags } from '@/lib/canvasPerf';
+import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 
 type ListItemType = 'text' | 'image';
 
@@ -27,21 +28,29 @@ interface ListItem {
 }
 
 const ListNode = memo(({ id, data, selected }: NodeProps) => {
+  const {
+    updateNodeData,
+    updateNodeDataSilent,
+    runFromNode,
+    deleteNode,
+    duplicateNode,
+  } = useWorkflowStore(
+    useShallow((s) => ({
+      updateNodeData: s.updateNodeData,
+      updateNodeDataSilent: s.updateNodeDataSilent,
+      runFromNode: s.runFromNode,
+      deleteNode: s.deleteNode,
+      duplicateNode: s.duplicateNode,
+    }))
+  );
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
-  const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
-  const updateNodeDataSilent = useWorkflowStore((s) => s.updateNodeDataSilent);
-  const runFromNode = useWorkflowStore((s) => s.runFromNode);
-  const deleteNode = useWorkflowStore((s) => s.deleteNode);
-  const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
+  const reduceMotion = useCanvasReduceMotion();
 
-  const items: ListItem[] = (data.items as ListItem[]) || [];
+  const items = useMemo(() => ((data.items as ListItem[]) || []) as ListItem[], [data.items]);
   const viewMode = (data.listViewMode as 'list' | 'grid') === 'grid' ? 'grid' : 'list';
   const addingText = Boolean(data.listAddingText);
   const textDraft = String(data.listTextDraft ?? '');
   const [hovered, setHovered] = useState(false);
-  const isDraggingCanvas = useWorkflowStore((s) => s.isDragging);
-  const performanceMode = useWorkflowStore((s) => s.settings.performanceMode);
-  const reduceMotion = canvasPerfFlags.reduceMotionDuringDrag && (isDraggingCanvas || performanceMode);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const setItems = useCallback((newItems: ListItem[]) => {
@@ -137,11 +146,14 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
     }
   };
 
-  const textItems = items.filter((i) => i.type === 'text');
-  const imageItems = items.filter((i) => i.type === 'image');
+  const textItems = useMemo(() => items.filter((i) => i.type === 'text'), [items]);
+  const imageItems = useMemo(() => items.filter((i) => i.type === 'image'), [items]);
   const textCount = textItems.length;
   const imageCount = imageItems.length;
-  const countLabel = [textCount && `${textCount} text`, imageCount && `${imageCount} image`].filter(Boolean).join(', ');
+  const countLabel = useMemo(
+    () => [textCount && `${textCount} text`, imageCount && `${imageCount} image`].filter(Boolean).join(', '),
+    [textCount, imageCount]
+  );
 
   const legacyLabel = (data.label as string) || '';
 
@@ -360,7 +372,7 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-1.5 border-t border-[var(--node-panel-border)] px-3 py-2 text-[10px]">
+        <div className="nodrag nopan flex h-[38px] shrink-0 items-center gap-1.5 overflow-x-auto overflow-y-hidden whitespace-nowrap border-t border-[var(--node-panel-border)] bg-[var(--node-control-bg)] px-3 py-2 text-[10px] [&>*]:shrink-0">
           <Popover>
             <PopoverTrigger asChild>
               <button type="button" className="rounded-md bg-[var(--node-control-bg)] p-1 text-[var(--node-control-text)] transition-colors hover:bg-[var(--node-action-bar-hover-bg)]"><Plus size={12} /></button>

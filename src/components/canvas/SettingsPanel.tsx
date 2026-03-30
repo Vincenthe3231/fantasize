@@ -147,13 +147,13 @@ const SettingsPanel = ({ open, onClose }: SettingsPanelProps) => {
             />
             <Toggle
               label="Performance mode"
-              description="Disable blur effects on large canvases"
+              description="Disables glass blur on nodes and toolbars, turns off edge run animation and cursor trails while on, and reduces in-canvas motion"
               checked={settings.performanceMode}
               onChange={(v) => updateSettings({ performanceMode: v })}
             />
             <Toggle
               label="Canvas cursor trails"
-              description="Soft animated trails that follow the pointer on the canvas"
+              description="Soft animated trails that follow the pointer (overridden when Performance mode is on)"
               checked={settings.canvasCursorTrails}
               onChange={(v) => updateSettings({ canvasCursorTrails: v })}
             />
@@ -208,6 +208,7 @@ const SettingsPanel = ({ open, onClose }: SettingsPanelProps) => {
             />
             <Toggle
               label="Animate edges when running"
+              description="Dashed path animation on connections during a run (overridden when Performance mode is on)"
               checked={settings.edgeAnimation}
               onChange={(v) => updateSettings({ edgeAnimation: v })}
             />
