@@ -6,11 +6,47 @@ import type { SpaceRow, ViewportState } from '@/lib/spaceApi';
 
 const LS_KEY_PREFIX = 'vf-space-draft:';
 
-/** Dedicated DB so drafts are isolated and easy to clear */
+/** Dedicated DB so drafts are isolated and easy to clear (bumped name so a fresh DB is created after full site-data wipe). */
+/** DB name `vision-forge-drafts-v2` (DevTools shows this, not legacy `vision-forge-drafts`). */
 const draftStore =
   typeof indexedDB !== 'undefined'
-    ? createStore('vision-forge-drafts', 'space-drafts')
+    ? createStore('vision-forge-drafts-v2', 'space-drafts')
     : null;
+
+let draftStoreOpenAttempted = false;
+
+/** Forces IndexedDB + object store creation so Firefox/Chrome Storage tab lists the DB after load. */
+export async function ensureDraftIndexedDbOpened(): Promise<void> {
+  if (!draftStore || draftStoreOpenAttempted) return;
+  draftStoreOpenAttempted = true;
+  try {
+    await set('__vf_store_open__', { t: Date.now() }, draftStore);
+  } catch (e) {
+    console.warn('[Vision Forge] IndexedDB draft store init failed:', e);
+  }
+}
+
+function writeDraftLocalStorageMirror(spaceId: string, draft: StoredSpaceDraft) {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(lsKey(spaceId), JSON.stringify(draft));
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+function readDraftLocalStorageMirror(spaceId: string): StoredSpaceDraft | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(lsKey(spaceId));
+    if (!raw) return null;
+    const d = JSON.parse(raw) as unknown;
+    if (!isValidDraft(d, spaceId)) return null;
+    return d;
+  } catch {
+    return null;
+  }
+}
 
 function idbKey(spaceId: string) {
   return `draft:${spaceId}`;
@@ -76,7 +112,6 @@ export async function writeSpaceDraft(
   payload: CanvasSnapshotPayload,
   logOpts?: { everyWrite?: boolean }
 ): Promise<number | undefined> {
-  if (!draftStore) return undefined;
   const clientUpdatedAt = Date.now();
   const draft: StoredSpaceDraft = {
     v: 2,
@@ -85,8 +120,20 @@ export async function writeSpaceDraft(
     remoteBaselineIso,
     payload,
   };
+  if (!draftStore) {
+    writeDraftLocalStorageMirror(spaceId, draft);
+    logLocalDraftWrite(true, {
+      spaceId,
+      clientUpdatedAt,
+      nodes: payload.nodes.length,
+      edges: payload.edges.length,
+      force: Boolean(logOpts?.everyWrite),
+    });
+    return clientUpdatedAt;
+  }
   try {
     await set(idbKey(spaceId), draft, draftStore);
+    writeDraftLocalStorageMirror(spaceId, draft);
     logLocalDraftWrite(true, {
       spaceId,
       clientUpdatedAt,
@@ -97,22 +144,38 @@ export async function writeSpaceDraft(
     return clientUpdatedAt;
   } catch (e) {
     logLocalDraftWrite(false, { spaceId, error: e });
+    try {
+      writeDraftLocalStorageMirror(spaceId, draft);
+    } catch {
+      /* ignore */
+    }
     return undefined;
   }
 }
 
 export async function readSpaceDraft(spaceId: string): Promise<StoredSpaceDraft | null> {
-  if (!draftStore) return null;
-  try {
-    const fromIdb = await get<StoredSpaceDraft>(idbKey(spaceId), draftStore);
-    if (fromIdb && isValidDraft(fromIdb, spaceId)) {
-      return fromIdb;
+  if (draftStore) {
+    try {
+      const fromIdb = await get<StoredSpaceDraft>(idbKey(spaceId), draftStore);
+      if (fromIdb && isValidDraft(fromIdb, spaceId)) {
+        return fromIdb;
+      }
+    } catch (e) {
+      console.warn('[Vision Forge] IndexedDB draft read failed:', e);
     }
-    return await migrateFromLocalStorage(spaceId);
-  } catch (e) {
-    console.warn('[Vision Forge] IndexedDB draft read failed:', e);
-    return null;
   }
+  const fromMirror = readDraftLocalStorageMirror(spaceId);
+  if (fromMirror) {
+    if (draftStore) {
+      try {
+        await set(idbKey(spaceId), { ...fromMirror, v: 2 as const }, draftStore);
+      } catch {
+        /* ignore */
+      }
+    }
+    return fromMirror;
+  }
+  return migrateFromLocalStorage(spaceId);
 }
 
 function mergedSettingsFromSpace(space: SpaceRow): WorkflowSettings {

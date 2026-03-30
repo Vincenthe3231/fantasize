@@ -157,7 +157,11 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
             <Plus size={18} />
           </button>
         </PopoverTrigger>
-        <PopoverContent side="right" sideOffset={12} className="w-72 p-0 bg-[hsl(var(--popover))] border-[hsl(var(--border))]">
+        <PopoverContent
+          side="right"
+          sideOffset={12}
+          className="w-72 max-h-[min(460px,85vh)] overflow-hidden p-0 bg-[hsl(var(--popover))] border-[hsl(var(--border))]"
+        >
           <AddNodePanel
             onAddNode={(type) => {
               onAddNode(type);

@@ -12,6 +12,7 @@ import {
   CornerUpRight,
 } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
+import { DEFAULT_NODE_H, DEFAULT_NODE_W } from '@/stores/workflowStore.constants';
 import { useViewport, type Node, type Edge } from 'reactflow';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 
@@ -23,8 +24,6 @@ const GROUP_COLOR_PRESETS: { label: string; value: string | undefined }[] = [
   { label: 'Rose', value: '#f43f5e' },
 ];
 
-const DEFAULT_NODE_WIDTH = 280;
-const DEFAULT_NODE_HEIGHT = 120;
 /** Space between bottom of this overlay and top edge of selected nodes (flow coords → screen). */
 const OVERLAY_GAP = 16;
 /**
@@ -46,8 +45,8 @@ function getSelectionBounds(nodes: Node[]) {
   let maxX = -Infinity;
   let maxY = -Infinity;
   for (const n of nodes) {
-    const w = typeof (n as Node & { width?: number }).width === 'number' ? (n as Node & { width: number }).width : DEFAULT_NODE_WIDTH;
-    const h = typeof (n as Node & { height?: number }).height === 'number' ? (n as Node & { height: number }).height : DEFAULT_NODE_HEIGHT;
+    const w = typeof (n as Node & { width?: number }).width === 'number' ? (n as Node & { width: number }).width : DEFAULT_NODE_W;
+    const h = typeof (n as Node & { height?: number }).height === 'number' ? (n as Node & { height: number }).height : DEFAULT_NODE_H;
     minX = Math.min(minX, n.position.x);
     minY = Math.min(minY, n.position.y);
     maxX = Math.max(maxX, n.position.x + w);

@@ -58,6 +58,7 @@ import AtmosphereTestNode from '@/components/canvas/AtmosphereTestNode';
 import PlacementRefNode from '@/components/canvas/PlacementRefNode';
 import ImageVariationsNode from '@/components/canvas/ImageVariationsNode';
 import CustomEdge from '@/components/canvas/CustomEdge';
+import ConnectionLineDomSource from '@/components/canvas/ConnectionLineDomSource';
 import Toolbar from '@/components/canvas/Toolbar';
 import TopBar from '@/components/canvas/TopBar';
 import SettingsPanel from '@/components/canvas/SettingsPanel';
@@ -168,16 +169,24 @@ function mergeStoreNodesWithFlowGeometry(storeNodes: Node[], flowNodes: Node[]):
   return storeNodes.map((sn) => {
     const live = flowById.get(sn.id);
     if (!live) return sn;
-    return {
+    const parentOrExtentChanged =
+      sn.parentId !== live.parentId || sn.extent !== live.extent;
+    const next: Node = {
       ...live,
       ...sn,
-      position: live.position,
-      ...(live.positionAbsolute !== undefined ? { positionAbsolute: live.positionAbsolute } : {}),
+      position: parentOrExtentChanged ? { ...sn.position } : live.position,
       width: live.width ?? sn.width,
       height: live.height ?? sn.height,
       style: live.style ?? sn.style,
       selected: live.selected,
     };
+    if (parentOrExtentChanged) {
+      delete (next as { positionAbsolute?: unknown }).positionAbsolute;
+    } else if (live.positionAbsolute !== undefined) {
+      (next as Node & { positionAbsolute?: NonNullable<Node['positionAbsolute']> }).positionAbsolute =
+        live.positionAbsolute;
+    }
+    return next;
   });
 }
 
@@ -359,13 +368,7 @@ const CanvasInnerReactFlow = ({
         setIsConnectingFromHandle(true);
       });
     },
-    [
-      canvasEdgeDebugOn,
-      storeApi,
-      refreshAllHandleBounds,
-      updateNodeInternals,
-      getNode,
-    ]
+    [canvasEdgeDebugOn, storeApi, refreshAllHandleBounds, updateNodeInternals, getNode]
   );
   const onConnectEnd = useCallback(() => {
     setIsConnectingFromHandle(false);
@@ -980,6 +983,7 @@ const CanvasInnerReactFlow = ({
         onConnectEnd={onConnectEnd}
         isValidConnection={isValidConnection}
         connectionLineType={ConnectionLineType.Bezier}
+        connectionLineComponent={ConnectionLineDomSource}
         connectionLineStyle={{ stroke: 'var(--edge-stroke)', strokeWidth: 2 }}
         onNodeDragStart={(_, node) => {
           runWithCanvasPerfMark('canvas.dragStart', () => {

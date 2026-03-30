@@ -541,6 +541,14 @@
   border: none !important;
 }
 
+/*
+ * Subflows: parent and children are sibling `.react-flow__node` wrappers. Without a lower z-index on
+ * the group, the group frame can paint above child nodes and hide them (looks like “invisible” nodes).
+ */
+.react-flow__viewport .react-flow__nodes .react-flow__node.react-flow__node-group {
+  z-index: 0 !important;
+}
+
 /* Corner resize handles must sit above in-node chrome (e.g. action bar z-50) */
 .react-flow__resize-control {
   z-index: 200;

@@ -1,25 +1,31 @@
 import type { Edge, Node } from 'reactflow';
 import { MOCK, SCENE_DESCRIPTION, DEFAULT_SCOUT_PROP_SLOTS } from '@/lib/mockPipelineAssets';
+import { DEFAULT_NODE_H, DEFAULT_NODE_W } from '@/stores/workflowStore.constants';
+
+const nodeBox = { width: DEFAULT_NODE_W, height: DEFAULT_NODE_H, style: { width: DEFAULT_NODE_W, height: DEFAULT_NODE_H } };
 
 const defaultNodes: Node[] = [
-  { id: 'text-1', type: 'textNode', position: { x: 80, y: 80 }, data: { content: `<p>${SCENE_DESCRIPTION}</p>` } },
+  { id: 'text-1', type: 'textNode', position: { x: 80, y: 80 }, data: { content: `<p>${SCENE_DESCRIPTION}</p>` }, ...nodeBox },
   {
     id: 'upload-1',
     type: 'uploadNode',
     position: { x: 80, y: 280 },
     data: { mediaUrl: MOCK.location1, label: 'Location reference', labelText: 'Location reference' },
+    ...nodeBox,
   },
   {
     id: 'placement-1',
     type: 'placementRefNode',
     position: { x: 80, y: 520 },
     data: { placementText: `<p>${SCENE_DESCRIPTION}</p>`, placementRefUrl: MOCK.placement },
+    ...nodeBox,
   },
-  { id: 'props-input-1', type: 'propsInputNode', position: { x: 80, y: 700 }, data: { props: [...DEFAULT_SCOUT_PROP_SLOTS] } },
+  { id: 'props-input-1', type: 'propsInputNode', position: { x: 80, y: 700 }, data: { props: [...DEFAULT_SCOUT_PROP_SLOTS] }, ...nodeBox },
   {
     id: 'assistant-1',
     type: 'assistantNode',
     position: { x: 400, y: 200 },
+    ...nodeBox,
     data: {
       refinedPrompt: '',
       prompt: '',
@@ -34,6 +40,7 @@ const defaultNodes: Node[] = [
     id: 'generator-1',
     type: 'imageGeneratorNode',
     position: { x: 720, y: 200 },
+    ...nodeBox,
     data: {
       model: 'mystic',
       mode: 'Auto',
@@ -46,12 +53,13 @@ const defaultNodes: Node[] = [
       labelText: 'Image Generator',
     },
   },
-  { id: 'set-dressing-1', type: 'setDressingNode', position: { x: 1060, y: 180 }, data: { previewUrl: MOCK.setDressing } },
-  { id: 'angle-var-1', type: 'angleVariationsNode', position: { x: 1520, y: 400 }, data: {} },
+  { id: 'set-dressing-1', type: 'setDressingNode', position: { x: 1060, y: 180 }, data: { previewUrl: MOCK.setDressing }, ...nodeBox },
+  { id: 'angle-var-1', type: 'angleVariationsNode', position: { x: 1520, y: 400 }, data: {}, ...nodeBox },
   {
     id: 'lighting-1',
     type: 'lightingScenarioNode',
     position: { x: 1960, y: 400 },
+    ...nodeBox,
     data: {
       lightingStrings: ['Golden hour', 'Studio', 'Natural light'],
       accumulatedLighting: [] as { id: string; label: string; src: string }[],
@@ -62,6 +70,7 @@ const defaultNodes: Node[] = [
     id: 'atmosphere-1',
     type: 'atmosphereTestNode',
     position: { x: 2400, y: 400 },
+    ...nodeBox,
     data: {
       moodText: '',
       referenceUrl: '',
@@ -75,12 +84,14 @@ const defaultNodes: Node[] = [
     id: 'angle-list-1',
     type: 'angleVariationsListNode',
     position: { x: 1520, y: 700 },
+    ...nodeBox,
     data: { accumulatedAngles: [] as { id: string; src: string; resolution?: string }[], selectedAngleId: null as string | null },
   },
   {
     id: 'selected-shot-1',
     type: 'selectedShotNode',
     position: { x: 1920, y: 700 },
+    ...nodeBox,
     data: { mediaUrl: MOCK.selectedShot, resolution: '3840 × 2133', committed: false },
   },
 ];

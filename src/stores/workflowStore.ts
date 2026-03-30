@@ -13,6 +13,8 @@ import { computeReactivePatchesFromSources } from '@/lib/nodeDataflow';
 import {
   DEFAULT_GROUP_H,
   DEFAULT_GROUP_W,
+  DEFAULT_NODE_H,
+  DEFAULT_NODE_W,
   MAX_STACK,
   SCOUT_REMOTE_EXECUTION_TYPES,
   UPDATE_NODE_DATA_DEBOUNCE_MS,
@@ -256,6 +258,10 @@ export interface WorkflowState {
   ungroupSelectedNodes: () => void;
 
   addNode: (type: NodeType, position: XYPosition, data?: Record<string, unknown>) => string;
+  /** Add a child node inside a group (parent-relative position, `extent: 'parent'`). Returns new id or null if group missing. */
+  addNodeToGroup: (groupId: string, type: Exclude<NodeType, 'group'>) => string | null;
+  /** Move an existing canvas node into a group (preserves absolute placement). Returns false if invalid. */
+  reparentNodeToGroup: (groupId: string, nodeId: string) => boolean;
   deleteNode: (id: string) => void;
   duplicateNode: (id: string) => void;
   lockNode: (id: string) => void;
@@ -816,7 +822,15 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
               draggable: true,
               selectable: true,
             }
-          : { id, type, position, data: withEntrance };
+          : {
+              id,
+              type,
+              position,
+              data: withEntrance,
+              width: DEFAULT_NODE_W,
+              height: DEFAULT_NODE_H,
+              style: { width: DEFAULT_NODE_W, height: DEFAULT_NODE_H },
+            };
       set({ nodes: [...s.nodes, newNode] });
       queueReactiveDataflow([id]);
       pushCmd({
@@ -826,20 +840,166 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       return id;
     },
 
+    addNodeToGroup: (groupId, type) => {
+      const s = get();
+      const group = s.nodes.find((n) => n.id === groupId && n.type === 'group');
+      if (!group) return null;
+
+      const gw =
+        typeof group.style?.width === 'number' && group.style.width > 0
+          ? group.style.width
+          : DEFAULT_GROUP_W;
+      const gh =
+        typeof group.style?.height === 'number' && group.style.height > 0
+          ? group.style.height
+          : DEFAULT_GROUP_H;
+      const PADDING = 24;
+      const nextGroupW = Math.max(gw, DEFAULT_NODE_W + PADDING * 2);
+      const nextGroupH = Math.max(gh, DEFAULT_NODE_H + PADDING * 2);
+
+      const id = `${type.replace('Node', '')}-${Date.now()}`;
+      const withEntrance = { _animateEntrance: true };
+      const relX = Math.max(PADDING, (nextGroupW - DEFAULT_NODE_W) / 2);
+      const relY = Math.max(PADDING, (nextGroupH - DEFAULT_NODE_H) / 2);
+
+      const newNode: Node = {
+        id,
+        type,
+        parentId: groupId,
+        extent: 'parent',
+        position: { x: relX, y: relY },
+        data: { ...withEntrance },
+        width: DEFAULT_NODE_W,
+        height: DEFAULT_NODE_H,
+        style: { width: DEFAULT_NODE_W, height: DEFAULT_NODE_H },
+        draggable: true,
+        selectable: true,
+      };
+
+      const beforeNodes = structuredClone(s.nodes);
+      const afterNodes = s.nodes.map((n) => {
+        if (n.id !== groupId || n.type !== 'group') return n;
+        const currStyle = (n.style as { width?: number; height?: number } | undefined) ?? {};
+        return {
+          ...n,
+          style: {
+            ...currStyle,
+            width: nextGroupW,
+            height: nextGroupH,
+          },
+        };
+      });
+      afterNodes.push(newNode);
+      const afterSnapshot = structuredClone(afterNodes);
+
+      set({ nodes: afterNodes });
+      queueReactiveDataflow([id, groupId]);
+      pushCmd({
+        undo: () => set({ nodes: structuredClone(beforeNodes) }),
+        execute: () => set({ nodes: structuredClone(afterSnapshot) }),
+      });
+      return id;
+    },
+
+    reparentNodeToGroup: (groupId, nodeId) => {
+      const s = get();
+      const group = s.nodes.find((n) => n.id === groupId && n.type === 'group');
+      const node = s.nodes.find((n) => n.id === nodeId);
+      if (!group || !node || node.type === 'group' || node.draggable === false) return false;
+      if (nodeId === groupId || node.parentId === groupId) return false;
+
+      const byId = new Map(s.nodes.map((n) => [n.id, n]));
+      const absPos = (n: Node): XYPosition => {
+        let x = n.position.x;
+        let y = n.position.y;
+        let pid = n.parentId;
+        while (pid) {
+          const p = byId.get(pid);
+          if (!p) break;
+          x += p.position.x;
+          y += p.position.y;
+          pid = p.parentId;
+        }
+        return { x, y };
+      };
+
+      const abs = absPos(node);
+      const gAbs = absPos(group);
+      const gw =
+        typeof group.style?.width === 'number' && group.style.width > 0
+          ? group.style.width
+          : DEFAULT_GROUP_W;
+      const gh =
+        typeof group.style?.height === 'number' && group.style.height > 0
+          ? group.style.height
+          : DEFAULT_GROUP_H;
+      const childW =
+        typeof node.width === 'number' && node.width > 0 ? node.width : DEFAULT_NODE_W;
+      const childH =
+        typeof node.height === 'number' && node.height > 0 ? node.height : DEFAULT_NODE_H;
+      const PADDING = 24;
+      let relX = abs.x - gAbs.x;
+      let relY = abs.y - gAbs.y;
+      let nextGw = gw;
+      let nextGh = gh;
+      relX = Math.max(PADDING, relX);
+      relY = Math.max(PADDING, relY);
+      nextGw = Math.max(nextGw, relX + childW + PADDING);
+      nextGh = Math.max(nextGh, relY + childH + PADDING);
+
+      const beforeSnap = structuredClone(s.nodes);
+      const updatedNodes = s.nodes.map((n) => {
+        if (n.id === groupId && n.type === 'group') {
+          const currStyle = (n.style as { width?: number; height?: number } | undefined) ?? {};
+          return {
+            ...n,
+            style: {
+              ...currStyle,
+              width: nextGw,
+              height: nextGh,
+            },
+          };
+        }
+        if (n.id !== nodeId) return n;
+        const next = { ...n, position: { ...n.position } } as Node;
+        delete (next as { positionAbsolute?: unknown }).positionAbsolute;
+        next.parentId = groupId;
+        next.extent = 'parent';
+        next.position = { x: relX, y: relY };
+        return next;
+      });
+
+      // Keep parent -> children order stable. If the moved child remains before its parent in the
+      // nodes array, it can render underneath the group once selection focus (elevated z-index) ends.
+      const moved = updatedNodes.find((n) => n.id === nodeId);
+      if (!moved) return false;
+      const withoutMoved = updatedNodes.filter((n) => n.id !== nodeId);
+      const groupIdx = withoutMoved.findIndex((n) => n.id === groupId);
+      if (groupIdx < 0) return false;
+
+      let insertAt = groupIdx + 1;
+      for (let i = groupIdx + 1; i < withoutMoved.length; i++) {
+        if (withoutMoved[i].parentId === groupId) insertAt = i + 1;
+      }
+      const afterNodes = [...withoutMoved.slice(0, insertAt), moved, ...withoutMoved.slice(insertAt)];
+
+      get().commitNodesAfterFlowDrag(beforeSnap, afterNodes);
+      queueReactiveDataflow([nodeId, groupId]);
+      return true;
+    },
+
     groupSelectedNodes: (color?: string) => {
       const s = get();
       const selected = s.nodes.filter((n) => n.selected && !n.parentId && n.type !== 'group');
       if (selected.length === 0) return;
 
-      const DEFAULT_NODE_WIDTH = 280;
-      const DEFAULT_NODE_HEIGHT = 120;
       const GROUP_PADDING = 24;
 
       const widths = selected.map((n) =>
-        typeof n.width === 'number' && n.width > 0 ? n.width : DEFAULT_NODE_WIDTH
+        typeof n.width === 'number' && n.width > 0 ? n.width : DEFAULT_NODE_W
       );
       const heights = selected.map((n) =>
-        typeof n.height === 'number' && n.height > 0 ? n.height : DEFAULT_NODE_HEIGHT
+        typeof n.height === 'number' && n.height > 0 ? n.height : DEFAULT_NODE_H
       );
 
       let minX = Infinity;

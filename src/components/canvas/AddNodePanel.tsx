@@ -143,7 +143,7 @@ const AddNodePanel = memo(function AddNodePanel({ onAddNode }: AddNodePanelProps
   );
 
   return (
-    <div className="flex flex-col max-h-[460px] min-h-0">
+    <div className="flex w-full flex-col overflow-hidden">
       {/* Search */}
       <div className="shrink-0 p-3 pb-2">
         <div className="relative">
@@ -178,7 +178,7 @@ const AddNodePanel = memo(function AddNodePanel({ onAddNode }: AddNodePanelProps
       </div>
 
       {/* Node list */}
-      <ScrollArea className="flex-1 min-h-0">
+      <ScrollArea className="nowheel h-[min(320px,50vh)] w-full min-h-0 overscroll-contain">
         <div className="space-y-3 px-3 pb-2 pr-2">
         {activeCategory === 'all' || activeCategory === 'recent' ? (
           sectionOrder.map((section) => {
