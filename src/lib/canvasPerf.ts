@@ -1,6 +1,6 @@
-import { CANVAS_PERF_SCENARIOS } from '@/lib/pixiBoard/canvasScenarios';
+import { CANVAS_PERF_SCENARIOS } from '@/lib/canvasScenarios';
 
-/** Documented perf scenarios for Chrome Performance recordings (WebGL hybrid plan — Phase 0). */
+/** Documented perf scenarios for Chrome Performance recordings (canvas baseline). */
 export { CANVAS_PERF_SCENARIOS };
 
 const FLAG_PREFIX = 'vf.perf.';

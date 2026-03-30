@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { CanvasFrameMetricsSampler, type FrameMetricsSnapshot } from '@/lib/canvasFrameMetrics';
-import { readVfPerfOverlayEnabled } from '@/lib/pixiBoard/readVfPerfOverlayEnabled';
+import { readVfPerfOverlayEnabled } from '@/lib/readVfPerfOverlayEnabled';
 
 /**
  * Dev-only overlay: FPS + frame-time p50/p95. Enable with `?vfPerf=1` or `localStorage vf.perf.overlay=1`.

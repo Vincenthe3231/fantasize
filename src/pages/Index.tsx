@@ -78,9 +78,6 @@ import {
 import { validateScoutConnection } from '@/lib/scoutPipeline';
 import { DEFAULT_FIT_VIEW_OPTIONS } from '@/lib/canvasViewport';
 import { canvasPerfFlags, runWithCanvasPerfMark } from '@/lib/canvasPerf';
-import { readVfPixiBoardEnabled } from '@/lib/pixiBoard/vfBoardFlag';
-import { CanvasInnerPixi } from './CanvasInnerPixi';
-
 const nodeTypes = {
   textNode: TextNode,
   uploadNode: UploadNode,
@@ -969,6 +966,7 @@ const CanvasInnerReactFlow = ({
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        onlyRenderVisibleElements
         nodesConnectable
         defaultViewport={
           resolvedDraft?.payload.viewport ??
@@ -1121,17 +1119,6 @@ const CanvasInnerReactFlow = ({
     </SpacePersistenceContext.Provider>
   );
 };
-
-function CanvasInner(props: {
-  space: SpaceRow;
-  resolvedDraft: StoredSpaceDraft | null;
-  initialLastWriteAt: number;
-}) {
-  if (readVfPixiBoardEnabled()) {
-    return <CanvasInnerPixi {...props} />;
-  }
-  return <CanvasInnerReactFlow {...props} />;
-}
 
 function CanvasLoadingShell({ caption }: { caption?: string }) {
   return (
@@ -1298,7 +1285,7 @@ function CanvasRootWithDraft({ space }: { space: SpaceRow }) {
     draftBoot.draft?.clientUpdatedAt ?? (Number.isNaN(serverMs) ? Date.now() : serverMs);
 
   return (
-    <CanvasInner
+    <CanvasInnerReactFlow
       space={space}
       resolvedDraft={draftBoot.draft}
       initialLastWriteAt={initialLastWriteAt}
