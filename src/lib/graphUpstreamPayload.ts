@@ -39,6 +39,7 @@ export function mergeTextPartsDedupe(parts: string[]): string {
 
 /** Matches ListNode `data.items` entries. */
 type ListNodeItem = {
+  id?: string;
   type?: string;
   text?: string;
   mediaUrl?: string;
@@ -137,10 +138,20 @@ export type UpstreamMediaItem = {
 /** Non-video image URLs from listNode `items` (newest-first: `created_at` / `timestamp`). */
 export function listNodeImageItemsFromNode(n: Node): UpstreamMediaItem[] {
   if (n.type !== 'listNode') return [];
-  const items = ((n.data as { items?: ListNodeItem[] })?.items ?? []) as ListNodeItem[];
+  const nodeData = (n.data ?? {}) as {
+    items?: ListNodeItem[];
+    listMultiSelectMode?: boolean;
+    listSelectedImageIds?: string[];
+  };
+  const items = (nodeData.items ?? []) as ListNodeItem[];
+  const multiSelectMode = Boolean(nodeData.listMultiSelectMode);
+  const selectedIdSet = new Set(
+    Array.isArray(nodeData.listSelectedImageIds) ? nodeData.listSelectedImageIds.filter(Boolean) : []
+  );
   const out: UpstreamMediaItem[] = [];
   for (const it of items) {
     if (it.type !== 'image') continue;
+    if (multiSelectMode && !selectedIdSet.has(String(it.id ?? ''))) continue;
     const url = String(it.mediaUrl ?? '').trim();
     if (!url || isVideoUrl(url)) continue;
     const label = String(it.mediaName ?? '').trim() || undefined;

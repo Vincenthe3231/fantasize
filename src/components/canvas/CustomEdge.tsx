@@ -37,6 +37,7 @@ const CustomEdge = memo(({
   const zoom = useStore((s) => s.transform[2]);
   const isRunning = useWorkflowStore((s) => s.runningEdges.has(id));
   const settings = useWorkflowStore((s) => s.settings);
+  const isDragging = useWorkflowStore((s) => s.isDragging);
   const edgeAnimation = effectiveEdgeAnimation(settings);
   const selectedTool = useWorkflowStore((s) => s.selectedTool);
   const removeEdgeById = useWorkflowStore((s) => s.removeEdgeById);
@@ -53,19 +54,20 @@ const CustomEdge = memo(({
   }, []);
 
   const onEdgePointerEnter = useCallback((e: React.PointerEvent<SVGPathElement>) => {
+    if (isDragging) return;
     clearLeaveTimer();
     const p = pointerToSvgPoint(e);
     if (p) setHoverPoint(p);
     setHovered(true);
-  }, [clearLeaveTimer]);
+  }, [clearLeaveTimer, isDragging]);
 
   const onEdgePointerMove = useCallback(
     (e: React.PointerEvent<SVGPathElement>) => {
-      if (reduceMotion) return;
+      if (reduceMotion || isDragging) return;
       const p = pointerToSvgPoint(e);
       if (p) setHoverPoint(p);
     },
-    [reduceMotion]
+    [reduceMotion, isDragging]
   );
 
   const onEdgePointerLeave = useCallback(() => {
@@ -116,7 +118,7 @@ const CustomEdge = memo(({
   const strokeColor = 'var(--edge-stroke)';
   const strokeW = hovered || selected ? 2 : zoom < EDGE_LOD_FAR_ZOOM ? 1.1 : 1.5;
   const opacity = isRunning ? 1 : hovered || selected ? 0.9 : 0.7;
-  const showSnipControl = (hovered || selected) && !reduceMotion;
+  const showSnipControl = (hovered || selected) && !reduceMotion && !isDragging;
   const foSize = 32;
   const foHalf = foSize / 2;
   const anchorX = hovered && hoverPoint ? hoverPoint.x : midX;

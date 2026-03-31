@@ -48,6 +48,7 @@ const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
         data-content-focused={contentFocused || undefined}
       >
         <NodeActionBar
+          hidden={Boolean((data as { nodeUiHidden?: boolean }).nodeUiHidden)}
           variant="image"
           runBusy={isRunning}
           onRun={() => runFromNode(id)}

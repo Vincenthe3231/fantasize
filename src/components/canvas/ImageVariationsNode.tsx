@@ -136,6 +136,7 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
         data-content-focused={contentFocused || undefined}
       >
         <NodeActionBar
+          hidden={Boolean((data as { nodeUiHidden?: boolean }).nodeUiHidden)}
           variant="multiImage"
           runBusy={isRunning}
           onRun={runAndAccumulate}

@@ -13,6 +13,7 @@ import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { deleteWorkflowMediaByPublicUrl } from '@/lib/uploadStorage';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 import { mergeTextAndSortedListImages } from '@/lib/listNodeImageSort';
+import { canvasPreviewImageUrl, canvasResponsiveSrcSet } from '@/lib/imageDelivery';
 
 type ListItemType = 'text' | 'image';
 
@@ -121,10 +122,20 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
     }
   }, []);
 
+  const selectedImageIds = useMemo(
+    () => (((data.listSelectedImageIds as string[] | undefined) ?? []) as string[]).filter(Boolean),
+    [data.listSelectedImageIds]
+  );
+  const selectedImageIdSet = useMemo(() => new Set(selectedImageIds), [selectedImageIds]);
+  const multiSelectMode = Boolean(data.listMultiSelectMode);
+
   const removeItem = (itemId: string) => {
     const item = items.find((i) => i.id === itemId);
     if (item) removeListImageFromStorage(item);
     setItems(items.filter((i) => i.id !== itemId));
+    if (selectedImageIdSet.has(itemId)) {
+      updateNodeData(id, { listSelectedImageIds: selectedImageIds.filter((sid) => sid !== itemId) });
+    }
   };
 
   const clearAllItems = useCallback(() => {
@@ -135,8 +146,20 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
       items: [],
       listAddingText: false,
       listTextDraft: '',
+      listSelectedImageIds: [],
     });
   }, [items, id, removeListImageFromStorage, updateNodeData]);
+
+  const toggleImageSelectionMode = useCallback(() => {
+    updateNodeData(id, { listMultiSelectMode: !multiSelectMode });
+  }, [id, multiSelectMode, updateNodeData]);
+
+  const toggleImageSelected = useCallback((itemId: string) => {
+    const next = selectedImageIdSet.has(itemId)
+      ? selectedImageIds.filter((sid) => sid !== itemId)
+      : [...selectedImageIds, itemId];
+    updateNodeData(id, { listSelectedImageIds: next });
+  }, [id, selectedImageIdSet, selectedImageIds, updateNodeData]);
 
   const openImage = (url: string) => {
     const u = url.trim();
@@ -178,12 +201,30 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
 
   const textItems = useMemo(() => items.filter((i) => i.type === 'text'), [items]);
   const imageItems = useMemo(() => items.filter((i) => i.type === 'image'), [items]);
+  const listThumbSrc = useCallback(
+    (item: ListItem) => canvasPreviewImageUrl(item.mediaUrl || '/placeholder.svg', { width: 112, height: 112, quality: 55 }),
+    []
+  );
+  const gridThumbSrc = useCallback(
+    (item: ListItem) => canvasPreviewImageUrl(item.mediaUrl || '/placeholder.svg', { width: 240, height: 240, quality: 58 }),
+    []
+  );
+  const gridThumbSrcSet = useCallback(
+    (item: ListItem) => canvasResponsiveSrcSet(item.mediaUrl || '', [160, 240, 320], { quality: 58 }),
+    []
+  );
   const textCount = textItems.length;
   const imageCount = imageItems.length;
+  const selectedImageCount = useMemo(
+    () => imageItems.filter((item) => selectedImageIdSet.has(item.id)).length,
+    [imageItems, selectedImageIdSet]
+  );
   const countLabel = useMemo(
     () => [textCount && `${textCount} text`, imageCount && `${imageCount} image`].filter(Boolean).join(', '),
     [textCount, imageCount]
   );
+  const imageSelectionLabel =
+    imageCount > 0 && multiSelectMode ? `${selectedImageCount}/${imageCount} selected` : `${imageCount} images`;
 
   const legacyLabel = (data.label as string) || '';
 
@@ -203,6 +244,7 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
           onMouseLeave={() => setHovered(false)}
         >
         <NodeActionBar
+          hidden={Boolean((data as { nodeUiHidden?: boolean }).nodeUiHidden)}
           onRun={() => runFromNode(id)}
           onDuplicate={() => duplicateNode(id)}
           onDelete={() => deleteNode(id)}
@@ -323,7 +365,29 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                       {imageItems.map((item) => (
                         <Reorder.Item key={item.id} value={item} className="cursor-grab active:cursor-grabbing">
                           <div className="group flex items-center gap-2.5 rounded-lg border-b border-[var(--node-divider)] px-2 py-1.5 transition-colors last:border-b-0 hover:bg-[var(--node-action-bar-hover-bg)]">
-                            <img src={item.mediaUrl || '/placeholder.svg'} alt={item.mediaName} className="h-14 w-14 shrink-0 rounded-lg bg-[var(--node-control-bg)] object-cover" />
+                            {multiSelectMode && (
+                              <button
+                                type="button"
+                                onClick={() => toggleImageSelected(item.id)}
+                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                                  selectedImageIdSet.has(item.id)
+                                    ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
+                                    : 'border-[var(--node-control-border)] text-transparent hover:text-[var(--node-control-muted)]'
+                                }`}
+                                title={selectedImageIdSet.has(item.id) ? 'Deselect image' : 'Select image'}
+                              >
+                                <Check size={10} />
+                              </button>
+                            )}
+                            <img
+                              src={listThumbSrc(item)}
+                              alt={item.mediaName}
+                              width={56}
+                              height={56}
+                              loading="lazy"
+                              decoding="async"
+                              className="h-14 w-14 shrink-0 rounded-lg bg-[var(--node-control-bg)] object-cover"
+                            />
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-[12px] text-[var(--node-control-text)]" style={{ fontFamily: 'Inter, sans-serif' }}>{item.mediaName}</p>
                               <p className="mt-0.5 font-mono text-[11px] text-[var(--node-control-muted)]">
@@ -356,7 +420,29 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                     <div className="space-y-0.5">
                       {imageItems.map((item) => (
                         <div key={item.id} className="group flex items-center gap-2.5 rounded-lg border-b border-[var(--node-divider)] px-2 py-1.5 last:border-b-0">
-                          <img src={item.mediaUrl || '/placeholder.svg'} alt={item.mediaName} className="h-14 w-14 shrink-0 rounded-lg bg-[var(--node-control-bg)] object-cover" />
+                          {multiSelectMode && (
+                            <button
+                              type="button"
+                              onClick={() => toggleImageSelected(item.id)}
+                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                                selectedImageIdSet.has(item.id)
+                                  ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
+                                  : 'border-[var(--node-control-border)] text-transparent hover:text-[var(--node-control-muted)]'
+                              }`}
+                              title={selectedImageIdSet.has(item.id) ? 'Deselect image' : 'Select image'}
+                            >
+                              <Check size={10} />
+                            </button>
+                          )}
+                          <img
+                            src={listThumbSrc(item)}
+                            alt={item.mediaName}
+                            width={56}
+                            height={56}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-14 w-14 shrink-0 rounded-lg bg-[var(--node-control-bg)] object-cover"
+                          />
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-[12px] text-[var(--node-control-text)]" style={{ fontFamily: 'Inter, sans-serif' }}>{item.mediaName}</p>
                             <p className="mt-0.5 font-mono text-[11px] text-[var(--node-control-muted)]">
@@ -372,7 +458,17 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                     <div className="grid grid-cols-3 gap-2 p-1">
                       {imageItems.map((item) => (
                         <div key={item.id} className="group relative aspect-square overflow-hidden rounded-xl bg-[var(--node-control-bg)]">
-                          <img src={item.mediaUrl || '/placeholder.svg'} alt={item.mediaName} className="h-full w-full object-cover" />
+                          <img
+                            src={gridThumbSrc(item)}
+                            srcSet={gridThumbSrcSet(item)}
+                            sizes="(max-width: 900px) 20vw, 120px"
+                            alt={item.mediaName}
+                            width={120}
+                            height={120}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-cover"
+                          />
                           <button
                             type="button"
                             onClick={() => openImage(item.supabaseUrl || item.mediaUrl || '')}
@@ -390,6 +486,20 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                             <Download size={10} />
                           </button>
                           <button type="button" onClick={() => removeItem(item.id)} className="absolute right-1 top-1 z-10 rounded-full bg-[var(--node-badge-bg)] p-0.5 text-[var(--node-overlay-text)] opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"><X size={10} /></button>
+                          {multiSelectMode && (
+                            <button
+                              type="button"
+                              onClick={() => toggleImageSelected(item.id)}
+                              className={`absolute left-1 bottom-1 z-10 flex h-5 w-5 items-center justify-center rounded-full border transition-colors ${
+                                selectedImageIdSet.has(item.id)
+                                  ? 'border-emerald-400 bg-emerald-500/25 text-emerald-200'
+                                  : 'border-[var(--node-control-border)] bg-[var(--node-badge-bg)] text-transparent hover:text-[var(--node-overlay-text)]'
+                              }`}
+                              title={selectedImageIdSet.has(item.id) ? 'Deselect image' : 'Select image'}
+                            >
+                              <Check size={11} />
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -440,11 +550,25 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
 
           <div className="flex-1" />
 
-          {items.length > 0 && (
+          {items.length > 0 && imageCount > 0 ? (
+            <motion.button
+              type="button"
+              onClick={toggleImageSelectionMode}
+              whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+              className={`flex items-center gap-1 rounded-md px-2 py-1 transition-colors ${
+                multiSelectMode
+                  ? 'bg-emerald-500/15 text-emerald-300'
+                  : 'text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)]'
+              }`}
+              title={multiSelectMode ? 'Disable image multi-selection' : 'Enable image multi-selection'}
+            >
+              {imageSelectionLabel} <Check size={9} />
+            </motion.button>
+          ) : items.length > 0 ? (
             <span className="flex items-center gap-1 text-[var(--node-control-muted)]">
-              {imageCount > 0 && textCount === 0 ? `${imageCount} images` : countLabel} <Check size={9} />
+              {countLabel} <Check size={9} />
             </span>
-          )}
+          ) : null}
 
           <button
             type="button"
@@ -467,7 +591,7 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
 
         {/* Side action buttons */}
         <AnimatePresence>
-          {(hovered || selected) && (
+          {(hovered || selected) && !Boolean((data as { nodeUiHidden?: boolean }).nodeUiHidden) && (
             <motion.div
               initial={{ opacity: 0, x: -4 }}
               animate={{ opacity: 1, x: 0 }}

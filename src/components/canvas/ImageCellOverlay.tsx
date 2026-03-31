@@ -7,6 +7,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
+import { canvasPreviewImageUrl, canvasResponsiveSrcSet } from '@/lib/imageDelivery';
 
 interface ImageCellOverlayProps {
   src: string;
@@ -32,6 +33,13 @@ const ImageCellOverlay = ({
   const [hovered, setHovered] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const reduceMotion = useCanvasReduceMotion();
+  const cellPreviewSrc = canvasPreviewImageUrl(src, { width: 320, height: 240, quality: 60 });
+  const cellPreviewSrcSet = canvasResponsiveSrcSet(src, [160, 240, 320], { quality: 60 });
+  const expandedPreviewSrc = canvasPreviewImageUrl(src, { width: 1600, quality: 72, resize: 'contain' });
+  const expandedPreviewSrcSet = canvasResponsiveSrcSet(src, [640, 960, 1280, 1600], {
+    quality: 72,
+    resize: 'contain',
+  });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -67,8 +75,14 @@ const ImageCellOverlay = ({
 
       <div className="relative aspect-[4/3] bg-[var(--node-control-bg)] border border-[var(--node-control-border)] rounded-xl overflow-hidden group/cell">
         <img
-          src={src}
+          src={cellPreviewSrc}
+          srcSet={cellPreviewSrcSet}
+          sizes="(max-width: 1024px) 40vw, 180px"
           alt={label || 'image'}
+          width={180}
+          height={135}
+          loading="lazy"
+          decoding="async"
           className={`w-full h-full object-cover ${reduceMotion ? '' : 'transition-transform duration-300 group-hover/cell:scale-[1.02]'}`}
         />
 
@@ -116,7 +130,15 @@ const ImageCellOverlay = ({
                     className="max-w-[90vw] max-h-[90vh] p-2 border border-[var(--node-control-border)] bg-[var(--node-inner-deep)]"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <img src={src} alt="" className="w-full h-auto max-h-[85vh] object-contain rounded-md mx-auto" />
+                    <img
+                      src={expandedPreviewSrc}
+                      srcSet={expandedPreviewSrcSet}
+                      sizes="90vw"
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-auto max-h-[85vh] object-contain rounded-md mx-auto"
+                    />
                     {resolution && (
                       <p className="text-center text-[11px] font-mono text-[var(--text-muted)] pt-1">{resolution}</p>
                     )}

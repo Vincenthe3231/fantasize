@@ -111,7 +111,8 @@ const nodeTypes = {
 const edgeTypes = { custom: CustomEdge };
 
 /** Minimum time (ms) the workspace loader stays visible after fetch/draft resolve — see `useMinLoadingDisplay`. */
-const WORKSPACE_LOADER_MIN_MS = 1000;
+const WORKSPACE_LOADER_MIN_MS = canvasPerfFlags.fastStartupMode ? 120 : 1000;
+const ENTRY_SPLASH_MS = canvasPerfFlags.fastStartupMode ? 250 : 2000;
 
 function getOverlappingArea(
   rectA: { x: number; y: number; width: number; height: number },
@@ -348,6 +349,8 @@ const CanvasInnerReactFlow = ({
   const [edges, setEdges] = useEdgesState(storeEdges);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addPanelOpen, setAddPanelOpen] = useState(false);
+  const [deferredUiReady, setDeferredUiReady] = useState(!canvasPerfFlags.deferNonCriticalCanvasUi);
+  const [isViewportInteracting, setIsViewportInteracting] = useState(false);
   /** Lift static edges above nodes while dragging a connection; CSS disables pointer events on that SVG so handles still receive the drop. */
   const [isConnectingFromHandle, setIsConnectingFromHandle] = useState(false);
   const notifications = useSystemNotificationStore((s) => s.notifications);
@@ -426,6 +429,7 @@ const CanvasInnerReactFlow = ({
 
   const onMoveEnd = useCallback(
     (_: MouseEvent | TouchEvent | null, vp: { x: number; y: number; zoom: number }) => {
+      setIsViewportInteracting(false);
       setLastViewport({ x: vp.x, y: vp.y, zoom: vp.zoom });
       // Keep post-gesture internals refresh: edges/handles must stay in sync immediately after pan/zoom.
       requestAnimationFrame(() => {
@@ -463,6 +467,26 @@ const CanvasInnerReactFlow = ({
     },
     [refreshAllHandleBounds, setLastViewport]
   );
+
+  useEffect(() => {
+    if (!canvasPerfFlags.deferNonCriticalCanvasUi) return;
+    let cancelled = false;
+    const onReady = () => {
+      if (!cancelled) setDeferredUiReady(true);
+    };
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(onReady, { timeout: 1500 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback(id);
+      };
+    }
+    const t = globalThis.setTimeout(onReady, 650);
+    return () => {
+      cancelled = true;
+      globalThis.clearTimeout(t);
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -971,17 +995,18 @@ const CanvasInnerReactFlow = ({
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <CanvasCursor />
 
-      {(storeNodes.some((n) => n.selected) || storeEdges.some((e) => e.selected)) && (
+      {(storeNodes.some((n) => n.selected) || storeEdges.some((e) => e.selected)) &&
+      (!canvasPerfFlags.deferNonCriticalCanvasUi || deferredUiReady) ? (
         <SelectionOverlay
           nodes={storeNodes}
           edges={storeEdges}
           wrapperRef={reactFlowWrapper}
         />
-      )}
+      ) : null}
 
-      {comments.map((c) => (
-        <CommentPin key={c.id} comment={c} />
-      ))}
+      {!canvasPerfFlags.deferNonCriticalCanvasUi || deferredUiReady
+        ? comments.map((c) => <CommentPin key={c.id} comment={c} />)
+        : null}
 
       <AnimatePresence>
         {contextMenu && (
@@ -1140,6 +1165,7 @@ const CanvasInnerReactFlow = ({
         connectionLineStyle={{ stroke: 'var(--edge-stroke)', strokeWidth: 2 }}
         onNodeDragStart={(_, node) => {
           runWithCanvasPerfMark('canvas.dragStart', () => {
+            setIsViewportInteracting(true);
             setIsDragging(true);
             const ns = getNodes();
             const targets = ns.filter((n) => n.selected || n.id === node.id);
@@ -1165,6 +1191,7 @@ const CanvasInnerReactFlow = ({
         }}
         onNodeDragStop={() => {
           runWithCanvasPerfMark('canvas.dragStop', () => {
+            setIsViewportInteracting(false);
             setIsDragging(false);
             const end = getNodes();
             const txn = dragTxnRef.current;
@@ -1218,7 +1245,10 @@ const CanvasInnerReactFlow = ({
         onNodeMouseEnter={(_, node) => setHoveredNode(node.id)}
         onNodeMouseLeave={() => setHoveredNode(null)}
         onNodeContextMenu={onNodeContextMenu}
-        onMoveStart={() => setContextMenu(null)}
+        onMoveStart={() => {
+          setContextMenu(null);
+          setIsViewportInteracting(true);
+        }}
         onMove={onMove}
         onMoveEnd={onMoveEnd}
         onPaneClick={() => setFocusedNodeContentId(null)}
@@ -1250,7 +1280,7 @@ const CanvasInnerReactFlow = ({
                   : 'rgba(0,0,0,0.08)'
           }
         />
-        {settings.showMinimap && (
+        {settings.showMinimap && (!canvasPerfFlags.deferNonCriticalCanvasUi || deferredUiReady) && (
           <MiniMap
             className="minimap-light !border rounded-lg overflow-hidden !bg-[#1a1a1e]/95 dark:!bg-[#1a1a1e]/95 !border-white/10 dark:!border-white/10"
             maskColor={settings.darkMode ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.12)'}
@@ -1261,7 +1291,8 @@ const CanvasInnerReactFlow = ({
       </ReactFlow>
       </div>
       <BottomBar />
-      {notifications.length > 0 ? (
+      {notifications.length > 0 &&
+      (!canvasPerfFlags.deferToastsDuringInteraction || !isViewportInteracting) ? (
         <div className="fixed bottom-24 right-4 z-[55] flex w-[min(300px,calc(100vw-2rem))] max-w-[300px] flex-col gap-2 max-sm:right-3">
           {notifications.map((n) => (
             <SystemNotificationToast
@@ -1456,9 +1487,10 @@ function CanvasRootWithDraft({ space }: { space: SpaceRow }) {
 }
 
 function Index() {
-  const [entrySplash, setEntrySplash] = useState(true);
+  const [entrySplash, setEntrySplash] = useState(!canvasPerfFlags.fastStartupMode);
   useEffect(() => {
-    const t = setTimeout(() => setEntrySplash(false), 2000);
+    if (canvasPerfFlags.fastStartupMode) return;
+    const t = setTimeout(() => setEntrySplash(false), ENTRY_SPLASH_MS);
     return () => clearTimeout(t);
   }, []);
   return (

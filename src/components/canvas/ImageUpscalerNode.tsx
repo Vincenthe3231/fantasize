@@ -56,6 +56,7 @@ const ImageUpscalerNode = memo(({ id, data }: NodeProps) => {
         data-content-focused={contentFocused || undefined}
       >
       <NodeActionBar
+          hidden={Boolean((data as { nodeUiHidden?: boolean }).nodeUiHidden)}
         onRun={() => runFromNode(id)}
         onDuplicate={() => duplicateNode(id)}
         onDelete={() => deleteNode(id)}

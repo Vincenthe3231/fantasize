@@ -51,6 +51,7 @@ export const NodeLabelRow = memo(function NodeLabelRow({
     (data.title as string) ||
     ''
   ).trim();
+  const hidden = Boolean((data as { nodeUiHidden?: boolean }).nodeUiHidden);
   const fb = (fallbackText || '').trim();
   const display = stored || fb || `${labelPrefix} #${instanceIndex}`;
 
@@ -108,6 +109,8 @@ export const NodeLabelRow = memo(function NodeLabelRow({
     restoreNodeLabelSnapshot(nodeId, snapshotRef.current);
     setEditing(false);
   }, [nodeId, restoreNodeLabelSnapshot]);
+
+  if (hidden) return null;
 
   return (
     <div

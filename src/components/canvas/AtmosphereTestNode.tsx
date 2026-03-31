@@ -17,6 +17,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { richTextToPlainForScout } from '@/lib/richTextForScout';
 import type { LightingResult } from './LightingScenarioNode';
 import type { ScoutFinalDeliverable } from '@/lib/scoutPipeline';
+import { canvasPreviewImageUrl, canvasResponsiveSrcSet } from '@/lib/imageDelivery';
 
 const AtmosphereTestNode = memo(({ id, selected, data }: NodeProps) => {
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -42,6 +43,14 @@ const AtmosphereTestNode = memo(({ id, selected, data }: NodeProps) => {
     .referenceResults ?? []) as { id: string; label: string; src: string }[];
   const selectedBranch = (data as { selectedBranch?: 'text' | 'reference' | null }).selectedBranch ?? null;
   const selectedIndex = (data as { selectedIndex?: number | null }).selectedIndex ?? null;
+  const referencePreviewUrl = useMemo(
+    () => canvasPreviewImageUrl(referenceUrl, { width: 320, height: 320, quality: 60 }),
+    [referenceUrl]
+  );
+  const referencePreviewSrcSet = useMemo(
+    () => canvasResponsiveSrcSet(referenceUrl, [160, 240, 320], { quality: 60 }),
+    [referenceUrl]
+  );
 
   const lightingNode = useMemo(() => {
     const inc = edges.find((e) => e.target === id && nodes.find((n) => n.id === e.source)?.type === 'lightingScenarioNode');
@@ -150,6 +159,7 @@ const AtmosphereTestNode = memo(({ id, selected, data }: NodeProps) => {
         data-content-focused={contentFocused || undefined}
       >
         <NodeActionBar
+          hidden={Boolean((data as { nodeUiHidden?: boolean }).nodeUiHidden)}
           variant="multiImage"
           runBusy={isRunning}
           onRun={() => runFromNode(id, { atmosphereBranch: 'text' })}
@@ -205,7 +215,17 @@ const AtmosphereTestNode = memo(({ id, selected, data }: NodeProps) => {
                 onClick={() => refInputRef.current?.click()}
               >
                 {referenceUrl ? (
-                  <img src={referenceUrl} alt="" className="max-h-20 rounded object-contain" />
+                  <img
+                    src={referencePreviewUrl}
+                    srcSet={referencePreviewSrcSet}
+                    sizes="160px"
+                    alt=""
+                    width={160}
+                    height={90}
+                    loading="lazy"
+                    decoding="async"
+                    className="max-h-20 rounded object-contain"
+                  />
                 ) : (
                   <>
                     <ImageIcon size={20} className="text-[var(--text-muted)]" />

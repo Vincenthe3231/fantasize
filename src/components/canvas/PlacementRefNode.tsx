@@ -52,6 +52,7 @@ const PlacementRefNode = memo(({ id, selected, data }: NodeProps) => {
         data-content-focused={contentFocused || undefined}
       >
         <NodeActionBar
+          hidden={Boolean((data as { nodeUiHidden?: boolean }).nodeUiHidden)}
           variant="group"
           onRun={() => runFromNode(id)}
           onDuplicate={() => duplicateNode(id)}

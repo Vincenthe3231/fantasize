@@ -13,6 +13,7 @@ import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { stage1Complete } from '@/lib/scoutPipeline';
+import { canvasPreviewImageUrl, canvasResponsiveSrcSet } from '@/lib/imageDelivery';
 
 function isVideoUrl(url: string): boolean {
   return /\.(mp4|mov|webm)(\?|$)/i.test(url);
@@ -166,6 +167,14 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
     storedH > 0
       ? { w: storedW, h: storedH }
       : null);
+  const mediaPreviewUrl = useMemo(() => {
+    if (isVideoUrl(mediaUrl)) return mediaUrl;
+    return canvasPreviewImageUrl(mediaUrl, { width: 960, height: 720, quality: 68 });
+  }, [mediaUrl]);
+  const mediaPreviewSrcSet = useMemo(() => {
+    if (isVideoUrl(mediaUrl)) return undefined;
+    return canvasResponsiveSrcSet(mediaUrl, [320, 480, 720, 960], { quality: 68 });
+  }, [mediaUrl]);
 
   const syncDimsFromElement = useCallback(
     (w: number, h: number) => {
@@ -194,6 +203,7 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
         data-content-focused={contentFocused || undefined}
       >
         <NodeActionBar
+          hidden={Boolean((data as { nodeUiHidden?: boolean }).nodeUiHidden)}
           onRun={() => runFromNode(id)}
           onDuplicate={() => duplicateNode(id)}
           onDelete={() => deleteNode(id)}
@@ -226,8 +236,12 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
                       />
                     ) : (
                       <img
-                        src={mediaUrl}
+                        src={mediaPreviewUrl}
+                        srcSet={mediaPreviewSrcSet}
+                        sizes="(max-width: 1024px) 70vw, 560px"
                         alt=""
+                        loading="lazy"
+                        decoding="async"
                         className="h-full w-full object-cover"
                         onLoad={(e) => {
                           const el = e.currentTarget;

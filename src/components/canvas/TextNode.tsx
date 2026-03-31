@@ -35,6 +35,7 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
         data-content-focused={contentFocused || undefined}
       >
         <NodeActionBar
+          hidden={Boolean((data as { nodeUiHidden?: boolean }).nodeUiHidden)}
           variant="text"
           onRun={() => runFromNode(id)}
           onDuplicate={() => duplicateNode(id)}

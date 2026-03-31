@@ -1338,12 +1338,24 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
 
     runFromNode: (id, options) => {
       const s = get();
+      const node = s.nodes.find((n) => n.id === id);
+      if (node?.type === 'listNode') {
+        const d = (node.data ?? {}) as { listMultiSelectMode?: boolean; listSelectedImageIds?: string[] };
+        if (d.listMultiSelectMode) {
+          const selected = Array.isArray(d.listSelectedImageIds)
+            ? d.listSelectedImageIds.filter(Boolean)
+            : [];
+          if (selected.length === 0) {
+            notifyInfo('Select images first', 'Enable checks in List and select at least one image before running.');
+            return;
+          }
+        }
+      }
       const guard = canRunScoutNode(s.nodes, s.scoutPipeline, id);
       if (!guard.ok) {
         notifyInfo('Run blocked', guard.reason ?? 'Cannot run this node yet.');
         return;
       }
-      const node = s.nodes.find((n) => n.id === id);
       if (node && SCOUT_REMOTE_EXECUTION_TYPES.has(node.type)) {
         void runScoutRemoteOnce(id, options);
         return;

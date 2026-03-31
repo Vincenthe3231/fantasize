@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Square,
   Grid3X3,
+  Eye,
   EyeOff,
   Copy,
   Trash2,
@@ -145,6 +146,9 @@ export default function SelectionOverlay({ nodes, edges, wrapperRef }: Selection
     focusedNodeContentId != null &&
     nodeIsUnderSelection(focusedNodeContentId, nodes, selectedNodeIds);
   const selectedEdges = useMemo(() => edges.filter((e) => e.selected), [edges]);
+  const allSelectedNodesHidden =
+    selectedNodes.length > 0 &&
+    selectedNodes.every((n) => Boolean((n.data as { nodeUiHidden?: boolean } | undefined)?.nodeUiHidden));
   const selectedGroupNodes = useMemo(() => selectedNodes.filter((n) => n.type === 'group'), [selectedNodes]);
   const selectedTopLevelNodes = useMemo(
     () => selectedNodes.filter((n) => n.type !== 'group' && !n.parentId),
@@ -290,9 +294,14 @@ export default function SelectionOverlay({ nodes, edges, wrapperRef }: Selection
           <button
             type="button"
             className="flex items-center justify-center rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
-            title="Hide"
+            title={allSelectedNodesHidden ? 'Unhide' : 'Hide'}
+            onClick={() => {
+              selectedNodes.forEach((n) =>
+                updateNodeData(n.id, { nodeUiHidden: !allSelectedNodesHidden })
+              );
+            }}
           >
-            <EyeOff size={16} />
+            {allSelectedNodesHidden ? <Eye size={16} /> : <EyeOff size={16} />}
           </button>
           <div className="mx-1 h-4 w-px bg-border" />
           <button

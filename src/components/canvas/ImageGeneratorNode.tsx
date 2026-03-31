@@ -38,6 +38,7 @@ import { IMAGE_GENERATOR_MODES } from '@/lib/imageGeneratorModes';
 import { notifyInfo } from '@/lib/systemNotify';
 import { makeWorkflowEdge } from '@/lib/portHandles';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
+import { canvasPreviewImageUrl, canvasResponsiveSrcSet } from '@/lib/imageDelivery';
 
 function downloadFromImageUrl(url: string, basename: string) {
   const trimmed = url.trim();
@@ -93,6 +94,14 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
     ? (data.generatedUrls as unknown[]).map((u) => String(u ?? '').trim()).filter(Boolean)
     : [];
   const generatedUrl = generatedUrls[0] || (data.generatedUrl as string) || '';
+  const generatedPreviewUrl = useMemo(
+    () => canvasPreviewImageUrl(generatedUrl, { width: 720, height: 720, quality: 64 }),
+    [generatedUrl]
+  );
+  const generatedPreviewSrcSet = useMemo(
+    () => canvasResponsiveSrcSet(generatedUrl, [320, 480, 720, 960], { quality: 64 }),
+    [generatedUrl]
+  );
   const negativePromptOpen = Boolean(data.negativePromptOpen);
   const previewAspectRatio = useMemo(() => {
     if (aspect === 'custom') return 16 / 9;
@@ -180,6 +189,7 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
         data-content-focused={contentFocused || undefined}
       >
       <NodeActionBar
+          hidden={Boolean((data as { nodeUiHidden?: boolean }).nodeUiHidden)}
         variant="imageGen"
         runBusy={isRunning}
         onRun={() => runFromNode(id)}
@@ -209,8 +219,12 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
                     className="absolute inset-0 min-h-0 min-w-0 overflow-hidden"
                   >
                     <img
-                      src={generatedUrl}
+                      src={generatedPreviewUrl}
+                      srcSet={generatedPreviewSrcSet}
+                      sizes="(max-width: 1024px) 70vw, 520px"
                       alt=""
+                      loading="lazy"
+                      decoding="async"
                       className="h-full w-full object-cover"
                     />
                   </motion.div>
@@ -225,8 +239,14 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
                         className="group relative aspect-square overflow-hidden rounded-lg bg-[var(--node-control-bg)]"
                       >
                         <img
-                          src={url}
+                          src={canvasPreviewImageUrl(url, { width: 300, height: 300, quality: 60 })}
+                          srcSet={canvasResponsiveSrcSet(url, [160, 240, 320], { quality: 60 })}
+                          sizes="140px"
                           alt={`Generated ${idx + 1}`}
+                          width={140}
+                          height={140}
+                          loading="lazy"
+                          decoding="async"
                           className="h-full w-full object-cover"
                         />
                         <button

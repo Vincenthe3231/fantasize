@@ -179,6 +179,7 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
         data-content-focused={contentFocused || undefined}
       >
         <NodeActionBar
+          hidden={Boolean((data as { nodeUiHidden?: boolean }).nodeUiHidden)}
           variant="assistant"
           runBusy={isStoreRunning}
           onRun={() => runFromNode(id)}

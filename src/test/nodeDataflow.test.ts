@@ -180,6 +180,35 @@ describe('nodeDataflow', () => {
     expect(patches['img-1']?.mediaUrl).toBe('https://example.com/first.jpg');
   });
 
+  it('propagates only selected listNode image items when multi-select mode is enabled', () => {
+    const nodes: Node[] = [
+      node('list-1', 'listNode', {
+        listMultiSelectMode: true,
+        listSelectedImageIds: ['m2'],
+        items: [
+          { id: 'm1', type: 'image', mediaUrl: 'https://example.com/first.jpg', mediaName: 'First' },
+          { id: 'm2', type: 'image', mediaUrl: 'https://example.com/second.jpg', mediaName: 'Second' },
+        ],
+      }),
+      node('img-1', 'imageGeneratorNode', { mediaUrl: '' }),
+    ];
+    const edges: Edge[] = [edge('list-1', 'img-1', 'image-out', 'image-in')];
+    const patches = computeReactivePatchesFromSources(['list-1'], nodes, edges);
+    expect(patches['img-1']?.mediaUrl).toBe('https://example.com/second.jpg');
+  });
+
+  it('emits no listNode image packet when multi-select mode is enabled and no image is selected', () => {
+    const list = node('list-1', 'listNode', {
+      listMultiSelectMode: true,
+      listSelectedImageIds: [],
+      items: [
+        { id: 'm1', type: 'image', mediaUrl: 'https://example.com/x.png', mediaName: 'X' },
+      ],
+    });
+    const nodes: Node[] = [list];
+    expect(upstreamImageItemsFromNode(list, nodes)).toEqual([]);
+  });
+
   it('exposes listNode items via upstreamTextFromNode and upstreamImageItemsFromNode', () => {
     const list = node('list-1', 'listNode', {
       items: [

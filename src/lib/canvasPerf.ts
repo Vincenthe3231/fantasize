@@ -29,9 +29,12 @@ export const canvasPerfFlags = {
   coalesceReactiveDataflow: readBoolFlag('canvasCoalesceDataflow', true),
   reduceMotionDuringDrag: readBoolFlag('canvasReduceMotion', true),
   enableCanvasWorkerBridge: readBoolFlag('canvasWorkerBridge', true),
-  enableSpatialIndexing: readBoolFlag('canvasSpatialIndex', false),
-  enableWorkerEdgePicking: readBoolFlag('canvasWorkerEdgePick', false),
+  enableSpatialIndexing: readBoolFlag('canvasSpatialIndex', true),
+  enableWorkerEdgePicking: readBoolFlag('canvasWorkerEdgePick', true),
   enableWorkerEdgePickWasm: readBoolFlag('canvasWorkerEdgePickWasm', true),
+  fastStartupMode: readBoolFlag('canvasFastStartup', true),
+  deferNonCriticalCanvasUi: readBoolFlag('canvasDeferUi', true),
+  deferToastsDuringInteraction: readBoolFlag('canvasDeferToasts', true),
   spatialIndexThreshold: 250,
 } as const;
 

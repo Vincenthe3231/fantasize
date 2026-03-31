@@ -32,6 +32,7 @@ const AnnotationNode = memo(({ id, data, selected }: NodeProps) => {
       style={{ fontFamily: 'Inter, sans-serif' }}
     >
       <NodeActionBar
+          hidden={Boolean((data as { nodeUiHidden?: boolean }).nodeUiHidden)}
         onRun={() => runFromNode(id)}
         onDuplicate={() => duplicateNode(id)}
         onDelete={() => deleteNode(id)}

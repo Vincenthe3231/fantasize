@@ -42,6 +42,7 @@ export interface ConnectMenuItem {
 
 interface NodeActionBarProps {
   variant?: NodeActionBarVariant;
+  hidden?: boolean;
   onRun?: () => void;
   /** Scout / long-running: show spinner on Run and disable Run actions */
   runBusy?: boolean;
@@ -93,6 +94,7 @@ const Btn = ({
 const NodeActionBar = memo(
   ({
     variant = 'default',
+    hidden = false,
     onRun,
     onDuplicate,
     onDelete,
@@ -107,6 +109,7 @@ const NodeActionBar = memo(
     connectMenuItems = [],
     runBusy = false,
   }: NodeActionBarProps) => {
+    if (hidden) return null;
     const isAssistant = variant === 'assistant';
     const isImageGen = variant === 'imageGen';
 
