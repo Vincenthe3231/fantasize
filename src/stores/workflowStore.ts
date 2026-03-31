@@ -55,6 +55,14 @@ function withTransientNodeDataStripped(node: Node): Node {
   return { ...node, data: nextData };
 }
 
+function isLegacyDefaultAnnotationNode(node: Node): boolean {
+  return node.id === 'annotation-1' && node.type === 'annotationNode';
+}
+
+function sanitizeIncomingNodes(nodes: Node[]): Node[] {
+  return nodes.filter((node) => !isLegacyDefaultAnnotationNode(node));
+}
+
 // ── Types ──────────────────────────────────────────────
 
 export type NodeType =
@@ -535,8 +543,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         ...(space.settings && typeof space.settings === 'object' ? space.settings : {}),
       };
       const vp = space.viewport ?? { x: 0, y: 0, zoom: 1 };
+      const sanitizedNodes = sanitizeIncomingNodes(structuredClone(space.nodes));
       set({
-        nodes: structuredClone(space.nodes).map((n) =>
+        nodes: sanitizedNodes.map((n) =>
           normalizeListNodeImageItemsInNodeData(withTransientNodeDataStripped(n))
         ),
         edges: migrateEdgesToScopedHandles(structuredClone(space.edges)),
@@ -566,7 +575,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       };
       const vp = space.viewport ?? st.lastViewport;
       const byId = new Map(st.nodes.map((n) => [n.id, n]));
-      const nextNodes = space.nodes.map((sn) => {
+      const nextNodes = sanitizeIncomingNodes(space.nodes).map((sn) => {
         const live = byId.get(sn.id);
         return {
           ...normalizeListNodeImageItemsInNodeData(withTransientNodeDataStripped(structuredClone(sn))),
