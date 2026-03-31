@@ -1,8 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Link2,
-  ChevronDown,
   Square,
   Grid3X3,
   EyeOff,
@@ -15,6 +13,7 @@ import { useWorkflowStore } from '@/stores/workflowStore';
 import { DEFAULT_NODE_H, DEFAULT_NODE_W } from '@/stores/workflowStore.constants';
 import { useViewport, type Node, type Edge } from 'reactflow';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
+import { SelectionConnectMenu } from '@/components/canvas/SelectionConnectMenu';
 
 const GROUP_COLOR_PRESETS: { label: string; value: string | undefined }[] = [
   { label: 'Accent', value: undefined },
@@ -258,14 +257,12 @@ export default function SelectionOverlay({ nodes, edges, wrapperRef }: Selection
           {canUngroup ? 'Ungroup' : 'Group'}
         </span>
         <div className="flex h-10 items-center gap-1 rounded-full glass-toolbar px-3 py-0">
-          <button
-            type="button"
-            className="flex items-center justify-center rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
-            title="Connector"
-          >
-            <Link2 size={16} />
-            <ChevronDown size={12} className="ml-0.5 opacity-70" />
-          </button>
+          <SelectionConnectMenu
+            nodes={nodes}
+            selectedNodes={selectedNodes}
+            selectedNodeIds={selectedNodeIds}
+            focusedNodeContentId={focusedNodeContentId}
+          />
           <button
             type="button"
             className={`flex items-center justify-center rounded-full p-2 transition-colors ${
