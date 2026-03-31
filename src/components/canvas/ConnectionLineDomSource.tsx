@@ -7,6 +7,10 @@ import {
   useReactFlow,
 } from 'reactflow';
 import type { ConnectionLineComponent } from 'reactflow';
+import {
+  measureAndCacheHandleFlowPosition,
+  readCachedHandleFlowPosition,
+} from '@/lib/canvasHandlePositionCache';
 
 /**
  * Drop-in replacement for React Flow's default connection preview path.
@@ -33,17 +37,16 @@ const ConnectionLineDomSource: ConnectionLineComponent = memo(function Connectio
   const nodeId = fromNode?.id;
   const hid = fromHandle?.id != null ? String(fromHandle.id) : null;
   if (nodeId && hid) {
-    const root = document.querySelector<HTMLElement>(
-      `.react-flow__node[data-id="${CSS.escape(nodeId)}"]`
-    );
-    const handleEl = root?.querySelector<HTMLElement>(
-      `.react-flow__handle[data-handleid="${CSS.escape(hid)}"]`
-    );
-    if (handleEl) {
-      const r = handleEl.getBoundingClientRect();
-      const p = screenToFlowPosition({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    const cached = readCachedHandleFlowPosition(nodeId, hid);
+    if (cached) {
+      sourceX = cached.x;
+      sourceY = cached.y;
+    } else {
+      const p = measureAndCacheHandleFlowPosition(nodeId, hid, screenToFlowPosition);
+      if (p) {
       sourceX = p.x;
       sourceY = p.y;
+      }
     }
   }
 

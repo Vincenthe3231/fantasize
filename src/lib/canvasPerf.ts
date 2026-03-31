@@ -30,6 +30,8 @@ export const canvasPerfFlags = {
   reduceMotionDuringDrag: readBoolFlag('canvasReduceMotion', true),
   enableCanvasWorkerBridge: readBoolFlag('canvasWorkerBridge', true),
   enableSpatialIndexing: readBoolFlag('canvasSpatialIndex', false),
+  enableWorkerEdgePicking: readBoolFlag('canvasWorkerEdgePick', false),
+  enableWorkerEdgePickWasm: readBoolFlag('canvasWorkerEdgePickWasm', true),
   spatialIndexThreshold: 250,
 } as const;
 

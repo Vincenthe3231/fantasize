@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useEffect, useCallback } from 'react';
-import { getBezierPath, type EdgeProps } from 'reactflow';
+import { getBezierPath, useStore, type EdgeProps } from 'reactflow';
 import { Scissors } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
@@ -7,6 +7,8 @@ import { effectiveEdgeAnimation } from '@/lib/canvasEffectiveSettings';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 
 const HOVER_LEAVE_MS = 140;
+const EDGE_LOD_FAR_ZOOM = 0.35;
+const EDGE_LOD_MEDIUM_ZOOM = 0.9;
 
 function pointerToSvgPoint(
   e: React.PointerEvent<SVGPathElement>
@@ -32,6 +34,7 @@ const CustomEdge = memo(({
   targetPosition,
   selected,
 }: EdgeProps) => {
+  const zoom = useStore((s) => s.transform[2]);
   const isRunning = useWorkflowStore((s) => s.runningEdges.has(id));
   const settings = useWorkflowStore((s) => s.settings);
   const edgeAnimation = effectiveEdgeAnimation(settings);
@@ -76,15 +79,18 @@ const CustomEdge = memo(({
 
   useEffect(() => () => clearLeaveTimer(), [clearLeaveTimer]);
 
-  const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX,
-    sourceY,
-    sourcePosition,
-    targetX,
-    targetY,
-    targetPosition,
-    curvature: 0.35,
-  });
+  const [edgePath, labelX, labelY] =
+    zoom < EDGE_LOD_FAR_ZOOM
+      ? [`M${sourceX},${sourceY} L${targetX},${targetY}`, (sourceX + targetX) / 2, (sourceY + targetY) / 2]
+      : getBezierPath({
+          sourceX,
+          sourceY,
+          sourcePosition,
+          targetX,
+          targetY,
+          targetPosition,
+          curvature: zoom < EDGE_LOD_MEDIUM_ZOOM ? 0.2 : 0.35,
+        });
 
   /** Cut/snips on pointer down so we win over pane drag/selection; `stroke` hit target fixes transparent-stroke + visibleStroke glitches from React Flow defaults. */
   const handleInteractionPointerDown = (e: React.PointerEvent) => {
@@ -108,7 +114,7 @@ const CustomEdge = memo(({
   const midY = labelY;
 
   const strokeColor = 'var(--edge-stroke)';
-  const strokeW = hovered || selected ? 2 : 1.5;
+  const strokeW = hovered || selected ? 2 : zoom < EDGE_LOD_FAR_ZOOM ? 1.1 : 1.5;
   const opacity = isRunning ? 1 : hovered || selected ? 0.9 : 0.7;
   const showSnipControl = (hovered || selected) && !reduceMotion;
   const foSize = 32;

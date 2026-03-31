@@ -8,6 +8,7 @@
     "build": "vite build",
     "build:analyze": "vite build --mode analyze",
     "build:dev": "vite build --mode development",
+    "build:edge-wasm": "node scripts/build-edge-pick-wasm.mjs",
     "lint": "eslint .",
     "lint:watch": "chokidar \"src/**/*.{ts,tsx,js,jsx}\" -c \"pnpm lint\" --initial",
     "preview": "vite preview",
@@ -122,6 +123,7 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
     "vite": "^5.4.19",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wabt": "^1.0.39"
   }
 }

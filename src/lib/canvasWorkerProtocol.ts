@@ -15,6 +15,20 @@ export type SpatialNodeDelta = {
   to?: SpatialNodeBounds | null;
 };
 
+export type EdgePickNodeBounds = {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type EdgePickEdgeRef = {
+  id: string;
+  source: string;
+  target: string;
+};
+
 export type CanvasWorkerRequest =
   | {
       id: number;
@@ -40,6 +54,17 @@ export type CanvasWorkerRequest =
       type: 'spatial-index-query-rect';
       revision: number;
       rect: { x: number; y: number; width: number; height: number };
+    }
+  | {
+      id: number;
+      type: 'edge-pick-query';
+      revision: number;
+      flowX: number;
+      flowY: number;
+      thresholdSq: number;
+      useWasm?: boolean;
+      nodes: EdgePickNodeBounds[];
+      edges: EdgePickEdgeRef[];
     };
 
 export type CanvasWorkerResponse =
@@ -72,6 +97,13 @@ export type CanvasWorkerResponse =
       type: 'spatial-index-query-rect';
       revision: number;
       candidateIds: string[];
+    }
+  | {
+      id: number;
+      ok: true;
+      type: 'edge-pick-query';
+      revision: number;
+      edgeId: string | null;
     }
   | {
       id: number;

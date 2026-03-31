@@ -83,6 +83,10 @@ import { canvasPerfFlags, runWithCanvasPerfMark } from '@/lib/canvasPerf';
 import { canvasWorkerClient } from '@/lib/canvasWorkerClient';
 import type { SpatialNodeBounds, SpatialNodeDelta } from '@/lib/canvasWorkerProtocol';
 import { readVfHybridBoardEnabled } from '@/lib/pixiBoard/vfBoardFlag';
+import {
+  bumpHandleFlowPositionRevision,
+  measureAndCacheHandleFlowPosition,
+} from '@/lib/canvasHandlePositionCache';
 const nodeTypes = {
   textNode: TextNode,
   uploadNode: UploadNode,
@@ -107,7 +111,7 @@ const nodeTypes = {
 const edgeTypes = { custom: CustomEdge };
 
 /** Minimum time (ms) the workspace loader stays visible after fetch/draft resolve — see `useMinLoadingDisplay`. */
-const WORKSPACE_LOADER_MIN_MS = 2500;
+const WORKSPACE_LOADER_MIN_MS = 1000;
 
 function getOverlappingArea(
   rectA: { x: number; y: number; width: number; height: number },
@@ -383,6 +387,11 @@ const CanvasInnerReactFlow = ({
         });
       }
       if (nodeId) {
+        bumpHandleFlowPositionRevision();
+        const handleId = meta?.handleId != null ? String(meta.handleId) : null;
+        if (handleId) {
+          measureAndCacheHandleFlowPosition(nodeId, handleId, screenToFlowPosition);
+        }
         const chain: string[] = [];
         let cur: string | undefined = nodeId;
         const seen = new Set<string>();
@@ -402,7 +411,14 @@ const CanvasInnerReactFlow = ({
         setIsConnectingFromHandle(true);
       });
     },
-    [canvasEdgeDebugOn, storeApi, refreshAllHandleBounds, updateNodeInternals, getNode]
+    [
+      canvasEdgeDebugOn,
+      storeApi,
+      refreshAllHandleBounds,
+      updateNodeInternals,
+      getNode,
+      screenToFlowPosition,
+    ]
   );
   const onConnectEnd = useCallback(() => {
     setIsConnectingFromHandle(false);
@@ -603,6 +619,7 @@ const CanvasInnerReactFlow = ({
   });
 
   useEffect(() => {
+    bumpHandleFlowPositionRevision();
     if (hydratedSpaceId.current === space.id) return;
     hydratedSpaceId.current = space.id;
     if (resolvedDraft) {
@@ -1176,6 +1193,7 @@ const CanvasInnerReactFlow = ({
 
             const { nextNodes: reparented } = applyGroupDropReparentForMovedNodes(end, movedIds);
             commitNodesAfterFlowDrag(beforeSnap, reparented);
+            if (changedIds.size > 0) bumpHandleFlowPositionRevision();
 
             const affectedNodeIds = new Set<string>(changedIds);
             const movedNodes = reparented.filter((n) => changedIds.has(n.id));

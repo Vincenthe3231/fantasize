@@ -318,6 +318,9 @@ importers:
       vitest:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@22.19.15)(jsdom@20.0.3)
+      wabt:
+        specifier: ^1.0.39
+        version: 1.0.39
 
 packages:
 
@@ -4145,6 +4148,10 @@ packages:
   w3c-xmlserializer@4.0.0:
     resolution: {integrity: sha512-d+BFHzbiCx6zGfz0HyQ6Rg69w9k19nviJspaj4yNscGjrHu94sVP+aRm75yEbCh+r2/yR+7q6hux9LVtbuTGBw==}
     engines: {node: '>=14'}
+
+  wabt@1.0.39:
+    resolution: {integrity: sha512-ba+dRL/75VQQY7RkU/CgriGbkoWAfS8TDyUlJfJhJ8KhtXgMl5dhNvoPNUcQ9IWRhW8u41glMSuZeTvsYq2rRg==}
+    hasBin: true
 
   web-streams-polyfill@3.3.3:
     resolution: {integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==}
@@ -8173,6 +8180,8 @@ snapshots:
   w3c-xmlserializer@4.0.0:
     dependencies:
       xml-name-validator: 4.0.0
+
+  wabt@1.0.39: {}
 
   web-streams-polyfill@3.3.3: {}
 

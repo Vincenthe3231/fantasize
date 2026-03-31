@@ -9,8 +9,12 @@ import {
   sampleCubicBezier,
 } from '@/lib/pixiBoard/cubicBezier';
 import { screenToFlow, zoomViewportAtScreenPoint, type Viewport2D } from '@/lib/pixiBoard/screenFlowTransform';
+import { canvasPerfFlags } from '@/lib/canvasPerf';
+import { canvasWorkerClient } from '@/lib/canvasWorkerClient';
 
 const EDGE_PICK_THRESH_SQ = 10 * 10;
+const EDGE_LOD_FAR_ZOOM = 0.35;
+const EDGE_LOD_MEDIUM_ZOOM = 0.9;
 
 function pickTopNodeAt(flowX: number, flowY: number, nodes: Node[]): Node | null {
   for (let i = nodes.length - 1; i >= 0; i--) {
@@ -22,12 +26,14 @@ function pickTopNodeAt(flowX: number, flowY: number, nodes: Node[]): Node | null
 }
 
 function pickEdgeAt(flowX: number, flowY: number, nodes: Node[], edges: Edge[]): Edge | null {
+  const z = useWorkflowStore.getState().lastViewport.zoom;
+  const segments = z < EDGE_LOD_FAR_ZOOM ? 8 : z < EDGE_LOD_MEDIUM_ZOOM ? 14 : 24;
   for (let i = edges.length - 1; i >= 0; i--) {
     const e = edges[i]!;
     const pts = getEdgeEndpoints(nodes, e.source, e.target);
     if (!pts) continue;
     const [p0, p1, p2, p3] = horizontalBezierControls(pts.sx, pts.sy, pts.tx, pts.ty);
-    const samples = sampleCubicBezier(p0, p1, p2, p3, 24);
+    const samples = sampleCubicBezier(p0, p1, p2, p3, segments);
     if (minDistSqToPolyline(flowX, flowY, samples, EDGE_PICK_THRESH_SQ)) return e;
   }
   return null;
@@ -70,6 +76,7 @@ export function PixiBoardViewport({ spaceId }: PixiBoardViewportProps) {
   const [vp, setVp] = useState<Viewport2D>(() => ({ x: lastVp.x, y: lastVp.y, zoom: lastVp.zoom }));
   const vpRef = useRef(vp);
   vpRef.current = vp;
+  const pickSeqRef = useRef(0);
 
   useEffect(() => {
     const s = useWorkflowStore.getState().lastViewport;
@@ -84,6 +91,8 @@ export function PixiBoardViewport({ spaceId }: PixiBoardViewportProps) {
     if (!world || !gGrid || !gE || !gN) return;
 
     const v = vpRef.current;
+    const isFar = v.zoom < EDGE_LOD_FAR_ZOOM;
+    const isMedium = !isFar && v.zoom < EDGE_LOD_MEDIUM_ZOOM;
     world.position.set(v.x, v.y);
     world.scale.set(v.zoom);
 
@@ -108,11 +117,16 @@ export function PixiBoardViewport({ spaceId }: PixiBoardViewportProps) {
     for (const e of edges) {
       const ep = getEdgeEndpoints(nodes, e.source, e.target);
       if (!ep) continue;
-      const [p0, p1, p2, p3] = horizontalBezierControls(ep.sx, ep.sy, ep.tx, ep.ty);
-      gE.moveTo(p0.x, p0.y);
-      gE.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+      if (isFar) {
+        gE.moveTo(ep.sx, ep.sy);
+        gE.lineTo(ep.tx, ep.ty);
+      } else {
+        const [p0, p1, p2, p3] = horizontalBezierControls(ep.sx, ep.sy, ep.tx, ep.ty);
+        gE.moveTo(p0.x, p0.y);
+        gE.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+      }
       const col = e.selected ? 0x7c6ff7 : 0x22d3ee;
-      gE.stroke({ width: e.selected ? 3 : 2, color: col, alpha: 0.92 });
+      gE.stroke({ width: e.selected ? 3 : isMedium ? 1.8 : 1.4, color: col, alpha: 0.92 });
     }
 
     gN.clear();
@@ -205,21 +219,66 @@ export function PixiBoardViewport({ spaceId }: PixiBoardViewportProps) {
             return;
           }
 
-        if (tool !== 'select') return;
+          if (tool !== 'select') return;
 
-        const rect = host.getBoundingClientRect();
+          const rect = host.getBoundingClientRect();
           const { x: fx, y: fy } = screenToFlow(ev.clientX, ev.clientY, rect, vpRef.current);
           const st = useWorkflowStore.getState();
           const hitNode = pickTopNodeAt(fx, fy, st.nodes);
-          const hitEdge = hitNode ? null : pickEdgeAt(fx, fy, st.nodes, st.edges);
-
           if (hitNode) {
             applySelection(st.nodes, st.edges, hitNode.id, null, setNodesSilently, setEdgesSilently);
-          } else if (hitEdge) {
-            applySelection(st.nodes, st.edges, null, hitEdge.id, setNodesSilently, setEdgesSilently);
-          } else if (tool === 'select') {
-            applySelection(st.nodes, st.edges, null, null, setNodesSilently, setEdgesSilently);
+            requestAnimationFrame(drawWorld);
+            return;
           }
+
+          if (canvasPerfFlags.enableCanvasWorkerBridge && canvasPerfFlags.enableWorkerEdgePicking) {
+            const pickSeq = ++pickSeqRef.current;
+            const edgeRefs = st.edges.map((e) => ({ id: e.id, source: e.source, target: e.target }));
+            const nodeBounds = st.nodes.map((n) => {
+              const r = getNodeFlowRect(n);
+              return { id: n.id, x: r.x, y: r.y, width: r.w, height: r.h };
+            });
+            void canvasWorkerClient
+              .edgePickQuery(
+                fx,
+                fy,
+                EDGE_PICK_THRESH_SQ,
+                nodeBounds,
+                edgeRefs,
+                canvasPerfFlags.enableWorkerEdgePickWasm
+              )
+              .then((edgeId) => {
+                if (pickSeq !== pickSeqRef.current) return;
+                const latest = useWorkflowStore.getState();
+                applySelection(
+                  latest.nodes,
+                  latest.edges,
+                  null,
+                  edgeId,
+                  setNodesSilently,
+                  setEdgesSilently
+                );
+                requestAnimationFrame(drawWorld);
+              })
+              .catch(() => {
+                if (pickSeq !== pickSeqRef.current) return;
+                const latest = useWorkflowStore.getState();
+                const hitEdge = pickEdgeAt(fx, fy, latest.nodes, latest.edges);
+                applySelection(
+                  latest.nodes,
+                  latest.edges,
+                  null,
+                  hitEdge?.id ?? null,
+                  setNodesSilently,
+                  setEdgesSilently
+                );
+                requestAnimationFrame(drawWorld);
+              });
+            return;
+          }
+
+          const hitEdge = pickEdgeAt(fx, fy, st.nodes, st.edges);
+          applySelection(st.nodes, st.edges, null, hitEdge?.id ?? null, setNodesSilently, setEdgesSilently);
           requestAnimationFrame(drawWorld);
         };
 

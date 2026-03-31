@@ -2,6 +2,8 @@ import { canvasPerfFlags, markCanvasPerfEnd, markCanvasPerfStart } from '@/lib/c
 import type {
   CanvasWorkerRequest,
   CanvasWorkerResponse,
+  EdgePickEdgeRef,
+  EdgePickNodeBounds,
   SpatialNodeBounds,
   SpatialNodeDelta,
 } from '@/lib/canvasWorkerProtocol';
@@ -158,6 +160,36 @@ class CanvasWorkerClient {
       throw new Error(response.ok ? 'Worker spatial query response mismatch' : response.error);
     }
     return response.candidateIds;
+  }
+
+  async edgePickQuery(
+    flowX: number,
+    flowY: number,
+    thresholdSq: number,
+    nodes: EdgePickNodeBounds[],
+    edges: EdgePickEdgeRef[],
+    useWasm = false,
+    revision = this.workerRevision
+  ): Promise<string | null> {
+    const worker = this.ensureWorker();
+    if (!worker) {
+      return null;
+    }
+    const response = await this.request({
+      id: this.nextId++,
+      type: 'edge-pick-query',
+      revision,
+      flowX,
+      flowY,
+      thresholdSq,
+      useWasm,
+      nodes,
+      edges,
+    });
+    if (!response.ok || response.type !== 'edge-pick-query') {
+      throw new Error(response.ok ? 'Worker edge pick response mismatch' : response.error);
+    }
+    return response.edgeId;
   }
 
   private request(message: CanvasWorkerRequest): Promise<CanvasWorkerResponse> {
