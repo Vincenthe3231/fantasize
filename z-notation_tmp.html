@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>z-notation.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="bacs2083--formal-methods-for-software-engineering">BACS2083 — Formal Methods for Software Engineering</h1>
+<h2 id="comprehensive-study-notes-z-specification-language">Comprehensive Study Notes: Z Specification Language</h2>
+<hr>
+<h2 id="chapter-1--overview-of-formal-methods">CHAPTER 1 — Overview of Formal Methods</h2>
+<h3 id="what-are-formal-methods">What Are Formal Methods?</h3>
+<p>Formal methods sit at the intersection of pure mathematics and software engineering. From a software engineering perspective, they refer to a collection of <strong>mathematical modelling techniques</strong> applicable to computer system design. Every part of a program is expressed in a formal language with well-defined semantics, making it possible to treat the program as a mathematical theory and to reason about its properties before it is ever executed. The central promise of formal methods is straightforward: they help you understand software <em>before</em> you run it.</p>
+<p>Formally:</p>
+<blockquote>
+<p><strong>Formal Methods = Formal Specification + Formal Verification</strong></p>
+</blockquote>
+<p>Both of these components are grounded in <strong>set theory, logic, and algebra</strong>.</p>
+<hr>
+<h3 id="features-of-formal-methods">Features of Formal Methods</h3>
+<p>Formal methods are distinguished by several key characteristics. <strong>Strong typing</strong> provides a type system richer than those found in ordinary programming languages, offering economy of expression and built-in consistency checks. A <strong>built-in computational model</strong> enables simpler type-checking constraints and enhanced proof-checking. <strong>Modularisation</strong> allows a specification to be broken into independent modules, and parameterised modules further improve reusability. <strong>Total functions</strong> are assumed by most logics, and subtypes make them more flexible. <strong>Axioms and definitions</strong> must be used carefully to avoid inconsistencies; the definitional principle guarantees that definitions are well-formed.</p>
+<hr>
+<h3 id="benefits-of-formal-methods">Benefits of Formal Methods</h3>
+<p>Formal methods bring several measurable advantages to software development.</p>
+<p>They <strong>increase confidence</strong> by providing a precise, unambiguous description of requirements, clarifying what the customer actually needs and eliminating inconsistencies. They support <strong>early defect detection</strong> by applying mathematical analysis to the earliest design artefacts, which reduces the cost of fixing errors because defects are caught long before coding begins. They contribute to the <strong>overall quality</strong> of the final product through complete verification across the entire state space of a system — meaning that any property proved to hold will hold for <em>all</em> possible inputs. This property is known as <strong>completeness</strong>. They facilitate <strong>correctness</strong> through rigorous mathematical techniques and model checkers that explore every execution path, including all thread interleavings in concurrent systems. Formal methods also support <strong>abstraction</strong>, providing a precise, high-level description of a complex system without drowning the reader in implementation details. In regulated industries such as aviation, they are considered <strong>trustworthy</strong> because they provide concrete, verifiable evidence. Finally, effective <strong>test cases</strong> can be derived systematically from a formal specification.</p>
+<hr>
+<h3 id="limitations-of-formal-methods">Limitations of Formal Methods</h3>
+<p>Despite their strengths, formal methods have real limitations. There is <strong>no guarantee of completeness</strong>: actual user requirements often differ from stated requirements and evolve over time, and no formal method can verify that a specification captures the complete intent of its users. There is also <strong>no guarantee of correctness</strong>: proving correctness of a program that was not written with proof in mind is practically impossible; correctness proofs are only feasible when programming and proof proceed simultaneously. Formal methods struggle with <strong>complex language features</strong> whose semantics are not formally defined or are too intricate to be practically useful. They <strong>require sound mathematical knowledge</strong> from developers, are difficult to communicate to non-technical stakeholders, carry a steep learning curve, and are often <strong>time consuming and expensive</strong> — the cost of specification alone can exceed a project's budget.</p>
+<hr>
+<h3 id="formal-specification">Formal Specification</h3>
+<p>A formal specification is a set of <strong>well-formed statements</strong> describing <em>what</em> a software system must do, not <em>how</em> it is to be implemented. It uses mathematics to describe system behaviour and desired properties at an abstract level.</p>
+<p>Formal specification has two core activities:</p>
+<p><strong>Modelling</strong> uses mathematical models (such as Z) to describe and predict program behaviour accurately. Modelling makes program behaviour predictable, which is essential for safety-critical systems.</p>
+<p><strong>Design</strong> organises the internal structure of a program along two dimensions. <em>Partition</em> divides the whole system into independently developable modules. <em>Refinement</em> (also called reification) progressively adds detail, moving from an abstract model that satisfies the original requirements toward a concrete design closer to executable code.</p>
+<hr>
+<h3 id="formal-specification-approaches">Formal Specification Approaches</h3>
+<p>Formal specification comprises two fundamental approaches.</p>
+<p><strong>Model-based specification</strong> expresses the system as a state model built from well-understood mathematical entities such as sets and functions. System operations are described in terms of how they transform the system state. State changes are defined using <em>pre-conditions</em> (what must be true before an operation) and <em>post-conditions</em> (what is true after). The state of the system is never hidden. Z, VDM, and B are canonical sequential model-based languages; CSP and Petri Nets model concurrent systems.</p>
+<p><strong>Property-based specification</strong> describes a system indirectly by stating a set of properties using axioms and rules. It consists of <em>signatures</em> (the syntax of operations) and <em>equations</em> (axioms defining the semantics). The algebraic approach views a data type as an algebra; examples include OBJ and Larch. The axiomatic approach defines operation syntax and describes behaviour by providing a model; LOTOS is a key example.</p>
+<hr>
+<h3 id="formal-verification">Formal Verification</h3>
+<p>Formal verification is the act of <strong>proving or disproving</strong> that code satisfies its specification. Its two principal forms are <strong>theorem proving</strong> and <strong>model checking</strong>.</p>
+<p>In <strong>theorem proving</strong>, a proof is a convincing demonstration constructed as a series of small, rule-justified steps — based only on the specification and program text, never on execution. Proofs eliminate the ambiguity and subjectivity of informal reasoning and can be done manually or with automated assistance. Because a proof considers <em>all</em> cases, it provides greater confidence than testing, which samples only some.</p>
+<p>In <strong>model checking</strong>, a finite model of the system is built and an algorithm automatically checks whether a desired property holds in that model. Model checkers such as SMV, NuSMV, and Cadence explore all reachable paths in the computational tree derived from the state machine. Formal verification is most commonly applied to safety-critical systems (aircraft, nuclear stations) and embedded systems.</p>
+<hr>
+<h3 id="formal-specification-languages">Formal Specification Languages</h3>
+<p>A formal specification language has a formally defined <strong>syntax</strong> (mechanically processable notation), <strong>semantics</strong> (objects defined unambiguously by mathematical means), a <strong>set of relations</strong> (rules for satisfying the specification), and operates at a level of <strong>abstraction</strong> above source code. These languages are generally non-executable — they specify <em>what</em> to compute, not <em>how</em>. Most are based on axiomatic set theory or higher-order logic. Notable examples include Z, VDM, B-Method, Alloy, JML, Petri Nets, LOTOS, and ASMs.</p>
+<hr>
+<hr>
+<h2 id="chapter-2--z-specification-language">CHAPTER 2 — Z Specification Language</h2>
+<h3 id="the-z-language">The Z Language</h3>
+<p>Z (pronounced <strong>&quot;Zed&quot;</strong>) is the most widely used formal specification language. It is a model-based notation grounded in <strong>Zermelo-Fraenkel set theory</strong> and <strong>first-order predicate logic</strong>. Z describes the functionalities and desired results of a system without stating the &quot;how&quot;. A system is modelled through its <strong>state</strong> (a collection of state variables and their values) and <strong>operations</strong> (functions that change that state). Z organises behaviour by describing possible states, initial states, state changes, and state queries.</p>
+<p>The central graphical construct of Z is the <strong>schema</strong>, which provides an effective, modular structuring mechanism. Schemas are specification building blocks that improve readability, allow modularity, and can be understood with relative ease.</p>
+<hr>
+<h3 id="z-fundamental-concepts-sets">Z Fundamental Concepts: Sets</h3>
+<p>In Z, <strong>everything is a set</strong>. A set is any well-defined collection of distinct objects. There is no ambiguity about membership, and elements within a set are distinguishable from one another.</p>
+<p><strong>Defining sets.</strong> The symbol $==$ means &quot;defined as&quot;:</p>
+<p>$$\text{Oceans} == {\text{Atlantic}, \text{Arctic}, \text{Indian}, \text{Pacific}}$$</p>
+<p><strong>Membership.</strong> If $x$ is a set and $s$ is a member, write $s \in x$. If $s$ is not a member, write $s \notin x$.</p>
+<p><strong>Empty set.</strong> A set with no elements is denoted $\emptyset$.</p>
+<p><strong>Singleton set.</strong> A set containing exactly one element, such as ${a}$.</p>
+<p><strong>Subsets.</strong> $A \subseteq B$ if and only if every element of $A$ is also in $B$:</p>
+<p>$$A \subseteq B \iff \forall x \bullet (x \in A \Rightarrow x \in B)$$</p>
+<p><strong>Proper subsets.</strong> $A \subset B$ means $A \subseteq B$ and $A \neq B$.</p>
+<p><strong>Power set</strong> $\mathbb{P}$. The power set of $A$, written $\mathbb{P}(A)$, is the set of all subsets of $A$. For $A = {x, y, z}$:</p>
+<p>$$\mathbb{P}(A) = {\emptyset, {x}, {y}, {z}, {x,y}, {x,z}, {y,z}, {x,y,z}}$$</p>
+<p><strong>Finite set</strong> $\mathbb{F}$. A set with exactly $n$ distinct elements. The <strong>cardinality</strong> operator $#$ gives the number of elements: $#{1, 2, 4} = 3$.</p>
+<p><strong>Infinite sets.</strong> $\mathbb{N} = {0, 1, 2, 3, \ldots}$, $\mathbb{Z} = {\ldots, -2, -1, 0, 1, 2, \ldots}$, $\mathbb{Q}$, $\mathbb{R}$ are all infinite.</p>
+<hr>
+<h3 id="set-operations">Set Operations</h3>
+<p>Given sets $A$ and $B$:</p>
+<p><strong>Union</strong> $A \cup B$: all elements in $A$, $B$, or both.</p>
+<p><strong>Intersection</strong> $A \cap B$: all elements in both $A$ and $B$.</p>
+<p><strong>Disjoint sets:</strong> $A \cap B = \emptyset$.</p>
+<p><strong>Set difference</strong> $A \setminus B$: elements in $A$ but not in $B$. For example, ${1,2,3,4,8,9} \setminus {1,2,3} = {4,8,9}$.</p>
+<hr>
+<h3 id="set-comprehension">Set Comprehension</h3>
+<p>When full enumeration is impossible, set comprehension is used:</p>
+<p>$${x : S \mid P(x)} \quad \text{&quot;the set of all } x \text{ in } S \text{ satisfying } P(x) \text{&quot;}$$</p>
+<p>With a term function $f$:</p>
+<p>$${x : S \mid P(x) \bullet f(x)}$$</p>
+<p>Examples:</p>
+<p>$${x : \mathbb{N} \mid x &lt; 20 \bullet x^2} \quad \text{squares of naturals less than 20}$$</p>
+<p>$${x : \mathbb{Z} \mid (\exists y : \mathbb{Z} \bullet x = 2y) \bullet x^2} \quad \text{squares of even integers}$$</p>
+<p>$${x : \mathbb{Z} \mid (x \bmod 4 = 0) \land (x &gt; 0) \bullet x * x} \quad \text{squares of positive multiples of 4}$$</p>
+<hr>
+<h3 id="quantifiers">Quantifiers</h3>
+<p><strong>Universal quantification</strong> $\forall$ asserts a predicate holds for all members of a type:</p>
+<p>$$\forall x : \mathbb{N} \bullet x + 1 &gt; 0$$</p>
+<p><strong>Existential quantification</strong> $\exists$ asserts at least one member satisfies a predicate:</p>
+<p>$$\exists x : \mathbb{N} \bullet x + 1 &gt; 1$$</p>
+<p><strong>Unique existential quantification</strong> $\exists_1$ asserts exactly one member satisfies the predicate:</p>
+<p>$$\exists_1 x : \mathbb{N} \mid x &lt; 10 \bullet x + 9 &gt; 12$$</p>
+<hr>
+<h3 id="z-types">Z Types</h3>
+<p>Z is <strong>strongly typed</strong> — every identifier must be declared. Z has three type categories.</p>
+<p><strong>Built-in types</strong> are $\mathbb{Z}$ (integers) and $\mathbb{N}$ (natural numbers):
+$$\mathbb{N} == {n : \mathbb{Z} \mid n \geq 0}, \qquad \mathbb{N}_1 == {n : \mathbb{Z} \mid n &gt; 0}$$</p>
+<p><strong>Basic types</strong> (given sets) are introduced using square brackets:
+$$[NAME], \quad [STUDENTNAME, STUDENTID]$$</p>
+<p>Basic types must use ALL capital letters; no underscores, digits, spaces, or other symbols are permitted. They represent sets whose internal structure is invisible — used to model global entities without specifying internal details.</p>
+<p><strong>Free types</strong> are enumerated using the data type definition symbol $::=$ and the branch separator $|$:</p>
+<p>$$COLOUR ::= violet \mid indigo \mid blue \mid green \mid yellow \mid orange \mid red$$
+$$POSITION ::= off \mid on$$</p>
+<hr>
+<h3 id="z-identifiers">Z Identifiers</h3>
+<p>Z identifiers are composed of letters, digits, and underscores. Upper and lower case are distinct. The first character must be a lowercase letter; if more than one word is used, subsequent words begin with uppercase letters (camelCase). Identifiers cannot begin with a digit.</p>
+<p><strong>Decorations</strong> carry semantic meaning:</p>
+<ul>
+<li>A trailing prime $'$ indicates the value of a variable <strong>after</strong> an operation (e.g., $student'$).</li>
+<li>A trailing $?$ indicates an <strong>input</strong> variable (e.g., $name?$).</li>
+<li>A trailing $!$ indicates an <strong>output</strong> variable (e.g., $result!$).</li>
+</ul>
+<hr>
+<h3 id="axiomatic-definition">Axiomatic Definition</h3>
+<p>Axiomatic definitions declare global variables and optional constraints. They apply throughout the entire specification:</p>
+<p>$$
+\begin{array}{|l|}
+\hline
+maxStudent : \mathbb{N} \
+\hline
+maxStudent = 100 \
+\hline
+\end{array}
+$$</p>
+<p>If there is no constraining predicate, the predicate part is omitted. Global constants may also be declared with the abbreviation definition symbol:</p>
+<p>$$minimum == 0$$</p>
+<hr>
+<h3 id="z-schema">Z Schema</h3>
+<p>A <strong>schema</strong> is a named, modular unit that structures a Z specification. It describes both <strong>static</strong> and <strong>dynamic</strong> aspects of a system.</p>
+<p>Static aspects covered by a <em>State Space Schema</em> include the state variables the system can occupy and the invariant (constraint) relationships maintained as the system moves between states.</p>
+<p>Dynamic aspects covered by <em>Operation Schemas</em> include the operations possible, the relationship between inputs and outputs, and state transitions described through pre-conditions and post-conditions.</p>
+<p>A complete Z specification involves:</p>
+<ol>
+<li>A <strong>state space schema</strong> describing the main data components.</li>
+<li>An <strong>initialisation schema</strong> showing the initial values.</li>
+<li><strong>Operation schemas</strong> describing normal operations.</li>
+</ol>
+<p>Each schema has three parts:</p>
+<ul>
+<li><strong>Schema Name</strong>: always begins with a capital letter; multi-word names combine words with each word capitalised (e.g., <code>AddCustomer</code>). No underscores, digits, spaces, or symbols.</li>
+<li><strong>Declaration part</strong>: introduces variables and assigns them types. Each line is implicitly terminated with a semicolon.</li>
+<li><strong>Predicate part</strong>: places constraints on those variables. Multiple predicates are connected by conjunction ($\land$). Schema predicates are <strong>always TRUE</strong>.</li>
+</ul>
+<p><strong>Graphical (box) form:</strong></p>
+<p>$$
+\begin{array}{|l|}
+\hline
+\textbf{SchemaName} \
+\hline
+variable : Type \
+\hline
+predicate \
+\hline
+\end{array}
+$$</p>
+<p><strong>Text form:</strong></p>
+<p>$$SchemaName \cong [Declarations \mid Predicates]$$</p>
+<hr>
+<h3 id="z-example-the-counter-system">Z Example: The Counter System</h3>
+<p><strong>Step 1 — Axiomatic definition</strong> (global constant):</p>
+<p>$$
+\begin{array}{|l|}
+\hline
+maximum : \mathbb{N} \
+\hline
+maximum = 100 \
+\hline
+\end{array}
+$$</p>
+<p><strong>Step 2 — State space schema:</strong></p>
+<p>$$
+\begin{array}{|l|}
+\hline
+\textbf{Counter} \
+\hline
+total : \mathbb{N} \
+\hline
+total \leq maximum \
+\hline
+\end{array}
+$$</p>
+<p><strong>Step 3 — Initial state schema:</strong></p>
+<p>$$
+\begin{array}{|l|}
+\hline
+\textbf{InitCounter} \
+\hline
+Counter' \
+\hline
+total' = 0 \
+\hline
+\end{array}
+$$</p>
+<hr>
+<hr>
+<h2 id="chapter-3--z-structure">CHAPTER 3 — Z Structure</h2>
+<h3 id="z-structure-overview">Z Structure Overview</h3>
+<p>Z models complex systems through four structural mechanisms: <strong>Tuples</strong> (records), <strong>Relations</strong> (tables and linked data), <strong>Functions</strong> (lookup tables), and <strong>Sequences</strong> (lists and arrays). Bags are discussed separately in Chapter 5.</p>
+<hr>
+<h3 id="tuples">Tuples</h3>
+<p>A <strong>tuple</strong> is an ordered record. The <strong>Cartesian product</strong> of sets $S$ and $T$, written $S \times T$, is the set of all ordered pairs drawn first from $S$ and then from $T$:</p>
+<p>$${1, 2, 3} \times {4, 5} = {(1,4), (1,5), (2,4), (2,5), (3,4), (3,5)}$$</p>
+<p>To model a multi-field record, declare composite types:</p>
+<p>$$[NAME] \qquad ID == \mathbb{N} \qquad DEPT ::= admin \mid manufacturing \mid research$$</p>
+<p>$$EMPLOYEE == ID \times NAME \times DEPT$$</p>
+<p>For multiple records, use the power set $\mathbb{P}$:</p>
+<p>$$staff : \mathbb{P}, EMPLOYEE$$</p>
+<hr>
+<h3 id="relations">Relations</h3>
+<p>A <strong>relation</strong> is a set of ordered pairs. It models many-to-many links between elements. In Z, a binary relation from $A$ to $B$ is written:</p>
+<p>$$A \leftrightarrow B \quad \text{which stands for } \mathbb{P}(A \times B)$$</p>
+<p>A pair may be written using <strong>maplet notation</strong>: $a \mapsto b$ is equivalent to the pair $(a, b)$.</p>
+<p>The <strong>domain</strong> of a relation $R$ is the set of all first components: $\text{dom}, R$. The <strong>range</strong> is the set of all second components: $\text{ran}, R$.</p>
+<p><strong>Domain restriction</strong> $S \triangleleft R$ selects pairs whose first component is in $S$:</p>
+<p>$${2} \triangleleft {1 \mapsto a, 2 \mapsto b, 3 \mapsto c} = {2 \mapsto b}$$</p>
+<p><strong>Range restriction</strong> $R \triangleright S$ selects pairs whose second component is in $S$:</p>
+<p>$${1 \mapsto a, 2 \mapsto b, 3 \mapsto c} \triangleright {a, c} = {1 \mapsto a, 3 \mapsto c}$$</p>
+<p><strong>Domain anti-restriction</strong> $S \mathrel{\text{⩤}} R$ removes pairs whose first component is in $S$:</p>
+<p>$${2} \mathrel{\text{⩤}} {1 \mapsto a, 2 \mapsto b, 3 \mapsto c} = {1 \mapsto a, 3 \mapsto c}$$</p>
+<p><strong>Range anti-restriction</strong> $R \mathrel{\text{⩥}} S$ removes pairs whose second component is in $S$:</p>
+<p>$${1 \mapsto a, 2 \mapsto b, 3 \mapsto c} \mathrel{\text{⩥}} {b} = {1 \mapsto a, 3 \mapsto c}$$</p>
+<p><strong>Relational image</strong> $R(!(S)!)$ returns the set of range elements corresponding to domain elements in $S$:</p>
+<p>$${1 \mapsto a, 2 \mapsto b, 3 \mapsto c}(!({1,3})!) = {a, c}$$</p>
+<p><strong>Inverse</strong> $R^{\sim}$ swaps domain and range by reversing each pair:</p>
+<p>$${1 \mapsto a, 2 \mapsto b, 3 \mapsto c}^{\sim} = {a \mapsto 1, b \mapsto 2, c \mapsto 3}$$</p>
+<p><strong>Relational overriding</strong> $Q \oplus R$ updates $Q$ with pairs from $R$, replacing any pairs in $Q$ whose domain elements appear in $R$:</p>
+<p>$$phone \oplus {Anne \mapsto 1108}$$</p>
+<p>replaces Anne's old number with 1108, leaving all others unchanged.</p>
+<p><strong>Relational composition</strong> $Q \mathbin{;} R$ merges two relations by linking the range of $Q$ with the domain of $R$:</p>
+<p>$$hasPhone \mathbin{;} phoneInRoom = {roy \mapsto A306, tom \mapsto A39, \ldots}$$</p>
+<hr>
+<h3 id="functions">Functions</h3>
+<p>A <strong>function</strong> is a special relation in which <strong>each domain element appears at most once</strong>. There are no two distinct pairs with the same first component. Functions model many-to-one (or one-to-one) relationships.</p>
+<p><strong>Function application</strong> associates a domain element with its unique range element: $f, x$ or $f(x)$. Application is undefined if $x \notin \text{dom}, f$.</p>
+<h4 id="partial-function-mathreltext%E2%87%B8">Partial Function ($\mathrel{\text{⇸}}$)</h4>
+<p>A partial function is defined for <strong>some</strong> values of its source:</p>
+<p>$$f : X \mathrel{\text{⇸}} Y$$</p>
+<p>For example, ${(1,3),(4,9),(8,3)}$ over $\mathbb{N} \times \mathbb{N}$ is partial because its domain ${1,4,8}$ is a proper subset of $\mathbb{N}$.</p>
+<h4 id="total-function-rightarrow">Total Function ($\rightarrow$)</h4>
+<p>A total function is defined for <strong>every</strong> element of its source:</p>
+<p>$$f : X \rightarrow Y$$</p>
+<p>Function application can always be safely used with a total function.</p>
+<h4 id="properties-of-functions">Properties of Functions</h4>
+<p><strong>Injection (one-to-one):</strong> No two domain elements map to the same range element.</p>
+<ul>
+<li>Partial injection: $A \mathrel{\text{⤔}} B$</li>
+<li>Total injection: $A \rightarrowtail B$</li>
+</ul>
+<p><strong>Surjection (onto):</strong> The range equals the entire target.</p>
+<ul>
+<li>Partial surjection: $A \mathrel{\text{⤀}} B$</li>
+<li>Total surjection: $A \twoheadrightarrow B$</li>
+</ul>
+<p><strong>Bijection:</strong> Both injective and surjective; every element of the source maps to a distinct element of the target, covering all of it.</p>
+<ul>
+<li>Bijection: $A \mathrel{\text{⤖}} B$</li>
+</ul>
+<p><strong>Function notations summary:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$\rightarrow$</td>
+<td>Total function</td>
+</tr>
+<tr>
+<td>$\mathrel{\text{⇸}}$</td>
+<td>Partial function</td>
+</tr>
+<tr>
+<td>$\rightarrowtail$</td>
+<td>Total injection</td>
+</tr>
+<tr>
+<td>$\mathrel{\text{⤔}}$</td>
+<td>Partial injection</td>
+</tr>
+<tr>
+<td>$\twoheadrightarrow$</td>
+<td>Total surjection</td>
+</tr>
+<tr>
+<td>$\mathrel{\text{⤀}}$</td>
+<td>Partial surjection</td>
+</tr>
+<tr>
+<td>$\mathrel{\text{⤖}}$</td>
+<td>Bijection</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Function overriding</strong> uses $\oplus$:</p>
+<p>$$phone \oplus {peter \mapsto 1555} = {peter \mapsto 1555, paul \mapsto 1488, mary \mapsto 1777}$$</p>
+<hr>
+<h3 id="birthday-book-example">Birthday Book Example</h3>
+<p>The Birthday Book illustrates a complete Z specification.</p>
+<p><strong>Basic types:</strong>
+$$[NAME, DATE]$$</p>
+<p><strong>State space schema:</strong></p>
+<p>$$
+\begin{array}{|l|}
+\hline
+\textbf{BirthdayBook} \
+\hline
+known : \mathbb{P}, NAME \
+birthday : NAME \mathrel{\text{⇸}} DATE \
+\hline
+known = \text{dom}, birthday \
+\hline
+\end{array}
+$$</p>
+<p><strong>Initial state:</strong></p>
+<p>$$
+\begin{array}{|l|}
+\hline
+\textbf{InitBirthdayBook} \
+\hline
+BirthdayBook' \
+\hline
+known' = \emptyset \
+\hline
+\end{array}
+$$</p>
+<p><strong>AddBirthday operation</strong> (adds a new name and date):</p>
+<p>$$
+\begin{array}{|l|}
+\hline
+\textbf{AddBirthday} \
+\hline
+\Delta BirthdayBook \
+name? : NAME \
+date? : DATE \
+\hline
+name? \notin known \
+birthday' = birthday \oplus {name? \mapsto date?} \
+\hline
+\end{array}
+$$</p>
+<p>The $\Delta$ convention indicates that the state changes. The $\Xi$ convention (no delta) indicates that the state remains unchanged.</p>
+<p><strong>Remind operation</strong> (queries who has a birthday today, no state change):</p>
+<p>$$
+\begin{array}{|l|}
+\hline
+\textbf{Remind} \
+\hline
+\Xi BirthdayBook \
+today? : DATE \
+cards! : \mathbb{P}, NAME \
+\hline
+cards! = {n : known \mid birthday(n) = today?} \
+\hline
+\end{array}
+$$</p>
+<hr>
+<hr>
+<h2 id="chapter-4--z-schema-operators-and-error-scenarios">CHAPTER 4 — Z Schema Operators and Error Scenarios</h2>
+<h3 id="schema-operators">Schema Operators</h3>
+<p>Z provides a rich calculus for combining schemas, making it possible to construct complex specifications from smaller, reusable components.</p>
+<h4 id="schema-conjunction-land">Schema Conjunction ($\land$)</h4>
+<p>The conjunction of schemas $S$ and $T$, written $S \land T$, merges both declaration parts and conjoins both predicates. Variables shared between the two schemas must have matching types.</p>
+<p>$$Division \cong Quotient \land Remainder$$</p>
+<h4 id="schema-disjunction-lor">Schema Disjunction ($\lor$)</h4>
+<p>The disjunction $S \lor T$ merges both declaration parts but disjoins the predicates, allowing the specification to describe alternative behaviours:</p>
+<p>$$T_Division \cong Division \lor DivideByZero$$</p>
+<h4 id="schema-negation-lnot">Schema Negation ($\lnot$)</h4>
+<p>The negation $\lnot S$ retains the same declaration as $S$ but negates the predicate part.</p>
+<h4 id="schema-inclusion">Schema Inclusion</h4>
+<p>Including a schema name in the declaration part of another schema merges their declarations and conjoins their predicates. It promotes reuse and modularity:</p>
+<p>$$EnhancedBoxOffice \cong [BoxOffice; \ldots \mid \ldots]$$</p>
+<h4 id="schema-hiding-setminus">Schema Hiding ($\setminus$)</h4>
+<p>Hiding existentially quantifies specified variables out of a schema. If $S$ has a variable $b$:</p>
+<p>$$S \setminus (b) \equiv \exists b : T \bullet S$$</p>
+<p>This is useful for concealing intermediate variables that are not part of the external interface.</p>
+<h4 id="schema-composition-mathbin">Schema Composition ($\mathbin{;}$)</h4>
+<p>Schema composition describes the effect of one operation followed immediately by another. The after-state of the first operation is identified with the before-state of the second. The composition symbol is the fat semicolon $\mathbin{;}$.</p>
+<p>The procedure involves:</p>
+<ol>
+<li>Replacing primed ($'$) variables in the first schema with double-primed ($''$) variables.</li>
+<li>Replacing unprimed variables in the second schema with double-primed variables.</li>
+<li>Existentially quantifying over the double-primed variables.</li>
+</ol>
+<h4 id="schema-piping-gg">Schema Piping ($\gg$)</h4>
+<p>Schema piping $S \gg T$ connects the <em>output</em> variables of $S$ to the <em>input</em> variables of $T$ that share the same name and type. Those matched (piped) variables are hidden in the result. Unmatched inputs and outputs remain visible.</p>
+<h4 id="schema-implication-rightarrow-and-equivalence-leftrightarrow">Schema Implication ($\Rightarrow$) and Equivalence ($\Leftrightarrow$)</h4>
+<p>$S \Rightarrow T$ states that whenever $S$ holds, $T$ must also hold. $S \Leftrightarrow T$ states that $S$ and $T$ are logically equivalent ($S \Rightarrow T$ and $T \Rightarrow S$).</p>
+<hr>
+<h3 id="error-scenarios">Error Scenarios</h3>
+<p>A robust Z specification must account for situations where preconditions fail. The approach has three systematic steps.</p>
+<p><strong>Step 1 — Define a free type for all reports:</strong></p>
+<p>$$REPORT ::= success \mid classFull \mid alreadyEnrolled \mid notEnrolled \mid alreadyPassed \mid notPassed$$</p>
+<p><strong>Step 2 — Create a Success schema</strong> (used whenever a normal operation succeeds):</p>
+<p>$$
+\begin{array}{|l|}
+\hline
+\textbf{Success} \
+\hline
+report! : REPORT \
+\hline
+report! = success \
+\hline
+\end{array}
+$$</p>
+<p><strong>Step 3 — Create error schemas</strong> for each identified failure condition. Error schemas never update any state variable.</p>
+<hr>
+<h3 id="the-class-system-a-complete-example">The Class System: A Complete Example</h3>
+<p><strong>Basic type and axiomatic definition:</strong></p>
+<p>$$[STUDENT]$$</p>
+<p>$$
+\begin{array}{|l|}
+\hline
+maxClassSize : \mathbb{N} \
+\hline
+maxClassSize = 20 \
+\hline
+\end{array}
+$$</p>
+<p><strong>State space schema:</strong></p>
+<p>$$
+\begin{array}{|l|}
+\hline
+\textbf{Class} \
+\hline
+enrolled : \mathbb{F}, STUDENT \
+passed : \mathbb{F}, STUDENT \
+\hline
+passed \subseteq enrolled \
+#enrolled \leq maxClassSize \
+\hline
+\end{array}
+$$</p>
+<p><strong>Initial state:</strong></p>
+<p>$$
+\begin{array}{|l|}
+\hline
+\textbf{InitClass} \
+\hline
+Class' \
+\hline
+enrolled' = \emptyset \
+passed' = \emptyset \
+\hline
+\end{array}
+$$</p>
+<p><strong>EnrolOk operation</strong> (student joins the class):</p>
+<p>$$
+\begin{array}{|l|}
+\hline
+\textbf{EnrolOk} \
+\hline
+\Delta Class \
+student? : STUDENT \
+\hline
+#enrolled &lt; maxClassSize \
+student? \notin enrolled \
+enrolled' = enrolled \cup {student?} \
+passed' = passed \
+\hline
+\end{array}
+$$</p>
+<p><strong>Error schemas for enrolment:</strong></p>
+<p>$$
+\begin{array}{|l|}
+\hline
+\textbf{ClassFull} \
+\hline
+\Xi Class \
+student? : STUDENT \
+report! : REPORT \
+\hline
+#enrolled \geq maxClassSize \
+report! = classFull \
+\hline
+\end{array}
+$$</p>
+<p>$$
+\begin{array}{|l|}
+\hline
+\textbf{AlreadyEnrolled} \
+\hline
+\Xi Class \
+student? : STUDENT \
+report! : REPORT \
+\hline
+student? \in enrolled \
+report! = alreadyEnrolled \
+\hline
+\end{array}
+$$</p>
+<p><strong>Complete schema</strong> for the enrolment operation:</p>
+<p>$$Enrol \cong (EnrolOk \land Success) \lor ClassFull \lor AlreadyEnrolled$$</p>
+<p>Similarly for the other operations:</p>
+<p>$$Complete \cong (CompleteOk \land Success) \lor NotEnrolled \lor AlreadyPassed$$</p>
+<p>$$LeaveWithCertificate \cong (LeaveWithCertificateOk \land Success) \lor NotPassed$$</p>
+<p>The general pattern is: combine the normal operation with the Success schema using <strong>conjunction</strong> ($\land$), then combine this with all error schemas using <strong>disjunction</strong> ($\lor$).</p>
+<hr>
+<hr>
+<h2 id="chapter-5--extended-z-structure-sequences-and-bags">CHAPTER 5 — Extended Z Structure: Sequences and Bags</h2>
+<h3 id="sequences">Sequences</h3>
+<p>A <strong>sequence</strong> is an ordered collection of objects. Unlike sets, sequences allow repeated elements and maintain a defined ordering. Unlike tuples, sequences are not fixed in length. A sequence is actually a finite function whose domain is drawn from consecutive non-zero natural numbers (indices):</p>
+<p>$$weekday = {1 \mapsto mon, 2 \mapsto tue, 3 \mapsto wed, 4 \mapsto thu, 5 \mapsto fri}$$</p>
+<p>Sequences can model arrays, lists, queues, and other sequential structures. In Z, sequences are notated inside angle brackets $\langle$ and $\rangle$:</p>
+<p>$$weekday = \langle mon, tue, wed, thu, fri \rangle$$</p>
+<h4 id="types-of-sequence">Types of Sequence</h4>
+<ul>
+<li>Empty sequence: $\langle \rangle$</li>
+<li>Normal (possibly empty) sequence: $\text{seq}$</li>
+<li>Non-empty sequence: $\text{seq}_1$</li>
+<li>Injective sequence (no duplicate elements): $\text{iseq}$</li>
+</ul>
+<p>Declaring a sequence variable:</p>
+<p>$$
+\begin{array}{|l|}
+\hline
+weekday : \text{seq}_1, DAY \
+\hline
+\end{array}
+$$</p>
+<h4 id="sequence-operations">Sequence Operations</h4>
+<p>Since a sequence is a function, function application applies: $weekday(1) = mon$ and $weekday(6)$ is undefined.</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$\text{head}, s$</td>
+<td>First element of $s$</td>
+</tr>
+<tr>
+<td>$\text{last}, s$</td>
+<td>Last element of $s$</td>
+</tr>
+<tr>
+<td>$\text{tail}, s$</td>
+<td>$s$ without its first element</td>
+</tr>
+<tr>
+<td>$\text{front}, s$</td>
+<td>$s$ without its last element</td>
+</tr>
+<tr>
+<td>$s \frown t$</td>
+<td>Concatenation of $s$ then $t$</td>
+</tr>
+<tr>
+<td>$s \upharpoonright A$</td>
+<td>Filter: elements of $s$ that appear in $A$, order preserved</td>
+</tr>
+<tr>
+<td>$A \upharpoonleft s$</td>
+<td>Extraction: elements at indices $A$ of $s$</td>
+</tr>
+<tr>
+<td>$\text{squash}, f$</td>
+<td>Compact a function with non-consecutive natural-number domain into a sequence</td>
+</tr>
+<tr>
+<td>$#s$</td>
+<td>Cardinality (length) of sequence $s$</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Concatenation example:</strong></p>
+<p>$$\langle sun \rangle \frown weekday \frown \langle sat \rangle = \langle sun, mon, tue, wed, thu, fri, sat \rangle$$</p>
+<p><strong>Filter example:</strong></p>
+<p>$$weekday \upharpoonright \langle tue, wed \rangle = \langle tue, wed \rangle$$</p>
+<p><strong>Extraction example:</strong></p>
+<p>$${2, 4, 6} \upharpoonleft weekday = \langle tue, thu \rangle$$</p>
+<p><strong>Squash example:</strong></p>
+<p>$$\text{squash}, {4 \mapsto c, 2 \mapsto b, 6 \mapsto d} = \langle b, c, d \rangle$$</p>
+<hr>
+<h3 id="bags">Bags</h3>
+<p>A <strong>bag</strong> (also called a <strong>multiset</strong>) is an unordered collection of objects that <strong>may contain duplicates</strong>. This distinguishes it from a set (which has no duplicates and no order) and from a sequence (which has order and may have duplicates).</p>
+<p>A bag is formally a partial function from elements to positive natural numbers, recording the multiplicity of each element:</p>
+<p>$$bag, X == X \mathrel{\text{⇸}} \mathbb{N}_1$$</p>
+<p>Bags are enumerated using double angle brackets $\llbracket$ and $\rrbracket$:</p>
+<p>$$num == \llbracket 1, 1, 2, 3 \rrbracket \quad \text{equivalent to } {1 \mapsto 2, 2 \mapsto 1, 3 \mapsto 1}$$</p>
+<p>The order in which elements are written is irrelevant: $\llbracket a, a, b \rrbracket = \llbracket a, b, a \rrbracket$.</p>
+<h4 id="bag-operations">Bag Operations</h4>
+<p><strong>Counting multiplicity.</strong> To find how many times $x$ occurs in bag $B$:</p>
+<p>$$B # x \quad \text{or} \quad \text{count}, B, x$$</p>
+<p>Example: if $rainMonth == \llbracket jan, jan, feb, dec \rrbracket$ then $rainMonth # jan = 2$ and $rainMonth # apr = 0$.</p>
+<p><strong>Bag scaling</strong> $n \otimes B$: multiplies the multiplicity of every element in $B$ by $n$:</p>
+<p>$$2 \otimes \llbracket jan, jan, feb \rrbracket = \llbracket jan, jan, jan, jan, feb, feb \rrbracket$$</p>
+<p>Theorems about scaling: $n \otimes \llbracket \rrbracket = \llbracket \rrbracket$; $0 \otimes B = \llbracket \rrbracket$; $1 \otimes B = B$.</p>
+<p><strong>Bag membership</strong> $x \sqsubseteq B$ (or $x, \mathbf{in}, B$): true if and only if $x$ appears in $B$ at least once.</p>
+<p><strong>Sub-bag</strong> $B_1 \sqsubseteq B_2$: true if each element of $B_1$ occurs in $B_2$ no more often than in $B_1$.</p>
+<p><strong>Bag union</strong> $B_1 \uplus B_2$: combines two bags, summing multiplicities.</p>
+<p>$$\llbracket jan, jan, feb \rrbracket \uplus \llbracket jan \rrbracket = \llbracket jan, jan, jan, feb \rrbracket$$</p>
+<p><strong>Bag difference</strong> $B_1 \setminus B_2$: subtracts multiplicities of $B_2$ from $B_1$.</p>
+<p>$$\llbracket jan, jan, feb \rrbracket \setminus \llbracket jan \rrbracket = \llbracket jan, feb \rrbracket$$</p>
+<p><strong>Making a bag from a sequence</strong> using $\text{items}$:</p>
+<p>$$\text{items}, \langle a, b, a, b, c \rangle = \llbracket a, a, b, b, c \rrbracket$$</p>
+<hr>
+<hr>
+<h2 id="appendix--z-notation-quick-reference">APPENDIX — Z Notation Quick Reference</h2>
+<h3 id="logic-symbols">Logic Symbols</h3>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$true$</td>
+<td>Logical true</td>
+</tr>
+<tr>
+<td>$false$</td>
+<td>Logical false</td>
+</tr>
+<tr>
+<td>$\lnot p$</td>
+<td>Negation</td>
+</tr>
+<tr>
+<td>$p \land q$</td>
+<td>Conjunction (and)</td>
+</tr>
+<tr>
+<td>$p \lor q$</td>
+<td>Disjunction (or)</td>
+</tr>
+<tr>
+<td>$p \Rightarrow q$</td>
+<td>Implication</td>
+</tr>
+<tr>
+<td>$p \Leftrightarrow q$</td>
+<td>Equivalence</td>
+</tr>
+<tr>
+<td>$\forall X \bullet q$</td>
+<td>Universal quantification</td>
+</tr>
+<tr>
+<td>$\exists X \bullet q$</td>
+<td>Existential quantification</td>
+</tr>
+<tr>
+<td>$\exists_1 X \bullet q$</td>
+<td>Unique existential quantification</td>
+</tr>
+</tbody>
+</table>
+<h3 id="set-notation">Set Notation</h3>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$x \in A$</td>
+<td>Set membership</td>
+</tr>
+<tr>
+<td>$x \notin A$</td>
+<td>Non-membership</td>
+</tr>
+<tr>
+<td>$\emptyset$</td>
+<td>Empty set</td>
+</tr>
+<tr>
+<td>$A \subseteq B$</td>
+<td>Subset</td>
+</tr>
+<tr>
+<td>$A \subset B$</td>
+<td>Strict subset</td>
+</tr>
+<tr>
+<td>$\mathbb{P}, A$</td>
+<td>Power set</td>
+</tr>
+<tr>
+<td>$\mathbb{P}_1 A$</td>
+<td>Non-empty power set</td>
+</tr>
+<tr>
+<td>$\mathbb{F}, A$</td>
+<td>Finite subsets</td>
+</tr>
+<tr>
+<td>$A \cap B$</td>
+<td>Intersection</td>
+</tr>
+<tr>
+<td>$A \cup B$</td>
+<td>Union</td>
+</tr>
+<tr>
+<td>$A \setminus B$</td>
+<td>Set difference</td>
+</tr>
+<tr>
+<td>$#A$</td>
+<td>Cardinality</td>
+</tr>
+</tbody>
+</table>
+<h3 id="relation-and-function-symbols">Relation and Function Symbols</h3>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$A \leftrightarrow B$</td>
+<td>Relation</td>
+</tr>
+<tr>
+<td>$a \mapsto b$</td>
+<td>Maplet</td>
+</tr>
+<tr>
+<td>$\text{dom}, R$</td>
+<td>Domain</td>
+</tr>
+<tr>
+<td>$\text{ran}, R$</td>
+<td>Range</td>
+</tr>
+<tr>
+<td>$A \triangleleft R$</td>
+<td>Domain restriction</td>
+</tr>
+<tr>
+<td>$A \mathrel{\text{⩤}} R$</td>
+<td>Domain anti-restriction</td>
+</tr>
+<tr>
+<td>$R \triangleright A$</td>
+<td>Range restriction</td>
+</tr>
+<tr>
+<td>$R \mathrel{\text{⩥}} A$</td>
+<td>Range anti-restriction</td>
+</tr>
+<tr>
+<td>$R(!(A)!)$</td>
+<td>Relational image</td>
+</tr>
+<tr>
+<td>$R^{\sim}$</td>
+<td>Inverse</td>
+</tr>
+<tr>
+<td>$Q \oplus R$</td>
+<td>Overriding</td>
+</tr>
+<tr>
+<td>$Q \mathbin{;} R$</td>
+<td>Composition</td>
+</tr>
+<tr>
+<td>$A \rightarrow B$</td>
+<td>Total function</td>
+</tr>
+<tr>
+<td>$A \mathrel{\text{⇸}} B$</td>
+<td>Partial function</td>
+</tr>
+<tr>
+<td>$A \rightarrowtail B$</td>
+<td>Total injection</td>
+</tr>
+<tr>
+<td>$A \mathrel{\text{⤔}} B$</td>
+<td>Partial injection</td>
+</tr>
+<tr>
+<td>$A \twoheadrightarrow B$</td>
+<td>Total surjection</td>
+</tr>
+<tr>
+<td>$A \mathrel{\text{⤀}} B$</td>
+<td>Partial surjection</td>
+</tr>
+<tr>
+<td>$A \mathrel{\text{⤖}} B$</td>
+<td>Bijection</td>
+</tr>
+</tbody>
+</table>
+<h3 id="schema-conventions">Schema Conventions</h3>
+<table>
+<thead>
+<tr>
+<th>Convention</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$a?$</td>
+<td>Input to an operation</td>
+</tr>
+<tr>
+<td>$a!$</td>
+<td>Output from an operation</td>
+</tr>
+<tr>
+<td>$a'$</td>
+<td>State component after an operation</td>
+</tr>
+<tr>
+<td>$\Delta S$</td>
+<td>State changes</td>
+</tr>
+<tr>
+<td>$\Xi S$</td>
+<td>State unchanged</td>
+</tr>
+<tr>
+<td>$S \land T$</td>
+<td>Schema conjunction</td>
+</tr>
+<tr>
+<td>$S \lor T$</td>
+<td>Schema disjunction</td>
+</tr>
+<tr>
+<td>$\lnot S$</td>
+<td>Schema negation</td>
+</tr>
+<tr>
+<td>$S \mathbin{;} T$</td>
+<td>Schema composition</td>
+</tr>
+<tr>
+<td>$S \gg T$</td>
+<td>Schema piping</td>
+</tr>
+<tr>
+<td>$\cong$</td>
+<td>Schema definition</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sequence-symbols">Sequence Symbols</h3>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$\text{seq}, A$</td>
+<td>Finite sequences over $A$</td>
+</tr>
+<tr>
+<td>$\text{seq}_1 A$</td>
+<td>Non-empty finite sequences</td>
+</tr>
+<tr>
+<td>$\text{iseq}, A$</td>
+<td>Injective sequences</td>
+</tr>
+<tr>
+<td>$\langle \rangle$</td>
+<td>Empty sequence</td>
+</tr>
+<tr>
+<td>$s \frown t$</td>
+<td>Concatenation</td>
+</tr>
+<tr>
+<td>$\text{head}, s$</td>
+<td>First element</td>
+</tr>
+<tr>
+<td>$\text{tail}, s$</td>
+<td>All but first element</td>
+</tr>
+<tr>
+<td>$\text{last}, s$</td>
+<td>Last element</td>
+</tr>
+<tr>
+<td>$\text{front}, s$</td>
+<td>All but last element</td>
+</tr>
+</tbody>
+</table>
+<h3 id="bag-symbols">Bag Symbols</h3>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$\text{bag}, A$</td>
+<td>Bags over $A$</td>
+</tr>
+<tr>
+<td>$\llbracket \rrbracket$</td>
+<td>Empty bag</td>
+</tr>
+<tr>
+<td>$B # x$</td>
+<td>Multiplicity of $x$ in $B$</td>
+</tr>
+<tr>
+<td>$n \otimes B$</td>
+<td>Bag scaling</td>
+</tr>
+<tr>
+<td>$x \sqsubseteq B$</td>
+<td>Bag membership</td>
+</tr>
+<tr>
+<td>$B_1 \sqsubseteq B_2$</td>
+<td>Sub-bag</td>
+</tr>
+<tr>
+<td>$B_1 \uplus B_2$</td>
+<td>Bag union</td>
+</tr>
+<tr>
+<td>$B_1 \setminus B_2$</td>
+<td>Bag difference</td>
+</tr>
+<tr>
+<td>$\text{items}, s$</td>
+<td>Bag of elements in sequence $s$</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<p><em>End of Study Notes — BACS2083 Formal Methods for Software Engineering</em></p>
+
+</body>
+</html>

@@ -32,3 +32,5 @@ secret
 
 # Supabase CLI local state
 .supabase/
+z-notation.pdf
+z-notation.md

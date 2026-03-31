@@ -354,6 +354,7 @@ const CanvasInnerReactFlow = ({
   const dragGraphSnapshotRef = useRef<Node[] | null>(null);
   const userSelectionRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const moveHandleBoundsRafRef = useRef<number | null>(null);
+  const pendingMoveViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
   const spatialBoundsByIdRef = useRef<Map<string, SpatialNodeBounds>>(new Map());
   const spatialPendingDeltasRef = useRef<Map<string, SpatialNodeDelta>>(new Map());
   const spatialUpdateRafRef = useRef<number | null>(null);
@@ -432,14 +433,20 @@ const CanvasInnerReactFlow = ({
     [setLastViewport, refreshAllHandleBounds, canvasEdgeDebugOn, storeApi]
   );
 
-  const onMove = useCallback(() => {
-    if (moveHandleBoundsRafRef.current != null) return;
-    // Throttle to one refresh per frame while moving; behavior stays unchanged for connection correctness.
-    moveHandleBoundsRafRef.current = requestAnimationFrame(() => {
-      moveHandleBoundsRafRef.current = null;
-      refreshAllHandleBounds();
-    });
-  }, [refreshAllHandleBounds]);
+  const onMove = useCallback(
+    (_e: MouseEvent | TouchEvent | null, vp: { x: number; y: number; zoom: number }) => {
+      pendingMoveViewportRef.current = vp;
+      if (moveHandleBoundsRafRef.current != null) return;
+      // One rAF per frame: sync Zustand viewport + handle bounds (avoids hybrid Pixi path updating store every RF tick).
+      moveHandleBoundsRafRef.current = requestAnimationFrame(() => {
+        moveHandleBoundsRafRef.current = null;
+        const v = pendingMoveViewportRef.current;
+        if (v) setLastViewport({ x: v.x, y: v.y, zoom: v.zoom });
+        refreshAllHandleBounds();
+      });
+    },
+    [refreshAllHandleBounds, setLastViewport]
+  );
 
   useEffect(() => {
     return () => {

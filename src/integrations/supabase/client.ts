@@ -8,10 +8,22 @@ const SUPABASE_PUBLISHABLE_DEFAULT_KEY = import.meta.env.VITE_SUPABASE_PUBLISHAB
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+/** Avoid `ReferenceError: localStorage is not defined` in Web Workers / SSR if this module is ever loaded there. */
+const authStorage =
+  typeof globalThis !== 'undefined' &&
+  typeof (globalThis as { localStorage?: Storage }).localStorage !== 'undefined'
+    ? (globalThis as { localStorage: Storage }).localStorage
+    : undefined;
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_DEFAULT_KEY, {
-  auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
-  }
+  auth: authStorage ?
+    {
+      storage: authStorage,
+      persistSession: true,
+      autoRefreshToken: true,
+    }
+  : {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
 });

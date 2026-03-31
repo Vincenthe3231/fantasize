@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { Application, Container, Graphics } from 'pixi.js';
 import { useStoreApi } from 'reactflow';
-import { useWorkflowStore } from '@/stores/workflowStore';
 import type { Viewport2D } from '@/lib/pixiBoard/screenFlowTransform';
 
 /**
  * WebGL grid layer behind React Flow DOM (hybrid mode). Does not handle pointer events.
  *
  * Viewport is driven only by React Flow's internal transform (single source of truth).
- * Draw is scheduled with double requestAnimationFrame so WebGL composites after the RF
- * viewport transform for the frame — reduces "jiggle" vs CSS/DOM on some browsers (notably Safari).
+ * Draw is scheduled with one requestAnimationFrame per frame (double rAF removed — it added
+ * latency; viewport sync to Zustand is done from Index `onMove`, not here, to avoid ~60 store
+ * updates/sec during pan).
  *
- * Manual QA: slow trackpad zoom on Safari vs Chrome; if drift remains, try one rAF or
- * useLayoutEffect + single rAF after reading transform.
+ * Manual QA: slow trackpad zoom on Safari vs Chrome; if WebGL lags behind DOM, try useLayoutEffect.
  */
 export function PixiHybridBackground() {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -20,7 +19,6 @@ export function PixiHybridBackground() {
   const gridRef = useRef<Graphics | null>(null);
   const vpRef = useRef<Viewport2D>({ x: 0, y: 0, zoom: 1 });
   const drawRafRef = useRef<number | null>(null);
-  const setLastViewport = useWorkflowStore((s) => s.setLastViewport);
   const store = useStoreApi();
 
   const drawWorld = useCallback(() => {
@@ -34,7 +32,9 @@ export function PixiHybridBackground() {
 
     gGrid.clear();
     const span = 6000;
-    const step = 28;
+    /** Fewer line segments when zoomed out (step widens). */
+    const z = Math.max(0.2, Math.min(v.zoom, 6));
+    const step = Math.max(24, Math.min(80, 28 / z));
     for (let x = -span; x <= span; x += step) {
       gGrid.moveTo(x, -span);
       gGrid.lineTo(x, span);
@@ -51,10 +51,8 @@ export function PixiHybridBackground() {
       cancelAnimationFrame(drawRafRef.current);
     }
     drawRafRef.current = requestAnimationFrame(() => {
-      drawRafRef.current = requestAnimationFrame(() => {
-        drawRafRef.current = null;
-        drawWorld();
-      });
+      drawRafRef.current = null;
+      drawWorld();
     });
   }, [drawWorld]);
 
@@ -62,12 +60,10 @@ export function PixiHybridBackground() {
     const unsub = store.subscribe((state) => {
       const [x, y, zoom] = state.transform;
       vpRef.current = { x, y, zoom };
-      setLastViewport({ x, y, zoom });
       scheduleDraw();
     });
     const initial = store.getState().transform;
     vpRef.current = { x: initial[0], y: initial[1], zoom: initial[2] };
-    setLastViewport({ x: initial[0], y: initial[1], zoom: initial[2] });
     scheduleDraw();
     return () => {
       unsub();
@@ -76,7 +72,7 @@ export function PixiHybridBackground() {
         drawRafRef.current = null;
       }
     };
-  }, [store, scheduleDraw, setLastViewport]);
+  }, [store, scheduleDraw]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -91,8 +87,9 @@ export function PixiHybridBackground() {
     void app
       .init({
         background: 0x0e0e10,
-        antialias: true,
-        resolution: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1,
+        antialias: false,
+        resolution:
+          typeof window !== 'undefined' ? Math.min(2, window.devicePixelRatio || 1) : 1,
         autoDensity: true,
         resizeTo: host,
         preference: 'webgl',

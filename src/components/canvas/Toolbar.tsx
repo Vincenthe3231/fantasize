@@ -10,6 +10,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/h
 import { useWorkflowStore, type SelectedTool } from '@/stores/workflowStore';
 import AddNodePanel from './AddNodePanel';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
+import { useResponsiveToolbarScale } from '@/hooks/useResponsiveToolbarScale';
 
 interface ToolbarProps {
   onAddNode: (type: string) => void;
@@ -72,6 +73,7 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
   const canUndo = useWorkflowStore((s) => s.pastStack.length > 0);
   const canRedo = useWorkflowStore((s) => s.futureStack.length > 0);
   const reduceMotion = useCanvasReduceMotion();
+  const toolbarScale = useResponsiveToolbarScale();
 
   const [activeSubIndex, setActiveSubIndex] = useState<Record<string, number>>({
     pointer: 0,
@@ -141,12 +143,24 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
     'w-auto p-1 border rounded-lg shadow-xl bg-[hsl(var(--popover))] text-[hsl(var(--popover-foreground))] border-[hsl(var(--border))]';
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -8 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={reduceMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeOut' }}
-      className="fixed left-4 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-0.5 p-1.5 rounded-xl glass-toolbar transition-opacity duration-200"
+    <div
+      className="pointer-events-none fixed top-1/2 z-50 -translate-y-1/2 pl-[max(0.5rem,env(safe-area-inset-left))] pr-1 sm:pl-3"
+      style={{ left: 0 }}
     >
+      <motion.div
+        initial={{ opacity: 0, x: -8 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={reduceMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeOut' }}
+        className="pointer-events-auto"
+      >
+        <div
+          className="origin-left transition-[transform] duration-200 ease-out will-change-transform"
+          style={{
+            transform: `scale(${toolbarScale})`,
+            transformOrigin: 'left center',
+          }}
+        >
+        <div className="flex max-h-[min(92dvh,92vh)] flex-col gap-0.5 overflow-y-auto overflow-x-hidden overscroll-contain rounded-xl p-1.5 glass-toolbar [scrollbar-width:thin]">
       <Popover open={addOpen} onOpenChange={setAddOpen}>
         <PopoverTrigger asChild>
           <button
@@ -312,7 +326,10 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
       >
         <Settings size={16} />
       </button>
-    </motion.div>
+        </div>
+        </div>
+      </motion.div>
+    </div>
   );
 };
 

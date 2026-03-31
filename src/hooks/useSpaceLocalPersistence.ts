@@ -20,6 +20,7 @@ import { useWorkflowStore, type WorkflowState } from '@/stores/workflowStore';
 import { queryClient } from '@/lib/queryClient';
 import { notifyError } from '@/lib/systemNotify';
 import {
+  estimateSnapshotBytes,
   normalizeSnapshotMediaForRemoteSave,
   isPostgresStatementTimeoutError,
 } from '@/lib/spacePayloadOptimizer';

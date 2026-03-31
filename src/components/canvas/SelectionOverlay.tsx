@@ -38,21 +38,67 @@ interface SelectionOverlayProps {
   wrapperRef: React.RefObject<HTMLDivElement | null>;
 }
 
-function getSelectionBounds(nodes: Node[]) {
-  if (nodes.length === 0) return null;
+type FlowBounds = { minX: number; minY: number; maxX: number; maxY: number };
+
+function getNodeDimensions(n: Node): { w: number; h: number } {
+  const w =
+    typeof (n as Node & { width?: number }).width === 'number'
+      ? (n as Node & { width: number }).width
+      : DEFAULT_NODE_W;
+  const h =
+    typeof (n as Node & { height?: number }).height === 'number'
+      ? (n as Node & { height: number }).height
+      : DEFAULT_NODE_H;
+  return { w, h };
+}
+
+/** Top-left of a node in flow space, including parent offsets (nested / group children). */
+function getAbsoluteFlowPosition(nodeId: string, allNodes: Node[]): { x: number; y: number } | null {
+  const node = allNodes.find((n) => n.id === nodeId);
+  if (!node) return null;
+  const pa = (node as Node & { positionAbsolute?: { x: number; y: number } }).positionAbsolute;
+  if (pa != null && Number.isFinite(pa.x) && Number.isFinite(pa.y)) {
+    return { x: pa.x, y: pa.y };
+  }
+  const byId = new Map(allNodes.map((n) => [n.id, n]));
+  let x = node.position.x;
+  let y = node.position.y;
+  let pid = node.parentId;
+  while (pid) {
+    const p = byId.get(pid);
+    if (!p) break;
+    x += p.position.x;
+    y += p.position.y;
+    pid = p.parentId;
+  }
+  return { x, y };
+}
+
+function getNodeFlowBounds(nodeId: string, allNodes: Node[]): FlowBounds | null {
+  const node = allNodes.find((n) => n.id === nodeId);
+  if (!node) return null;
+  const pos = getAbsoluteFlowPosition(nodeId, allNodes);
+  if (!pos) return null;
+  const { w, h } = getNodeDimensions(node);
+  return { minX: pos.x, minY: pos.y, maxX: pos.x + w, maxY: pos.y + h };
+}
+
+/** Union of selected nodes in absolute flow coordinates (correct inside groups). */
+function getSelectionBoundsAbsolute(selectedNodes: Node[], allNodes: Node[]): FlowBounds | null {
+  if (selectedNodes.length === 0) return null;
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  for (const n of nodes) {
-    const w = typeof (n as Node & { width?: number }).width === 'number' ? (n as Node & { width: number }).width : DEFAULT_NODE_W;
-    const h = typeof (n as Node & { height?: number }).height === 'number' ? (n as Node & { height: number }).height : DEFAULT_NODE_H;
-    minX = Math.min(minX, n.position.x);
-    minY = Math.min(minY, n.position.y);
-    maxX = Math.max(maxX, n.position.x + w);
-    maxY = Math.max(maxY, n.position.y + h);
+  for (const n of selectedNodes) {
+    const b = getNodeFlowBounds(n.id, allNodes);
+    if (!b) continue;
+    minX = Math.min(minX, b.minX);
+    minY = Math.min(minY, b.minY);
+    maxX = Math.max(maxX, b.maxX);
+    maxY = Math.max(maxY, b.maxY);
   }
-  return { minX, minY, maxX, maxY };
+  return minX === Infinity ? null : { minX, minY, maxX, maxY };
 }
 
 function flowToScreen(
@@ -67,6 +113,19 @@ function flowToScreen(
   };
 }
 
+/** True if `nodeId` is selected or sits under a selected parent (e.g. child after group — children are not `selected`). */
+function nodeIsUnderSelection(nodeId: string, allNodes: Node[], selectedIds: Set<string>): boolean {
+  const byId = new Map(allNodes.map((n) => [n.id, n]));
+  let cur: Node | undefined = byId.get(nodeId);
+  while (cur) {
+    if (selectedIds.has(cur.id)) return true;
+    const pid = cur.parentId;
+    if (!pid) return false;
+    cur = byId.get(pid);
+  }
+  return false;
+}
+
 export default function SelectionOverlay({ nodes, edges, wrapperRef }: SelectionOverlayProps) {
   const viewport = useViewport();
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
@@ -75,11 +134,17 @@ export default function SelectionOverlay({ nodes, edges, wrapperRef }: Selection
   const groupSelectedNodes = useWorkflowStore((s) => s.groupSelectedNodes);
   const ungroupSelectedNodes = useWorkflowStore((s) => s.ungroupSelectedNodes);
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
+  const focusedNodeContentId = useWorkflowStore((s) => s.focusedNodeContentId);
 
   const [groupColorChoice, setGroupColorChoice] = useState<string | undefined>(undefined);
   const reduceMotion = useCanvasReduceMotion();
 
   const selectedNodes = useMemo(() => nodes.filter((n) => n.selected), [nodes]);
+  const selectedNodeIds = useMemo(() => new Set(selectedNodes.map((n) => n.id)), [selectedNodes]);
+  /** Hide floating multiselect chrome while the user is focused inside the current selection (including grouped children). */
+  const fadeChromeForContentFocus =
+    focusedNodeContentId != null &&
+    nodeIsUnderSelection(focusedNodeContentId, nodes, selectedNodeIds);
   const selectedEdges = useMemo(() => edges.filter((e) => e.selected), [edges]);
   const selectedGroupNodes = useMemo(() => selectedNodes.filter((n) => n.type === 'group'), [selectedNodes]);
   const selectedTopLevelNodes = useMemo(
@@ -94,10 +159,21 @@ export default function SelectionOverlay({ nodes, edges, wrapperRef }: Selection
 
   const position = useMemo(() => {
     if (!hasSelection || selectedNodes.length === 0 || !wrapperRef.current) return null;
-    const bounds = getSelectionBounds(selectedNodes);
-    if (!bounds) return null;
-    const centerX = (bounds.minX + bounds.maxX) / 2;
-    const topY = bounds.minY;
+
+    const anchorToFocusedBody =
+      focusedNodeContentId != null &&
+      nodeIsUnderSelection(focusedNodeContentId, nodes, selectedNodeIds);
+
+    const bounds: FlowBounds | null = anchorToFocusedBody
+      ? getNodeFlowBounds(focusedNodeContentId, nodes)
+      : getSelectionBoundsAbsolute(selectedNodes, nodes);
+
+    const fallback = getSelectionBoundsAbsolute(selectedNodes, nodes);
+    const b = bounds ?? fallback;
+    if (!b) return null;
+
+    const centerX = (b.minX + b.maxX) / 2;
+    const topY = b.minY;
     const rect = wrapperRef.current.getBoundingClientRect();
     const screen = flowToScreen(centerX, topY, viewport, rect);
     const overlayWidth = 320;
@@ -110,7 +186,16 @@ export default function SelectionOverlay({ nodes, edges, wrapperRef }: Selection
     left = Math.max(8, Math.min(window.innerWidth - overlayWidth - 8, left));
     top = Math.max(8, Math.min(window.innerHeight - overlayHeight - 8, top));
     return { left, top };
-  }, [hasSelection, selectedNodes, viewport, wrapperRef, showGroupColors]);
+  }, [
+    hasSelection,
+    selectedNodes,
+    selectedNodeIds,
+    nodes,
+    viewport,
+    wrapperRef,
+    showGroupColors,
+    focusedNodeContentId,
+  ]);
 
   const handleDeleteSelection = () => {
     selectedEdges.forEach((e) => removeEdgeById(e.id));
@@ -126,10 +211,17 @@ export default function SelectionOverlay({ nodes, edges, wrapperRef }: Selection
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed z-[60] flex flex-col items-center gap-2"
+        className={`fixed z-[60] flex flex-col items-center gap-2 ${fadeChromeForContentFocus ? 'pointer-events-none' : ''}`}
         style={{ left: position.left, top: position.top }}
         initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
+        animate={
+          reduceMotion
+            ? { opacity: fadeChromeForContentFocus ? 0 : 1, y: 0 }
+            : {
+                opacity: fadeChromeForContentFocus ? 0 : 1,
+                y: fadeChromeForContentFocus ? 4 : 0,
+              }
+        }
         exit={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }}
         transition={reduceMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeOut' }}
       >
