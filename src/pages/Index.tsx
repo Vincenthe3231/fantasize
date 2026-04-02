@@ -963,6 +963,10 @@ const CanvasInnerReactFlow = ({
   }, [isViewportInteracting, storeEdges.length]);
 
   const edgeLodLevel = edgeLodReduced ? 'reduced' : 'full';
+  const hybridEdgeCutoverActive =
+    hybridBackground &&
+    canvasPerfFlags.hybridEdgeLayer &&
+    canvasPerfFlags.hybridEdgeDomCutover;
 
   const targetId = contextMenu?.targetId;
 
@@ -977,7 +981,7 @@ const CanvasInnerReactFlow = ({
     <DevReactProfiler id="vf-canvas-inner">
     <CanvasViewportGestureContext.Provider value={isViewportInteracting}>
     <div
-      className={`w-screen h-screen ${hybridBackground ? 'flex min-h-0 flex-col' : ''} ${shellCanvasClass} ${cursorClass} ${settings.showNodeLabels ? '' : 'workflow-hide-labels'} ${isConnectingFromHandle ? 'vf-connecting-edge' : ''} ${selectedTool === 'cut' ? 'vf-snip-tool' : ''}`}
+      className={`w-screen h-screen ${hybridBackground ? 'flex min-h-0 flex-col' : ''} ${shellCanvasClass} ${cursorClass} ${settings.showNodeLabels ? '' : 'workflow-hide-labels'} ${isConnectingFromHandle ? 'vf-connecting-edge' : ''} ${selectedTool === 'cut' ? 'vf-snip-tool' : ''} ${hybridEdgeCutoverActive ? 'vf-hybrid-edge-cutover' : ''}`}
       onClick={handleCanvasClick}
       onContextMenu={handleContextMenu}
       ref={reactFlowWrapper}

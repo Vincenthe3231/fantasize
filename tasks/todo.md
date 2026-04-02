@@ -12,6 +12,7 @@
 - [x] INP / presentation delay: no per-pan `refreshAllHandleBounds` or `setLastViewport` (`Index.tsx`); route profiler removed from `App.tsx`; zoom epsilon + viewport-only parity debounce (`useViewportHandleBoundsSync`, `useSpaceLocalPersistence`); `Toolbar` memoized.
 - [x] Phase 5 — Edge / overlay LOD: `CanvasEdgeLodContext` + simplified `CustomEdge` during viewport/node-drag gestures (and optional dense-graph mode via `vf.perf.canvasEdgeLodDense`); quantized RF transform for `SelectionOverlay` during gestures (`canvasPerf.ts` flags).
 - [x] Canvas image delivery: `CanvasNodeImage` + `canvasImagePlanForBox` (Supabase `src`/`srcSet`/`sizes` from CSS box × DPR, debounced `ResizeObserver`); freeze URL churn during viewport/node drag (`CanvasViewportGestureContext`); `decode()` after load; video `preload="metadata"` on `UploadNode`. **Toggles:** `vf.perf.canvasImageDeferGesture`, `canvasImageResizeDebounceMs` in `canvasPerf.ts`.
+- [x] Hybrid v1 (grid + edges): Pixi layer now mirrors dense-edge geometry from RF internals in hybrid mode (`PixiHybridBackground`); interaction LOD + DOM edge cutover flags added in `canvasPerf.ts`; image-heavy drag hardening suppresses hover overlays during gestures (`ImageCellOverlay`, `SelectedShotNode`).
 
 ## INP / presentation delay
 
@@ -23,6 +24,15 @@
 - [x] Phase 3 — Handle bounds: epsilon guard on zoom-driven full refresh in [`src/hooks/useViewportHandleBoundsSync.ts`](src/hooks/useViewportHandleBoundsSync.ts).
 - [x] Phase 4 — Persistence + toolbar: 350ms debounced `refreshParity` for viewport-only store churn in [`src/hooks/useSpaceLocalPersistence.ts`](src/hooks/useSpaceLocalPersistence.ts); `React.memo` on [`src/components/canvas/Toolbar.tsx`](src/components/canvas/Toolbar.tsx).
 - [ ] Gate: re-measure INP (presentation delay) + profiler; decide Hybrid / WASM using escalation policy below.
+
+### Hybrid v1 checklist (grid + edges)
+
+- [x] Phase 0: baseline/gates recorded for dense pan/zoom/drag; keep rollback flags for each hybrid behavior.
+- [x] Phase 1: Pixi edge mirror skeleton added behind DOM in hybrid board mode.
+- [x] Phase 2: interaction LOD added for hybrid edge layer (`canvasHybridEdgesLod`).
+- [x] Phase 3: guarded DOM edge cutover (`canvasHybridDomEdgeCutover`) with cut/selected affordance safety in `CustomEdge`.
+- [x] Phase 4: grouped image drag hardening — gesture-time hover suppression for image overlays.
+- [x] Phase 5: gate decision — proceed with Hybrid v1 experimentation; WASM remains math-only escalation.
 
 ### 5) Then choose architecture escalation
 

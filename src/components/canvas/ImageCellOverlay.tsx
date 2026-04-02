@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 import CanvasNodeImage from '@/components/canvas/CanvasNodeImage';
+import { useCanvasViewportGestureActive } from '@/contexts/CanvasViewportGestureContext';
 
 interface ImageCellOverlayProps {
   src: string;
@@ -35,6 +36,7 @@ const ImageCellOverlay = ({
   const cellMeasureRef = useRef<HTMLDivElement>(null);
   const dialogMeasureRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useCanvasReduceMotion();
+  const gestureActive = useCanvasViewportGestureActive();
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && onReplace) onReplace(file);
@@ -53,7 +55,9 @@ const ImageCellOverlay = ({
   return (
     <div
       className={`relative overflow-hidden rounded-xl ${selected ? 'ring-2 ring-blue-500' : ''} ${className}`}
-      onMouseEnter={() => setHovered(true)}
+      onMouseEnter={() => {
+        if (!gestureActive) setHovered(true);
+      }}
       onMouseLeave={() => setHovered(false)}
       onClick={(e) => {
         e.stopPropagation();
@@ -84,7 +88,7 @@ const ImageCellOverlay = ({
         />
 
         <AnimatePresence>
-          {hovered && (
+          {hovered && !gestureActive && (
             <motion.div
               initial={reduceMotion ? false : { opacity: 0 }}
               animate={{ opacity: 1 }}

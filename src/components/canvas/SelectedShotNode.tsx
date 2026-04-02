@@ -12,6 +12,7 @@ import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 import CanvasNodeImage from '@/components/canvas/CanvasNodeImage';
+import { useCanvasViewportGestureActive } from '@/contexts/CanvasViewportGestureContext';
 
 const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -38,6 +39,7 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
   const replaceInputRef = useRef<HTMLInputElement>(null);
   const heroMeasureRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useCanvasReduceMotion();
+  const gestureActive = useCanvasViewportGestureActive();
 
   const mediaUrl =
     (data.mediaUrl as string) || 'https://picsum.photos/seed/vps-final/800/444';
@@ -70,7 +72,9 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
       <NodeLabelRow nodeId={id} nodeType="selectedShotNode" labelPrefix="Selected shot" icon={<ImageIcon size={12} />} />
       <div
         className={`glass-node glass-node-output relative flex w-full flex-1 flex-col min-h-0 ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-[var(--accent-color)]' : ''}`}
-        onMouseEnter={() => setHovered(true)}
+        onMouseEnter={() => {
+          if (!gestureActive) setHovered(true);
+        }}
         onMouseLeave={() => setHovered(false)}
         data-content-focused={contentFocused || undefined}
       >
@@ -111,7 +115,7 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
             )}
 
             <AnimatePresence>
-              {hovered && (
+              {hovered && !gestureActive && (
                 <motion.button
                   initial={reduceMotion ? false : { opacity: 0 }}
                   animate={{ opacity: 1 }}

@@ -6,6 +6,7 @@ import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import { effectiveEdgeAnimation } from '@/lib/canvasEffectiveSettings';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 import { useCanvasEdgeLodLevel } from '@/contexts/CanvasEdgeLodContext';
+import { canvasPerfFlags } from '@/lib/canvasPerf';
 
 const HOVER_LEAVE_MS = 140;
 const EDGE_LOD_FAR_ZOOM = 0.35;
@@ -45,6 +46,12 @@ const CustomEdge = memo(({
   const selectedTool = useWorkflowStore((s) => s.selectedTool);
   const removeEdgeById = useWorkflowStore((s) => s.removeEdgeById);
   const reduceMotion = useCanvasReduceMotion();
+  const hideDomStrokeForCutover =
+    canvasPerfFlags.hybridEdgeLayer &&
+    canvasPerfFlags.hybridEdgeDomCutover &&
+    reducedEdge &&
+    selectedTool !== 'cut' &&
+    !selected;
   const [hovered, setHovered] = useState(false);
   const [hoverPoint, setHoverPoint] = useState<{ x: number; y: number } | null>(null);
   const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -170,7 +177,11 @@ const CustomEdge = memo(({
         fill="none"
         strokeWidth={strokeW}
         className={`react-flow__edge-path vf-custom-edge-stroke ${!reducedEdge && isRunning && edgeAnimation ? 'animated-edge' : ''}`}
-        style={{ stroke: strokeColor, opacity, pointerEvents: 'none' }}
+        style={{
+          stroke: strokeColor,
+          opacity: hideDomStrokeForCutover ? 0 : opacity,
+          pointerEvents: 'none',
+        }}
       />
       {showSnipControl && (
         <foreignObject

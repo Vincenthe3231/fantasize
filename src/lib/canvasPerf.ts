@@ -49,6 +49,14 @@ export const canvasPerfFlags = {
   edgeLodInDenseGraph: readBoolFlag('canvasEdgeLodDense', false),
   /** Edge count at/above which dense-graph LOD applies (see `edgeLodInDenseGraph`). */
   denseEdgeLodThreshold: 350,
+  /** Draw read-only edge mirror in Pixi when hybrid board is active. */
+  hybridEdgeLayer: readBoolFlag('canvasHybridEdges', true),
+  /** Reduce edge detail in Pixi during viewport/node drag gestures. */
+  hybridEdgeInteractionLod: readBoolFlag('canvasHybridEdgesLod', true),
+  /** Hide most DOM edge visuals while hybrid Pixi edges are active (keeps cut/selected affordances). */
+  hybridEdgeDomCutover: readBoolFlag('canvasHybridDomEdgeCutover', false),
+  /** Skip Pixi edge mirror if the graph is too small; avoid overhead on tiny boards. */
+  hybridEdgeMinCount: 80,
   /** Quantize pan deltas for selection overlay positioning to fewer React commits during gesture */
   selectionOverlayQuantizeDuringViewport: readBoolFlag('canvasOverlayQuantize', true),
   /** Flow-space pixels to quantize viewport x/y when overlay quantize is active */
