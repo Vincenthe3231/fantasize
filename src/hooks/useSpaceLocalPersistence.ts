@@ -183,6 +183,8 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
   const rafPendingRef = useRef(false);
   const idlePendingRef = useRef<number | null>(null);
   const pendingFlushReasonRef = useRef<RemoteFlushReason>('explicit');
+  /** Debounce `refreshParity` for viewport-only store churn (pan) to cut main-thread snapshot compares during INP. */
+  const viewportParityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isRemoteDirtyPending, setIsRemoteDirtyPending] = useState(false);
   const [isSavingToRemote, setIsSavingToRemote] = useState(false);
@@ -368,10 +370,36 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
       if (meaningfulRemoteContentDirty(state, prev)) {
         queueIdbWrite();
       }
+
+      const viewportOnly =
+        state.lastViewport !== prev.lastViewport &&
+        state.nodes === prev.nodes &&
+        state.edges === prev.edges &&
+        state.comments === prev.comments &&
+        state.settings === prev.settings &&
+        state.nodeGridLayouts === prev.nodeGridLayouts;
+
+      if (viewportOnly) {
+        if (viewportParityTimeoutRef.current != null) clearTimeout(viewportParityTimeoutRef.current);
+        viewportParityTimeoutRef.current = setTimeout(() => {
+          viewportParityTimeoutRef.current = null;
+          refreshParity();
+        }, 350);
+        return;
+      }
+
+      if (viewportParityTimeoutRef.current != null) {
+        clearTimeout(viewportParityTimeoutRef.current);
+        viewportParityTimeoutRef.current = null;
+      }
       refreshParity();
     });
     return () => {
       unsub();
+      if (viewportParityTimeoutRef.current != null) {
+        clearTimeout(viewportParityTimeoutRef.current);
+        viewportParityTimeoutRef.current = null;
+      }
       if (idlePendingRef.current != null && 'cancelIdleCallback' in window) {
         window.cancelIdleCallback(idlePendingRef.current);
         idlePendingRef.current = null;

@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { CANVAS_SHORTCUT_SECTIONS } from '@/lib/canvasKeymap';
 
 interface SettingsPanelProps {
   open: boolean;
@@ -247,53 +248,18 @@ const SettingsPanel = ({ open, onClose }: SettingsPanelProps) => {
           <TabsContent value="shortcuts" className="mt-0 px-0 py-0">
             <ScrollArea className="max-h-[400px]">
               <div className="space-y-4 px-5 py-4">
-            {/* Basics */}
-            <div>
-              <p className="text-[10px] font-mono-display text-muted-foreground uppercase tracking-widest mb-2">
-                Basics
-              </p>
-              <div className="space-y-0.5">
-                <ShortcutRow action="Select tool" keys={['V']} />
-                <ShortcutRow action="Hand tool" keys={['H']} />
-                <ShortcutRow action="Snip tool" keys={['X']} />
-                <ShortcutRow action="Connection tool" keys={['L']} />
-                <ShortcutRow action="Draw tool" keys={['P']} />
-                <ShortcutRow action="Stickers" keys={['S']} />
-                <ShortcutRow action="Sticky Note" keys={['T']} />
-                <ShortcutRow action="Comment" keys={['C']} />
-              </div>
-            </div>
-
-            {/* Control */}
-            <div>
-              <p className="text-[10px] font-mono-display text-muted-foreground uppercase tracking-widest mb-2">
-                Control
-              </p>
-              <div className="space-y-0.5">
-                <ShortcutRow action="Run workflow" keys={['Ctrl', 'Enter']} />
-                <ShortcutRow action="Undo" keys={['Ctrl', 'Z']} />
-                <ShortcutRow action="Redo" keys={['Ctrl', 'Shift', 'Z']} />
-                <ShortcutRow action="Delete node" keys={['Delete']} />
-                <ShortcutRow action="Duplicate node" keys={['Ctrl', 'D']} />
-                <ShortcutRow action="Select all" keys={['Ctrl', 'A']} />
-                <ShortcutRow action="Copy" keys={['Ctrl', 'C']} />
-                <ShortcutRow action="Paste" keys={['Ctrl', 'V']} />
-              </div>
-            </div>
-
-            {/* Navigation + Board */}
-            <div>
-              <p className="text-[10px] font-mono-display text-muted-foreground uppercase tracking-widest mb-2">
-                Navigation + Board
-              </p>
-              <div className="space-y-0.5">
-                <ShortcutRow action="Zoom in" keys={['Ctrl', '+']} />
-                <ShortcutRow action="Zoom out" keys={['Ctrl', '−']} />
-                <ShortcutRow action="Fit view" keys={['Ctrl', '1']} />
-                <ShortcutRow action="Add node" keys={['N']} />
-                <ShortcutRow action="Toggle grid" keys={['G']} />
-              </div>
-            </div>
+                {CANVAS_SHORTCUT_SECTIONS.map((section) => (
+                  <div key={section.title}>
+                    <p className="text-[10px] font-mono-display text-muted-foreground uppercase tracking-widest mb-2">
+                      {section.title}
+                    </p>
+                    <div className="space-y-0.5">
+                      {section.rows.map((row) => (
+                        <ShortcutRow key={`${section.title}-${row.action}`} action={row.action} keys={row.keys} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </ScrollArea>
           </TabsContent>

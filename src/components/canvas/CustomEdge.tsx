@@ -5,6 +5,7 @@ import { useWorkflowStore } from '@/stores/workflowStore';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import { effectiveEdgeAnimation } from '@/lib/canvasEffectiveSettings';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
+import { useCanvasEdgeLodLevel } from '@/contexts/CanvasEdgeLodContext';
 
 const HOVER_LEAVE_MS = 140;
 const EDGE_LOD_FAR_ZOOM = 0.35;
@@ -34,6 +35,8 @@ const CustomEdge = memo(({
   targetPosition,
   selected,
 }: EdgeProps) => {
+  const edgeLodLevel = useCanvasEdgeLodLevel();
+  const reducedEdge = edgeLodLevel === 'reduced';
   const zoom = useStore((s) => s.transform[2]);
   const isRunning = useWorkflowStore((s) => s.runningEdges.has(id));
   const settings = useWorkflowStore((s) => s.settings);
@@ -82,7 +85,7 @@ const CustomEdge = memo(({
   useEffect(() => () => clearLeaveTimer(), [clearLeaveTimer]);
 
   const [edgePath, labelX, labelY] =
-    zoom < EDGE_LOD_FAR_ZOOM
+    reducedEdge || zoom < EDGE_LOD_FAR_ZOOM
       ? [`M${sourceX},${sourceY} L${targetX},${targetY}`, (sourceX + targetX) / 2, (sourceY + targetY) / 2]
       : getBezierPath({
           sourceX,
@@ -116,9 +119,28 @@ const CustomEdge = memo(({
   const midY = labelY;
 
   const strokeColor = 'var(--edge-stroke)';
-  const strokeW = hovered || selected ? 2 : zoom < EDGE_LOD_FAR_ZOOM ? 1.1 : 1.5;
-  const opacity = isRunning ? 1 : hovered || selected ? 0.9 : 0.7;
-  const showSnipControl = (hovered || selected) && !reduceMotion && !isDragging;
+  const strokeW = reducedEdge
+    ? selected
+      ? 1.8
+      : 1.15
+    : hovered || selected
+      ? 2
+      : zoom < EDGE_LOD_FAR_ZOOM
+        ? 1.1
+        : 1.5;
+  const opacity = reducedEdge
+    ? isRunning
+      ? 0.95
+      : selected
+        ? 0.85
+        : 0.65
+    : isRunning
+      ? 1
+      : hovered || selected
+        ? 0.9
+        : 0.7;
+  const showSnipControl =
+    !reducedEdge && (hovered || selected) && !reduceMotion && !isDragging;
   const foSize = 32;
   const foHalf = foSize / 2;
   const anchorX = hovered && hoverPoint ? hoverPoint.x : midX;
@@ -126,26 +148,28 @@ const CustomEdge = memo(({
 
   return (
     <>
-      <path
-        d={edgePath}
-        fill="none"
-        stroke="transparent"
-        strokeWidth={24}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{ touchAction: 'none' }}
-        onPointerEnter={onEdgePointerEnter}
-        onPointerMove={onEdgePointerMove}
-        onPointerLeave={onEdgePointerLeave}
-        onPointerDown={handleInteractionPointerDown}
-        className={`custom-edge-hit-area ${selectedTool === 'cut' ? 'cursor-scissors' : 'cursor-pointer'}`}
-      />
+      {!reducedEdge ? (
+        <path
+          d={edgePath}
+          fill="none"
+          stroke="transparent"
+          strokeWidth={24}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ touchAction: 'none' }}
+          onPointerEnter={onEdgePointerEnter}
+          onPointerMove={onEdgePointerMove}
+          onPointerLeave={onEdgePointerLeave}
+          onPointerDown={handleInteractionPointerDown}
+          className={`custom-edge-hit-area ${selectedTool === 'cut' ? 'cursor-scissors' : 'cursor-pointer'}`}
+        />
+      ) : null}
       <path
         id={id}
         d={edgePath}
         fill="none"
         strokeWidth={strokeW}
-        className={`react-flow__edge-path vf-custom-edge-stroke ${isRunning && edgeAnimation ? 'animated-edge' : ''}`}
+        className={`react-flow__edge-path vf-custom-edge-stroke ${!reducedEdge && isRunning && edgeAnimation ? 'animated-edge' : ''}`}
         style={{ stroke: strokeColor, opacity, pointerEvents: 'none' }}
       />
       {showSnipControl && (

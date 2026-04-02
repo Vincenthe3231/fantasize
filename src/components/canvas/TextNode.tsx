@@ -12,6 +12,7 @@ import { RichTextField } from '@/components/rich-text/RichTextField';
 const TextNode = memo(({ id, data, selected }: NodeProps) => {
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
+  const flushNodeDataHistory = useWorkflowStore((s) => s.flushNodeDataHistory);
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
@@ -52,6 +53,7 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
             <RichTextField
               value={content}
               onChange={(html) => updateNodeData(id, { content: html })}
+              onFlushHistory={() => flushNodeDataHistory(id)}
               placeholder="Write your prompt, notes, or comments…"
               excludeNodeId={id}
               toolbarVariant="floating-above"

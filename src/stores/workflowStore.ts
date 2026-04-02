@@ -40,12 +40,6 @@ const pendingNodeDataUpdates = new Map<
   { timeoutId: number; before: Record<string, unknown>; keys: string[] }
 >();
 
-function clearPendingNodeDataHistoryCommits(): void {
-  for (const entry of pendingNodeDataUpdates.values()) {
-    clearTimeout(entry.timeoutId);
-  }
-  pendingNodeDataUpdates.clear();
-}
 
 function withTransientNodeDataStripped(node: Node): Node {
   if (!node.data || typeof node.data !== 'object') return node;
@@ -274,8 +268,12 @@ export interface WorkflowState {
   deleteNode: (id: string) => void;
   duplicateNode: (id: string) => void;
   lockNode: (id: string) => void;
+  /** User-driven `node.data` updates: coalesced into undo (debounced + flush on blur/undo/redo). */
   updateNodeData: (id: string, data: Partial<Record<string, unknown>>) => void;
+  /** Same as `updateNodeData` but does not record undo (programmatic / derived updates). */
   updateNodeDataSilent: (id: string, data: Partial<Record<string, unknown>>) => void;
+  /** Commit pending coalesced history for one node, or all nodes if `id` omitted. */
+  flushNodeDataHistory: (id?: string) => void;
   commitNodeLabelRename: (
     id: string,
     nextTrimmed: string,
@@ -365,6 +363,56 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     }));
   };
 
+  const commitPendingNodeDataHistoryForNode = (nodeId: string) => {
+    const entry = pendingNodeDataUpdates.get(nodeId);
+    if (!entry) return;
+    clearTimeout(entry.timeoutId);
+    pendingNodeDataUpdates.delete(nodeId);
+    const current = get().nodes.find((x) => x.id === nodeId);
+    if (!current) return;
+    const after: Record<string, unknown> = {};
+    entry.keys.forEach((k) => {
+      after[k] = current.data[k];
+    });
+    const id = nodeId;
+    pushCmd({
+      undo: () =>
+        set((st) => ({
+          nodes: st.nodes.map((x) => {
+            if (x.id !== id) return x;
+            const nextData = { ...x.data };
+            entry.keys.forEach((k) => {
+              if (entry.before[k] === undefined) delete nextData[k];
+              else nextData[k] = entry.before[k];
+            });
+            return { ...x, data: nextData };
+          }),
+        })),
+      execute: () =>
+        set((st) => ({
+          nodes: st.nodes.map((x) => {
+            if (x.id !== id) return x;
+            const nextData = { ...x.data };
+            entry.keys.forEach((k) => {
+              if (after[k] === undefined) delete nextData[k];
+              else nextData[k] = after[k];
+            });
+            return { ...x, data: nextData };
+          }),
+        })),
+    });
+  };
+
+  const flushPendingNodeDataHistoryCommits = (onlyId?: string) => {
+    if (onlyId !== undefined) {
+      commitPendingNodeDataHistoryForNode(onlyId);
+      return;
+    }
+    for (const nid of [...pendingNodeDataUpdates.keys()]) {
+      commitPendingNodeDataHistoryForNode(nid);
+    }
+  };
+
   const applyReactiveDataflow = (changedSourceIds: string[], fullRecompute = false) => {
     const s = get();
     const sourceIds =
@@ -441,7 +489,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         edges: get().edges,
         pipeline: get().scoutPipeline,
         getGridLayout: (nid) => get().nodeGridLayouts[nid] ?? '2x2',
-        updateNodeData: (nid, data) => get().updateNodeData(nid, data),
+        updateNodeDataSilent: (nid, data) => get().updateNodeDataSilent(nid, data),
         options,
         experimentalDebug: get().settings.experimentalTools,
       });
@@ -1229,43 +1277,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       }
 
       const timeoutId = window.setTimeout(() => {
-        const entry = pendingNodeDataUpdates.get(id);
-        if (!entry) return;
-        pendingNodeDataUpdates.delete(id);
-
-        const current = get().nodes.find((x) => x.id === id);
-        if (!current) return;
-        const after: Record<string, unknown> = {};
-        entry.keys.forEach((k) => {
-          after[k] = current.data[k];
-        });
-
-        pushCmd({
-          undo: () =>
-            set((st) => ({
-              nodes: st.nodes.map((x) => {
-                if (x.id !== id) return x;
-                const nextData = { ...x.data };
-                entry.keys.forEach((k) => {
-                  if (entry.before[k] === undefined) delete nextData[k];
-                  else nextData[k] = entry.before[k];
-                });
-                return { ...x, data: nextData };
-              }),
-            })),
-          execute: () =>
-            set((st) => ({
-              nodes: st.nodes.map((x) => {
-                if (x.id !== id) return x;
-                const nextData = { ...x.data };
-                entry.keys.forEach((k) => {
-                  if (after[k] === undefined) delete nextData[k];
-                  else nextData[k] = after[k];
-                });
-                return { ...x, data: nextData };
-              }),
-            })),
-        });
+        commitPendingNodeDataHistoryForNode(id);
       }, UPDATE_NODE_DATA_DEBOUNCE_MS);
 
       pendingNodeDataUpdates.get(id)!.timeoutId = timeoutId;
@@ -1286,6 +1298,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         return { nodes: nextNodes, scoutPipeline };
       });
       queueReactiveDataflow([id]);
+    },
+
+    flushNodeDataHistory: (id) => {
+      flushPendingNodeDataHistoryCommits(id);
     },
 
     commitNodeLabelRename: (id, nextTrimmed, before) => {
@@ -1574,8 +1590,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     },
 
     undo: () => {
-      // Prevent delayed debounced node-data history commits from clearing redo stack after undo.
-      clearPendingNodeDataHistoryCommits();
+      flushPendingNodeDataHistoryCommits();
       const s = get();
       if (s.pastStack.length === 0) return;
       const cmd = s.pastStack[s.pastStack.length - 1];
@@ -1587,8 +1602,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     },
 
     redo: () => {
-      // Prevent delayed debounced node-data history commits from clearing redo stack after redo.
-      clearPendingNodeDataHistoryCommits();
+      flushPendingNodeDataHistoryCommits();
       const s = get();
       if (s.futureStack.length === 0) return;
       const cmd = s.futureStack[s.futureStack.length - 1];

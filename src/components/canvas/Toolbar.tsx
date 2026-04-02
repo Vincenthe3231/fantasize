@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, memo } from 'react';
 import { motion } from 'framer-motion';
 import {
   Plus, Play, MousePointer2, Hand, Scissors, Link2,
@@ -11,6 +11,7 @@ import { useWorkflowStore, type SelectedTool } from '@/stores/workflowStore';
 import AddNodePanel from './AddNodePanel';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 import { useResponsiveToolbarScale } from '@/hooks/useResponsiveToolbarScale';
+import { isCanvasShortcutTargetBlocked } from '@/lib/canvasKeymap';
 
 interface ToolbarProps {
   onAddNode: (type: string) => void;
@@ -60,7 +61,12 @@ const singleTools: SubTool[] = [
   { tool: 'comment', icon: MessageCircle, label: 'Comment', shortcut: 'C' },
 ];
 
-const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange }: ToolbarProps) => {
+const Toolbar = memo(function Toolbar({
+  onAddNode,
+  onOpenSettings,
+  addPanelOpen,
+  onAddPanelOpenChange,
+}: ToolbarProps) {
   const [localAddOpen, setLocalAddOpen] = useState(false);
   const isControlled = addPanelOpen !== undefined && onAddPanelOpenChange !== undefined;
   const addOpen = isControlled ? addPanelOpen! : localAddOpen;
@@ -112,7 +118,7 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
     };
 
     const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (isCanvasShortcutTargetBlocked(e.target)) return;
 
       // Use code === 'KeyZ' so Ctrl+Shift+Z works (key is often "Z" not "z" when Shift is held)
       if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
@@ -331,6 +337,8 @@ const Toolbar = ({ onAddNode, onOpenSettings, addPanelOpen, onAddPanelOpenChange
       </motion.div>
     </div>
   );
-};
+});
+
+Toolbar.displayName = 'Toolbar';
 
 export default Toolbar;

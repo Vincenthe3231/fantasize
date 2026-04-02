@@ -11,7 +11,7 @@ import { useQuickConnect } from '@/hooks/useQuickConnect';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
-import { canvasPreviewImageUrl, canvasResponsiveSrcSet } from '@/lib/imageDelivery';
+import CanvasNodeImage from '@/components/canvas/CanvasNodeImage';
 
 const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
@@ -36,18 +36,11 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
   const { connectMenuItems } = useQuickConnect(id, selfPos, quickOverrides);
   const [hovered, setHovered] = useState(false);
   const replaceInputRef = useRef<HTMLInputElement>(null);
+  const heroMeasureRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useCanvasReduceMotion();
 
   const mediaUrl =
     (data.mediaUrl as string) || 'https://picsum.photos/seed/vps-final/800/444';
-  const mediaPreviewUrl = useMemo(
-    () => canvasPreviewImageUrl(mediaUrl, { width: 960, height: 540, quality: 66 }),
-    [mediaUrl]
-  );
-  const mediaPreviewSrcSet = useMemo(
-    () => canvasResponsiveSrcSet(mediaUrl, [320, 480, 720, 960], { quality: 66 }),
-    [mediaUrl]
-  );
   const resolution = (data.resolution as string) || '2738 × 1524';
   const committed = Boolean((data as { committed?: boolean }).committed);
 
@@ -94,17 +87,17 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
         />
 
         <NodeContentFocus nodeId={id} shellMoveCursor>
-          <div className="relative">
-            <img
-              src={mediaPreviewUrl}
-              srcSet={mediaPreviewSrcSet}
-              sizes="(max-width: 1024px) 70vw, 640px"
+          <div ref={heroMeasureRef} className="relative aspect-[16/9] w-full">
+            <CanvasNodeImage
+              mediaUrl={mediaUrl}
+              measureRef={heroMeasureRef}
+              fallbackCssWidth={640}
+              fallbackCssHeight={360}
+              quality={66}
+              resize="cover"
               alt="Selected shot"
-              width={640}
-              height={360}
               loading="lazy"
-              decoding="async"
-              className="aspect-[16/9] w-full rounded-b-[12px] object-cover"
+              className="h-full w-full rounded-b-[12px] object-cover"
             />
 
             <div className="absolute right-2 top-2 rounded bg-[var(--node-badge-bg)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--node-overlay-text)]">

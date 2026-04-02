@@ -13,7 +13,7 @@ import { DefaultNodePortHandles } from './DefaultNodePortHandles';
 import { deleteWorkflowMediaByPublicUrl } from '@/lib/uploadStorage';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 import { mergeTextAndSortedListImages } from '@/lib/listNodeImageSort';
-import { canvasPreviewImageUrl, canvasResponsiveSrcSet } from '@/lib/imageDelivery';
+import CanvasNodeImage from '@/components/canvas/CanvasNodeImage';
 
 type ListItemType = 'text' | 'image';
 
@@ -45,6 +45,81 @@ function splitListItems(items: ListItem[]) {
 function mergeListItems(text: ListItem[], image: ListItem[]) {
   return [...text, ...image];
 }
+
+const ListNodeGridImageTile = memo(function ListNodeGridImageTile({
+  item,
+  multiSelectMode,
+  isImageSelected,
+  onToggleSelect,
+  onOpenPreview,
+  onDownload,
+  onRemove,
+}: {
+  item: ListItem;
+  multiSelectMode: boolean;
+  isImageSelected: boolean;
+  onToggleSelect: () => void;
+  onOpenPreview: () => void;
+  onDownload: () => void;
+  onRemove: () => void;
+}) {
+  const cellRef = useRef<HTMLDivElement>(null);
+  const url = item.mediaUrl || '/placeholder.svg';
+  return (
+    <div
+      ref={cellRef}
+      className="group relative aspect-square overflow-hidden rounded-xl bg-[var(--node-control-bg)]"
+    >
+      <CanvasNodeImage
+        mediaUrl={url}
+        measureRef={cellRef}
+        fallbackCssWidth={120}
+        fallbackCssHeight={120}
+        quality={58}
+        alt={item.mediaName ?? ''}
+        loading="lazy"
+        className="h-full w-full object-cover"
+      />
+      <button
+        type="button"
+        onClick={onOpenPreview}
+        className="absolute left-1 top-1 z-10 rounded-full bg-[var(--node-badge-bg)] p-0.5 text-[var(--node-overlay-text)] opacity-0 transition-opacity group-hover:opacity-100"
+        title="Open preview"
+      >
+        <ExternalLink size={10} />
+      </button>
+      <button
+        type="button"
+        onClick={onDownload}
+        className="absolute left-7 top-1 z-10 rounded-full bg-[var(--node-badge-bg)] p-0.5 text-[var(--node-overlay-text)] opacity-0 transition-opacity group-hover:opacity-100"
+        title="Download image"
+      >
+        <Download size={10} />
+      </button>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="absolute right-1 top-1 z-10 rounded-full bg-[var(--node-badge-bg)] p-0.5 text-[var(--node-overlay-text)] opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+      >
+        <X size={10} />
+      </button>
+      {multiSelectMode && (
+        <button
+          type="button"
+          onClick={onToggleSelect}
+          className={`absolute left-1 bottom-1 z-10 flex h-5 w-5 items-center justify-center rounded-full border transition-colors ${
+            isImageSelected
+              ? 'border-emerald-400 bg-emerald-500/25 text-emerald-200'
+              : 'border-[var(--node-control-border)] bg-[var(--node-badge-bg)] text-transparent hover:text-[var(--node-overlay-text)]'
+          }`}
+          title={isImageSelected ? 'Deselect image' : 'Select image'}
+        >
+          <Check size={11} />
+        </button>
+      )}
+    </div>
+  );
+});
 
 const ListNode = memo(({ id, data, selected }: NodeProps) => {
   const {
@@ -201,18 +276,6 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
 
   const textItems = useMemo(() => items.filter((i) => i.type === 'text'), [items]);
   const imageItems = useMemo(() => items.filter((i) => i.type === 'image'), [items]);
-  const listThumbSrc = useCallback(
-    (item: ListItem) => canvasPreviewImageUrl(item.mediaUrl || '/placeholder.svg', { width: 112, height: 112, quality: 55 }),
-    []
-  );
-  const gridThumbSrc = useCallback(
-    (item: ListItem) => canvasPreviewImageUrl(item.mediaUrl || '/placeholder.svg', { width: 240, height: 240, quality: 58 }),
-    []
-  );
-  const gridThumbSrcSet = useCallback(
-    (item: ListItem) => canvasResponsiveSrcSet(item.mediaUrl || '', [160, 240, 320], { quality: 58 }),
-    []
-  );
   const textCount = textItems.length;
   const imageCount = imageItems.length;
   const selectedImageCount = useMemo(
@@ -379,13 +442,13 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                                 <Check size={10} />
                               </button>
                             )}
-                            <img
-                              src={listThumbSrc(item)}
-                              alt={item.mediaName}
-                              width={56}
-                              height={56}
+                            <CanvasNodeImage
+                              mediaUrl={item.mediaUrl || '/placeholder.svg'}
+                              fixedCssWidth={56}
+                              fixedCssHeight={56}
+                              quality={55}
+                              alt={item.mediaName ?? ''}
                               loading="lazy"
-                              decoding="async"
                               className="h-14 w-14 shrink-0 rounded-lg bg-[var(--node-control-bg)] object-cover"
                             />
                             <div className="min-w-0 flex-1">
@@ -434,13 +497,13 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                               <Check size={10} />
                             </button>
                           )}
-                          <img
-                            src={listThumbSrc(item)}
-                            alt={item.mediaName}
-                            width={56}
-                            height={56}
+                          <CanvasNodeImage
+                            mediaUrl={item.mediaUrl || '/placeholder.svg'}
+                            fixedCssWidth={56}
+                            fixedCssHeight={56}
+                            quality={55}
+                            alt={item.mediaName ?? ''}
                             loading="lazy"
-                            decoding="async"
                             className="h-14 w-14 shrink-0 rounded-lg bg-[var(--node-control-bg)] object-cover"
                           />
                           <div className="min-w-0 flex-1">
@@ -457,50 +520,18 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                   ) : (
                     <div className="grid grid-cols-3 gap-2 p-1">
                       {imageItems.map((item) => (
-                        <div key={item.id} className="group relative aspect-square overflow-hidden rounded-xl bg-[var(--node-control-bg)]">
-                          <img
-                            src={gridThumbSrc(item)}
-                            srcSet={gridThumbSrcSet(item)}
-                            sizes="(max-width: 900px) 20vw, 120px"
-                            alt={item.mediaName}
-                            width={120}
-                            height={120}
-                            loading="lazy"
-                            decoding="async"
-                            className="h-full w-full object-cover"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => openImage(item.supabaseUrl || item.mediaUrl || '')}
-                            className="absolute left-1 top-1 z-10 rounded-full bg-[var(--node-badge-bg)] p-0.5 text-[var(--node-overlay-text)] opacity-0 transition-opacity group-hover:opacity-100"
-                            title="Open preview"
-                          >
-                            <ExternalLink size={10} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => downloadImage(item.supabaseUrl || item.mediaUrl || '', item.mediaName || `image-${item.id}`)}
-                            className="absolute left-7 top-1 z-10 rounded-full bg-[var(--node-badge-bg)] p-0.5 text-[var(--node-overlay-text)] opacity-0 transition-opacity group-hover:opacity-100"
-                            title="Download image"
-                          >
-                            <Download size={10} />
-                          </button>
-                          <button type="button" onClick={() => removeItem(item.id)} className="absolute right-1 top-1 z-10 rounded-full bg-[var(--node-badge-bg)] p-0.5 text-[var(--node-overlay-text)] opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"><X size={10} /></button>
-                          {multiSelectMode && (
-                            <button
-                              type="button"
-                              onClick={() => toggleImageSelected(item.id)}
-                              className={`absolute left-1 bottom-1 z-10 flex h-5 w-5 items-center justify-center rounded-full border transition-colors ${
-                                selectedImageIdSet.has(item.id)
-                                  ? 'border-emerald-400 bg-emerald-500/25 text-emerald-200'
-                                  : 'border-[var(--node-control-border)] bg-[var(--node-badge-bg)] text-transparent hover:text-[var(--node-overlay-text)]'
-                              }`}
-                              title={selectedImageIdSet.has(item.id) ? 'Deselect image' : 'Select image'}
-                            >
-                              <Check size={11} />
-                            </button>
-                          )}
-                        </div>
+                        <ListNodeGridImageTile
+                          key={item.id}
+                          item={item}
+                          multiSelectMode={multiSelectMode}
+                          isImageSelected={selectedImageIdSet.has(item.id)}
+                          onToggleSelect={() => toggleImageSelected(item.id)}
+                          onOpenPreview={() => openImage(item.supabaseUrl || item.mediaUrl || '')}
+                          onDownload={() =>
+                            downloadImage(item.supabaseUrl || item.mediaUrl || '', item.mediaName || `image-${item.id}`)
+                          }
+                          onRemove={() => removeItem(item.id)}
+                        />
                       ))}
                     </div>
                   )}

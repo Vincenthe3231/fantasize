@@ -8,7 +8,11 @@ export const SCOUT_REMOTE_EXECUTION_TYPES = new Set<string>([
   'atmosphereTestNode',
 ]);
 
-export const UPDATE_NODE_DATA_DEBOUNCE_MS = 1000;
+/**
+ * Idle delay before coalesced `node.data` edits become one undo step (per node).
+ * Blur / undo / redo flush immediately via `flushNodeDataHistory`.
+ */
+export const UPDATE_NODE_DATA_DEBOUNCE_MS = 300;
 export const MAX_STACK = 50;
 /** Default canvas node box (React Flow `width` / `height` + `style`). */
 export const DEFAULT_NODE_W = 450;

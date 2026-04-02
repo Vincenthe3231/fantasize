@@ -39,7 +39,8 @@ export interface ScoutCoordinatorDeps {
   pipeline: ScoutPipelineState;
   /** Grid layout for angle variations */
   getGridLayout: (nodeId: string) => ScoutGridLayout;
-  updateNodeData: (id: string, data: Partial<Record<string, unknown>>) => void;
+  /** Programmatic node updates (no undo stack entries). */
+  updateNodeDataSilent: (id: string, data: Partial<Record<string, unknown>>) => void;
   options?: ScoutRunOptions;
   /** When true (e.g. Settings → Experimental tools), emit UI toasts for Scout steps. */
   experimentalDebug?: boolean;
@@ -212,7 +213,7 @@ async function applyStage2ImageResult(
   } catch (e: unknown) {
     console.warn('[Scout] generated image upload failed', e);
   }
-  deps.updateNodeData(nodeId, {
+  deps.updateNodeDataSilent(nodeId, {
     generatedUrl: urls[0],
     generatedUrls: urls,
     generatedImageMetaByUrl,
@@ -235,18 +236,18 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
   });
 
   if (node.type === 'imageGeneratorNode') {
-    deps.updateNodeData(node.id, { status: 'generating' });
+    deps.updateNodeDataSilent(node.id, { status: 'generating' });
   }
 
   const resolved = resolveContextAndKind(node, deps);
   if (resolved === null) {
     scoutDebugLog('executeScoutNode skip', { reason: 'Not a Scout execution node', nodeId: deps.nodeId });
-    if (node.type === 'imageGeneratorNode') deps.updateNodeData(node.id, { status: 'idle' });
+    if (node.type === 'imageGeneratorNode') deps.updateNodeDataSilent(node.id, { status: 'idle' });
     return { ok: false, reason: 'Not a Scout execution node' };
   }
   if ('error' in resolved) {
     scoutDebugLog('executeScoutNode resolve failed', { nodeId: deps.nodeId, reason: resolved.error });
-    if (node.type === 'imageGeneratorNode') deps.updateNodeData(node.id, { status: 'idle' });
+    if (node.type === 'imageGeneratorNode') deps.updateNodeDataSilent(node.id, { status: 'idle' });
     return { ok: false, reason: resolved.error };
   }
 
@@ -255,7 +256,7 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
   try {
     normalizedContext = await normalizeContextImageReferences(kind, context);
   } catch (e: unknown) {
-    if (node.type === 'imageGeneratorNode') deps.updateNodeData(node.id, { status: 'idle' });
+    if (node.type === 'imageGeneratorNode') deps.updateNodeDataSilent(node.id, { status: 'idle' });
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, reason: `Image reference normalization failed: ${msg}` };
   }
@@ -283,7 +284,7 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
     let failures = 0;
     let successes = 0;
     let lastSuccessResult: Extract<ScoutExecutionResult, { kind: 'stage2_image_generator' }> | null = null;
-    deps.updateNodeData(node.id, {
+    deps.updateNodeDataSilent(node.id, {
       status: 'generating',
       queueMode: 'perPromptSequential',
       queueTotal: promptItems.length,
@@ -299,7 +300,7 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
       let attempt = 0;
       while (!done && attempt < 2) {
         attempt += 1;
-        deps.updateNodeData(node.id, {
+        deps.updateNodeDataSilent(node.id, {
           queueCurrentPrompt: i + 1,
           queuePromptText: promptText,
           queueRetrying: attempt > 1,
@@ -327,7 +328,7 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
           done = true;
         }
       }
-      deps.updateNodeData(node.id, {
+      deps.updateNodeDataSilent(node.id, {
         queueCompleted: i + 1,
         queueFailures: failures,
         queueRetrying: false,
@@ -342,7 +343,7 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
         usedMock: false,
       });
     }
-    deps.updateNodeData(node.id, {
+    deps.updateNodeDataSilent(node.id, {
       status: successes > 0 ? 'success' : 'idle',
       queueDone: true,
       queueFailures: failures,
@@ -357,7 +358,7 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
     experimentalDebug: deps.experimentalDebug,
   });
   if (!api.ok || !api.result) {
-    if (node.type === 'imageGeneratorNode') deps.updateNodeData(node.id, { status: 'idle' });
+    if (node.type === 'imageGeneratorNode') deps.updateNodeDataSilent(node.id, { status: 'idle' });
     return {
       ok: false,
       reason: api.error ?? 'scout-execute returned no result',
@@ -384,7 +385,7 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
 
   /* Merge accumulators (list + lighting) */
   if (result.kind === 'stage3_angle_variations') {
-    deps.updateNodeData(node.id, {
+    deps.updateNodeDataSilent(node.id, {
       lastAngles: result.angles,
       lastAngleRunAt: Date.now(),
     });
@@ -406,7 +407,7 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
         ...(a.label != null ? { label: a.label } : {}),
       })),
     ];
-    deps.updateNodeData(listId, { accumulatedAngles: merged });
+    deps.updateNodeDataSilent(listId, { accumulatedAngles: merged });
   }
 
   if (result.kind === 'stage4_lighting_batch') {
@@ -415,7 +416,7 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
       ((ln?.data as { accumulatedLighting?: { id: string; label: string; src: string }[] })?.accumulatedLighting ??
         []) as { id: string; label: string; src: string }[];
     const merged = [...prev, ...result.results];
-    deps.updateNodeData(node.id, {
+    deps.updateNodeDataSilent(node.id, {
       lastBatchResults: result.results,
       accumulatedLighting: merged,
     });
@@ -428,7 +429,7 @@ export async function executeScoutNode(deps: ScoutCoordinatorDeps): Promise<{ ok
   ) {
     const patches = mapScoutResultToNodePatches(result, targets);
     for (const [nid, data] of Object.entries(patches)) {
-      deps.updateNodeData(nid, data);
+      deps.updateNodeDataSilent(nid, data);
     }
     if (deps.experimentalDebug && result.kind === 'stage2_instructions') {
       const rp = 'refinedPrompt' in result ? String(result.refinedPrompt ?? '') : '';

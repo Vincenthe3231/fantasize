@@ -1,4 +1,12 @@
-import { useCallback, useState, useEffect, useRef, useMemo, startTransition } from 'react';
+import {
+  useCallback,
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  startTransition,
+  Suspense,
+} from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useViewportHandleBoundsSync } from '@/hooks/useViewportHandleBoundsSync';
@@ -13,6 +21,8 @@ import {
 import { fetchOrCreateSpace, fetchSpaceById, isUuidParam, type SpaceRow } from '@/lib/spaceApi';
 import { shouldRestoreDraftFromLocal, type StoredSpaceDraft } from '@/lib/spaceDraftStorage';
 import { SpacePersistenceContext } from '@/contexts/SpacePersistenceContext';
+import { CanvasEdgeLodProvider } from '@/contexts/CanvasEdgeLodContext';
+import { CanvasViewportGestureContext } from '@/contexts/CanvasViewportGestureContext';
 import { useSpaceLocalPersistence } from '@/hooks/useSpaceLocalPersistence';
 import { useAuth } from '@/hooks/useAuth';
 import ReactFlow, {
@@ -40,36 +50,22 @@ import 'reactflow/dist/style.css';
 import '@reactflow/node-resizer/dist/style.css';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import TextNode from '@/components/canvas/TextNode';
-import UploadNode from '@/components/canvas/UploadNode';
-import AssistantNode from '@/components/canvas/AssistantNode';
-import ImageGeneratorNode from '@/components/canvas/ImageGeneratorNode';
-import VideoGeneratorNode from '@/components/canvas/VideoGeneratorNode';
-import ImageUpscalerNode from '@/components/canvas/ImageUpscalerNode';
-import ListNode from '@/components/canvas/ListNode';
-import PropsInputNode from '@/components/canvas/PropsInputNode';
-import AngleVariationsNode from '@/components/canvas/AngleVariationsNode';
-import AngleVariationsListNode from '@/components/canvas/AngleVariationsListNode';
-import SelectedShotNode from '@/components/canvas/SelectedShotNode';
-import AnnotationNode from '@/components/canvas/AnnotationNode';
-import SetDressingNode from '@/components/canvas/SetDressingNode';
-import LightingScenarioNode from '@/components/canvas/LightingScenarioNode';
-import AtmosphereTestNode from '@/components/canvas/AtmosphereTestNode';
-import PlacementRefNode from '@/components/canvas/PlacementRefNode';
-import ImageVariationsNode from '@/components/canvas/ImageVariationsNode';
-import CustomEdge from '@/components/canvas/CustomEdge';
-import ConnectionLineDomSource from '@/components/canvas/ConnectionLineDomSource';
 import Toolbar from '@/components/canvas/Toolbar';
 import TopBar from '@/components/canvas/TopBar';
-import SettingsPanel from '@/components/canvas/SettingsPanel';
 import BottomBar from '@/components/canvas/BottomBar';
 import CommentPin from '@/components/canvas/CommentPin';
-import SelectionOverlay from '@/components/canvas/SelectionOverlay';
-import GroupNode from '@/components/canvas/GroupNode';
 import BeLiveLoader from '@/components/canvas/BeLiveLoader';
 import { SystemNotificationToast } from '@/components/SystemNotificationToast';
 import { CanvasCursor } from '@/components/canvas/CanvasCursor';
-import { PixiHybridBackground } from '@/components/canvas/PixiHybridBackground';
+import { PixiHybridBackgroundGate } from '@/components/canvas/PixiHybridBackgroundGate';
+import { DevReactProfiler } from '@/components/dev/DevReactProfiler';
+import {
+  canvasLazyEdgeTypes,
+  canvasLazyNodeTypes,
+  ConnectionLineDomSourceLazy,
+  SelectionOverlayLazy,
+  SettingsPanelLazy,
+} from '@/lib/canvasFlowLazy';
 import { useMinLoadingDisplay } from '@/hooks/useMinLoadingDisplay';
 import { useSystemNotificationStore } from '@/stores/systemNotificationStore';
 import {
@@ -77,6 +73,10 @@ import {
   type NodeType,
   applyGroupDropReparentForMovedNodes,
 } from '@/stores/workflowStore';
+import {
+  isCanvasShortcutTargetBlocked,
+  nextCanvasPattern,
+} from '@/lib/canvasKeymap';
 import { validateScoutConnection } from '@/lib/scoutPipeline';
 import { DEFAULT_FIT_VIEW_OPTIONS } from '@/lib/canvasViewport';
 import { canvasPerfFlags, runWithCanvasPerfMark } from '@/lib/canvasPerf';
@@ -87,29 +87,6 @@ import {
   bumpHandleFlowPositionRevision,
   measureAndCacheHandleFlowPosition,
 } from '@/lib/canvasHandlePositionCache';
-const nodeTypes = {
-  textNode: TextNode,
-  uploadNode: UploadNode,
-  assistantNode: AssistantNode,
-  imageGeneratorNode: ImageGeneratorNode,
-  videoGeneratorNode: VideoGeneratorNode,
-  imageUpscalerNode: ImageUpscalerNode,
-  listNode: ListNode,
-  propsInputNode: PropsInputNode,
-  angleVariationsNode: AngleVariationsNode,
-  angleVariationsListNode: AngleVariationsListNode,
-  selectedShotNode: SelectedShotNode,
-  annotationNode: AnnotationNode,
-  setDressingNode: SetDressingNode,
-  lightingScenarioNode: LightingScenarioNode,
-  atmosphereTestNode: AtmosphereTestNode,
-  placementRefNode: PlacementRefNode,
-  imageVariationsNode: ImageVariationsNode,
-  group: GroupNode,
-};
-
-const edgeTypes = { custom: CustomEdge };
-
 /** Minimum time (ms) the workspace loader stays visible after fetch/draft resolve — see `useMinLoadingDisplay`. */
 const WORKSPACE_LOADER_MIN_MS = canvasPerfFlags.fastStartupMode ? 120 : 1000;
 const ENTRY_SPLASH_MS = canvasPerfFlags.fastStartupMode ? 250 : 2000;
@@ -281,6 +258,7 @@ const CanvasInnerReactFlow = ({
   const focusedNodeContentId = useWorkflowStore((s) => s.focusedNodeContentId);
   const hydrateFromSpace = useWorkflowStore((s) => s.hydrateFromSpace);
   const setLastViewport = useWorkflowStore((s) => s.setLastViewport);
+  const updateSettings = useWorkflowStore((s) => s.updateSettings);
   const [searchParams] = useSearchParams();
   const debugNodeParam = useMemo(() => searchParams.get('debugNode')?.trim() ?? '', [searchParams]);
   const canvasEdgeDebugOn = useMemo(() => isCanvasEdgeDebugEnabled(searchParams), [searchParams]);
@@ -360,13 +338,20 @@ const CanvasInnerReactFlow = ({
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const dragGraphSnapshotRef = useRef<Node[] | null>(null);
   const userSelectionRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
-  const moveHandleBoundsRafRef = useRef<number | null>(null);
-  const pendingMoveViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
   const spatialBoundsByIdRef = useRef<Map<string, SpatialNodeBounds>>(new Map());
   const spatialPendingDeltasRef = useRef<Map<string, SpatialNodeDelta>>(new Map());
   const spatialUpdateRafRef = useRef<number | null>(null);
   const spatialRevisionRef = useRef(0);
-  const { screenToFlowPosition, fitView, getNodes, getNode, getEdges, setViewport } = useReactFlow();
+  const {
+    screenToFlowPosition,
+    fitView,
+    getNodes,
+    getNode,
+    getEdges,
+    setViewport,
+    zoomIn,
+    zoomOut,
+  } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
   const { refreshAllHandleBounds, queueHandleBoundsRefresh } = useViewportHandleBoundsSync();
   const storeApi = useStoreApi();
@@ -453,21 +438,6 @@ const CanvasInnerReactFlow = ({
     [setLastViewport, refreshAllHandleBounds, canvasEdgeDebugOn, storeApi]
   );
 
-  const onMove = useCallback(
-    (_e: MouseEvent | TouchEvent | null, vp: { x: number; y: number; zoom: number }) => {
-      pendingMoveViewportRef.current = vp;
-      if (moveHandleBoundsRafRef.current != null) return;
-      // One rAF per frame: sync Zustand viewport + handle bounds (avoids hybrid Pixi path updating store every RF tick).
-      moveHandleBoundsRafRef.current = requestAnimationFrame(() => {
-        moveHandleBoundsRafRef.current = null;
-        const v = pendingMoveViewportRef.current;
-        if (v) setLastViewport({ x: v.x, y: v.y, zoom: v.zoom });
-        refreshAllHandleBounds();
-      });
-    },
-    [refreshAllHandleBounds, setLastViewport]
-  );
-
   useEffect(() => {
     if (!canvasPerfFlags.deferNonCriticalCanvasUi) return;
     let cancelled = false;
@@ -485,15 +455,6 @@ const CanvasInnerReactFlow = ({
     return () => {
       cancelled = true;
       globalThis.clearTimeout(t);
-    };
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (moveHandleBoundsRafRef.current != null) {
-        cancelAnimationFrame(moveHandleBoundsRafRef.current);
-        moveHandleBoundsRafRef.current = null;
-      }
     };
   }, []);
 
@@ -883,8 +844,20 @@ const CanvasInnerReactFlow = ({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if ((e.target as HTMLElement)?.closest?.('.ProseMirror')) return;
+      if (isCanvasShortcutTargetBlocked(e.target)) return;
+
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        if (e.key === '=' || e.key === '+' || e.code === 'NumpadAdd') {
+          e.preventDefault();
+          zoomIn({ duration: 200 });
+          return;
+        }
+        if (e.key === '-' || e.code === 'NumpadSubtract') {
+          e.preventDefault();
+          zoomOut({ duration: 200 });
+          return;
+        }
+      }
 
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
@@ -930,6 +903,11 @@ const CanvasInnerReactFlow = ({
           setEdgesSilently(applyEdgeSelection(store.edges, empty));
         }
       }
+      if (e.key.toLowerCase() === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        updateSettings({ canvasPattern: nextCanvasPattern(settings.canvasPattern) });
+        return;
+      }
       if (e.key.toLowerCase() === 'n' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         setAddPanelOpen(true);
@@ -950,6 +928,10 @@ const CanvasInnerReactFlow = ({
     copyNodesByIds,
     pasteClipboard,
     getNodes,
+    zoomIn,
+    zoomOut,
+    updateSettings,
+    settings.canvasPattern,
   ]);
 
   const cursorClass =
@@ -969,6 +951,19 @@ const CanvasInnerReactFlow = ({
   const canvasPanOnScroll = !nodeContentFocusActive && settings.mouseWheelBehavior === 'pan';
   const canvasZoomOnScroll = !nodeContentFocusActive && settings.mouseWheelBehavior === 'zoom';
 
+  const edgeLodReduced = useMemo(() => {
+    if (canvasPerfFlags.edgeLodDuringViewportInteraction && isViewportInteracting) return true;
+    if (
+      canvasPerfFlags.edgeLodInDenseGraph &&
+      storeEdges.length >= canvasPerfFlags.denseEdgeLodThreshold
+    ) {
+      return true;
+    }
+    return false;
+  }, [isViewportInteracting, storeEdges.length]);
+
+  const edgeLodLevel = edgeLodReduced ? 'reduced' : 'full';
+
   const targetId = contextMenu?.targetId;
 
   return (
@@ -979,6 +974,8 @@ const CanvasInnerReactFlow = ({
         isSavingToRemote: persistence.isSavingToRemote,
       }}
     >
+    <DevReactProfiler id="vf-canvas-inner">
+    <CanvasViewportGestureContext.Provider value={isViewportInteracting}>
     <div
       className={`w-screen h-screen ${hybridBackground ? 'flex min-h-0 flex-col' : ''} ${shellCanvasClass} ${cursorClass} ${settings.showNodeLabels ? '' : 'workflow-hide-labels'} ${isConnectingFromHandle ? 'vf-connecting-edge' : ''} ${selectedTool === 'cut' ? 'vf-snip-tool' : ''}`}
       onClick={handleCanvasClick}
@@ -992,16 +989,25 @@ const CanvasInnerReactFlow = ({
         addPanelOpen={addPanelOpen}
         onAddPanelOpenChange={setAddPanelOpen}
       />
-      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {settingsOpen ? (
+        <Suspense fallback={null}>
+          <SettingsPanelLazy open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        </Suspense>
+      ) : null}
       <CanvasCursor />
 
       {(storeNodes.some((n) => n.selected) || storeEdges.some((e) => e.selected)) &&
       (!canvasPerfFlags.deferNonCriticalCanvasUi || deferredUiReady) ? (
-        <SelectionOverlay
-          nodes={storeNodes}
-          edges={storeEdges}
-          wrapperRef={reactFlowWrapper}
-        />
+        <Suspense fallback={null}>
+          <SelectionOverlayLazy
+            nodes={storeNodes}
+            edges={storeEdges}
+            wrapperRef={reactFlowWrapper}
+            interactionCompressViewport={
+              isViewportInteracting && canvasPerfFlags.selectionOverlayQuantizeDuringViewport
+            }
+          />
+        </Suspense>
       ) : null}
 
       {!canvasPerfFlags.deferNonCriticalCanvasUi || deferredUiReady
@@ -1140,8 +1146,10 @@ const CanvasInnerReactFlow = ({
           hybridBackground ? 'relative flex min-h-0 w-full flex-1 flex-col' : 'contents'
         }
       >
-        {hybridBackground ? <PixiHybridBackground /> : null}
-        <ReactFlow
+        <Suspense fallback={null}>
+          {hybridBackground ? <PixiHybridBackgroundGate /> : null}
+          <CanvasEdgeLodProvider value={edgeLodLevel}>
+          <ReactFlow
         className={
           hybridBackground ? 'relative z-10 min-h-0 flex-1 !bg-transparent' : undefined
         }
@@ -1161,7 +1169,7 @@ const CanvasInnerReactFlow = ({
         onConnectEnd={onConnectEnd}
         isValidConnection={isValidConnection}
         connectionLineType={ConnectionLineType.Bezier}
-        connectionLineComponent={ConnectionLineDomSource}
+        connectionLineComponent={ConnectionLineDomSourceLazy}
         connectionLineStyle={{ stroke: 'var(--edge-stroke)', strokeWidth: 2 }}
         onNodeDragStart={(_, node) => {
           runWithCanvasPerfMark('canvas.dragStart', () => {
@@ -1249,13 +1257,12 @@ const CanvasInnerReactFlow = ({
           setContextMenu(null);
           setIsViewportInteracting(true);
         }}
-        onMove={onMove}
         onMoveEnd={onMoveEnd}
         onPaneClick={() => setFocusedNodeContentId(null)}
         onSelectionChange={onSelectionChange}
         onSelectionEnd={onSelectionEnd}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
+        nodeTypes={canvasLazyNodeTypes}
+        edgeTypes={canvasLazyEdgeTypes}
         panOnDrag={canvasPanOnDrag}
         panOnScroll={canvasPanOnScroll}
         zoomOnScroll={canvasZoomOnScroll}
@@ -1289,6 +1296,8 @@ const CanvasInnerReactFlow = ({
           />
         )}
       </ReactFlow>
+          </CanvasEdgeLodProvider>
+        </Suspense>
       </div>
       <BottomBar />
       {notifications.length > 0 &&
@@ -1308,6 +1317,8 @@ const CanvasInnerReactFlow = ({
         </div>
       ) : null}
     </div>
+    </CanvasViewportGestureContext.Provider>
+    </DevReactProfiler>
     </SpacePersistenceContext.Provider>
   );
 };

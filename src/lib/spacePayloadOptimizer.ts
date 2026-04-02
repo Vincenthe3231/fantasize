@@ -1,5 +1,6 @@
 import type { Edge, Node } from 'reactflow';
 import type { CanvasSnapshotPayload } from '@/lib/spaceDraftStorage';
+import { normalizeImageReferenceUrl } from '@/lib/scoutMediaUrlNormalizer';
 
 /** React Flow UI-only keys — safe to omit from persisted JSON (parity helpers already strip these). */
 const STRIP_NODE_KEYS = ['selected', 'dragging', 'resizing', 'positionAbsolute'] as const;
@@ -96,7 +97,6 @@ async function normalizeUnknownJsonValue(value: unknown): Promise<unknown> {
   if (typeof value === 'string') {
     if (!needsRemoteMediaNormalization(value)) return value;
     try {
-      const { normalizeImageReferenceUrl } = await import('@/lib/scoutMediaUrlNormalizer');
       return await normalizeImageReferenceUrl(value);
     } catch {
       return value;

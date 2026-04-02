@@ -34,6 +34,8 @@ export type RichTextFieldProps = {
   editorProps?: Record<string, unknown>;
   /** Passed to useEditor dependency array when extensions must recreate. */
   extensionDeps?: unknown[];
+  /** When focus leaves the field (and toolbar inside), e.g. flush coalesced undo history. */
+  onFlushHistory?: () => void;
 };
 
 export function RichTextField({
@@ -47,6 +49,7 @@ export function RichTextField({
   editorContentClassName = 'w-full text-[13px] text-[var(--text-primary)] outline-none min-h-[80px] leading-relaxed prose prose-invert prose-sm max-w-none [&_blockquote]:border-l-[var(--accent-color)] [&_blockquote]:text-muted-foreground [&_pre]:bg-[var(--node-inner-deep)] [&_pre]:rounded-md [&_code]:text-[var(--accent-color)]',
   editorProps: extraEditorProps,
   extensionDeps = [],
+  onFlushHistory,
 }: RichTextFieldProps) {
   const getWorkflowNodes = useCallback(() => useWorkflowStore.getState().nodes, []);
   const workflowNodes = useWorkflowStore((s) => s.nodes);
@@ -129,6 +132,7 @@ export function RichTextField({
         const next = e.relatedTarget as Node | null;
         if (next && rootRef.current?.contains(next)) return;
         setFocusWithin(false);
+        onFlushHistory?.();
       }}
     >
       <AnimatePresence>

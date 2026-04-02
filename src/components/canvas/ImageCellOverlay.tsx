@@ -7,7 +7,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
-import { canvasPreviewImageUrl, canvasResponsiveSrcSet } from '@/lib/imageDelivery';
+import CanvasNodeImage from '@/components/canvas/CanvasNodeImage';
 
 interface ImageCellOverlayProps {
   src: string;
@@ -32,15 +32,9 @@ const ImageCellOverlay = ({
 }: ImageCellOverlayProps) => {
   const [hovered, setHovered] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cellMeasureRef = useRef<HTMLDivElement>(null);
+  const dialogMeasureRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useCanvasReduceMotion();
-  const cellPreviewSrc = canvasPreviewImageUrl(src, { width: 320, height: 240, quality: 60 });
-  const cellPreviewSrcSet = canvasResponsiveSrcSet(src, [160, 240, 320], { quality: 60 });
-  const expandedPreviewSrc = canvasPreviewImageUrl(src, { width: 1600, quality: 72, resize: 'contain' });
-  const expandedPreviewSrcSet = canvasResponsiveSrcSet(src, [640, 960, 1280, 1600], {
-    quality: 72,
-    resize: 'contain',
-  });
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && onReplace) onReplace(file);
@@ -73,17 +67,20 @@ const ImageCellOverlay = ({
         </div>
       )}
 
-      <div className="relative aspect-[4/3] bg-[var(--node-control-bg)] border border-[var(--node-control-border)] rounded-xl overflow-hidden group/cell">
-        <img
-          src={cellPreviewSrc}
-          srcSet={cellPreviewSrcSet}
-          sizes="(max-width: 1024px) 40vw, 180px"
+      <div
+        ref={cellMeasureRef}
+        className="relative aspect-[4/3] bg-[var(--node-control-bg)] border border-[var(--node-control-border)] rounded-xl overflow-hidden group/cell"
+      >
+        <CanvasNodeImage
+          mediaUrl={src}
+          measureRef={cellMeasureRef}
+          fallbackCssWidth={180}
+          fallbackCssHeight={135}
+          quality={60}
+          resize="cover"
           alt={label || 'image'}
-          width={180}
-          height={135}
           loading="lazy"
-          decoding="async"
-          className={`w-full h-full object-cover ${reduceMotion ? '' : 'transition-transform duration-300 group-hover/cell:scale-[1.02]'}`}
+          className="h-full w-full object-cover"
         />
 
         <AnimatePresence>
@@ -130,15 +127,19 @@ const ImageCellOverlay = ({
                     className="max-w-[90vw] max-h-[90vh] p-2 border border-[var(--node-control-border)] bg-[var(--node-inner-deep)]"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <img
-                      src={expandedPreviewSrc}
-                      srcSet={expandedPreviewSrcSet}
-                      sizes="90vw"
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-auto max-h-[85vh] object-contain rounded-md mx-auto"
-                    />
+                    <div ref={dialogMeasureRef} className="mx-auto w-full max-h-[85vh] min-h-[120px]">
+                      <CanvasNodeImage
+                        mediaUrl={src}
+                        measureRef={dialogMeasureRef}
+                        fallbackCssWidth={typeof window !== 'undefined' ? Math.min(1200, Math.round(window.innerWidth * 0.88)) : 960}
+                        fallbackCssHeight={typeof window !== 'undefined' ? Math.min(900, Math.round(window.innerHeight * 0.78)) : 720}
+                        quality={72}
+                        resize="contain"
+                        alt=""
+                        loading="lazy"
+                        className="mx-auto h-auto max-h-[85vh] w-full object-contain rounded-md"
+                      />
+                    </div>
                     {resolution && (
                       <p className="text-center text-[11px] font-mono text-[var(--text-muted)] pt-1">{resolution}</p>
                     )}

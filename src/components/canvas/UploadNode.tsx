@@ -13,7 +13,7 @@ import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { stage1Complete } from '@/lib/scoutPipeline';
-import { canvasPreviewImageUrl, canvasResponsiveSrcSet } from '@/lib/imageDelivery';
+import CanvasNodeImage from '@/components/canvas/CanvasNodeImage';
 
 function isVideoUrl(url: string): boolean {
   return /\.(mp4|mov|webm)(\?|$)/i.test(url);
@@ -76,6 +76,7 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [mediaDims, setMediaDims] = useState<{ w: number; h: number } | null>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
+  const mediaMeasureRef = useRef<HTMLDivElement>(null);
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
   const updateNodeDataSilent = useWorkflowStore((s) => s.updateNodeDataSilent);
@@ -167,15 +168,6 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
     storedH > 0
       ? { w: storedW, h: storedH }
       : null);
-  const mediaPreviewUrl = useMemo(() => {
-    if (isVideoUrl(mediaUrl)) return mediaUrl;
-    return canvasPreviewImageUrl(mediaUrl, { width: 960, height: 720, quality: 68 });
-  }, [mediaUrl]);
-  const mediaPreviewSrcSet = useMemo(() => {
-    if (isVideoUrl(mediaUrl)) return undefined;
-    return canvasResponsiveSrcSet(mediaUrl, [320, 480, 720, 960], { quality: 68 });
-  }, [mediaUrl]);
-
   const syncDimsFromElement = useCallback(
     (w: number, h: number) => {
       if (w <= 0 || h <= 0) return;
@@ -221,7 +213,10 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
             <div className="rounded-[10px] overflow-hidden bg-[var(--node-inner-deep)] flex min-h-0 min-w-0 flex-1 flex-col">
               {mediaUrl ? (
                 <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                  <div className="absolute inset-0 min-h-0 min-w-0 overflow-hidden">
+                  <div
+                    ref={mediaMeasureRef}
+                    className="absolute inset-0 min-h-0 min-w-0 overflow-hidden"
+                  >
                     {isVideoUrl(mediaUrl) ? (
                       <video
                         src={mediaUrl}
@@ -229,19 +224,22 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
                         muted
                         playsInline
                         loop
+                        preload="metadata"
                         onLoadedMetadata={(e) => {
                           const el = e.currentTarget;
                           syncDimsFromElement(el.videoWidth, el.videoHeight);
                         }}
                       />
                     ) : (
-                      <img
-                        src={mediaPreviewUrl}
-                        srcSet={mediaPreviewSrcSet}
-                        sizes="(max-width: 1024px) 70vw, 560px"
+                      <CanvasNodeImage
+                        mediaUrl={mediaUrl}
+                        measureRef={mediaMeasureRef}
+                        fallbackCssWidth={560}
+                        fallbackCssHeight={420}
+                        quality={68}
+                        resize="cover"
                         alt=""
                         loading="lazy"
-                        decoding="async"
                         className="h-full w-full object-cover"
                         onLoad={(e) => {
                           const el = e.currentTarget;

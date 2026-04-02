@@ -35,6 +35,28 @@ export const canvasPerfFlags = {
   fastStartupMode: readBoolFlag('canvasFastStartup', true),
   deferNonCriticalCanvasUi: readBoolFlag('canvasDeferUi', true),
   deferToastsDuringInteraction: readBoolFlag('canvasDeferToasts', true),
+  /**
+   * During pan/zoom (and node drag, which sets the same interacting flag), render edges in
+   * `CustomEdge` with a single simplified path and no hover / snip chrome to cut paint cost in
+   * dense graphs.
+   */
+  edgeLodDuringViewportInteraction: readBoolFlag('canvasEdgeLod', true),
+  /**
+   * While the flag above is on, also use reduced edges when the board has many connections,
+   * even if the user is not mid-gesture — lowers baseline cost in “hairball” graphs; cut/snip
+   * on edges may be degraded until zooming in or pausing.
+   */
+  edgeLodInDenseGraph: readBoolFlag('canvasEdgeLodDense', false),
+  /** Edge count at/above which dense-graph LOD applies (see `edgeLodInDenseGraph`). */
+  denseEdgeLodThreshold: 350,
+  /** Quantize pan deltas for selection overlay positioning to fewer React commits during gesture */
+  selectionOverlayQuantizeDuringViewport: readBoolFlag('canvasOverlayQuantize', true),
+  /** Flow-space pixels to quantize viewport x/y when overlay quantize is active */
+  selectionOverlayViewportQuantizePx: 8,
+  /** Freeze CDN `src` / `srcSet` churn while panning/zooming or dragging nodes (see `CanvasNodeImage`). */
+  deferCanvasImageUrlDuringViewport: readBoolFlag('canvasImageDeferGesture', true),
+  /** Debounce ResizeObserver → image delivery plan updates (ms). */
+  canvasImageResizeDebounceMs: 120,
   spatialIndexThreshold: 250,
 } as const;
 

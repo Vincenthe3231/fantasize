@@ -61,9 +61,16 @@ export function useViewportHandleBoundsSync(): {
   }, [getNodes, queueHandleBoundsRefresh]);
 
   const zoom = useStore((s) => s.transform[2]);
+  const lastZoomForInternalsRef = useRef<number | null>(null);
 
   const rafRef = useRef<number | null>(null);
   useEffect(() => {
+    const prevZ = lastZoomForInternalsRef.current;
+    if (prevZ != null && Math.abs(prevZ - zoom) < 1e-6) {
+      return;
+    }
+    lastZoomForInternalsRef.current = zoom;
+
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null;

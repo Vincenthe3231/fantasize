@@ -70,7 +70,7 @@ describe('scoutRunCoordinator', () => {
       edges,
       pipeline,
       getGridLayout: () => '2x2',
-      updateNodeData: (id, data) => {
+      updateNodeDataSilent: (id, data) => {
         patches[id] = { ...(patches[id] ?? {}), ...data };
       },
     });
@@ -92,7 +92,7 @@ describe('scoutRunCoordinator', () => {
       edges,
       pipeline,
       getGridLayout: () => '2x2',
-      updateNodeData: (id, data) => {
+      updateNodeDataSilent: (id, data) => {
         patches[id] = { ...(patches[id] ?? {}), ...data };
       },
     });
@@ -127,7 +127,7 @@ describe('scoutRunCoordinator', () => {
       edges,
       pipeline,
       getGridLayout: () => '2x2',
-      updateNodeData: () => {},
+      updateNodeDataSilent: () => {},
     });
 
     expect(r.ok).toBe(false);
@@ -204,7 +204,7 @@ describe('scoutRunCoordinator', () => {
       edges,
       pipeline,
       getGridLayout: () => '2x2',
-      updateNodeData: (_id, data) => {
+      updateNodeDataSilent: (_id, data) => {
         if (Array.isArray(data.generatedUrls)) {
           imageUpdateBatches.push(data.generatedUrls.map((u) => String(u)));
         }

@@ -8,8 +8,8 @@ import type { Viewport2D } from '@/lib/pixiBoard/screenFlowTransform';
  *
  * Viewport is driven only by React Flow's internal transform (single source of truth).
  * Draw is scheduled with one requestAnimationFrame per frame (double rAF removed — it added
- * latency; viewport sync to Zustand is done from Index `onMove`, not here, to avoid ~60 store
- * updates/sec during pan).
+ * latency; avoid syncing the board viewport into Zustand every pan frame — only on gesture end
+ * / coarse updates — to prevent heavy store subscribers during pan).
  *
  * Manual QA: slow trackpad zoom on Safari vs Chrome; if WebGL lags behind DOM, try useLayoutEffect.
  */

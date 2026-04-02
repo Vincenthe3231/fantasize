@@ -105,6 +105,7 @@ const AssistantGlassNode = styled.div<{ $focused: boolean }>`
 const AssistantNode = memo(({ id, data }: NodeProps) => {
   const isStoreRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
+  const flushNodeDataHistory = useWorkflowStore((s) => s.flushNodeDataHistory);
   const runFromNode = useWorkflowStore((s) => s.runFromNode);
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
@@ -234,6 +235,7 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
                 <RichTextField
                   value={prompt}
                   onChange={(html) => updateNodeData(id, { prompt: html })}
+                  onFlushHistory={() => flushNodeDataHistory(id)}
                   placeholder={PLACEHOLDER}
                   excludeNodeId={id}
                   toolbarVariant="top"

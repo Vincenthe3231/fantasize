@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Square,
@@ -12,7 +12,9 @@ import {
 } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { DEFAULT_NODE_H, DEFAULT_NODE_W } from '@/stores/workflowStore.constants';
-import { useViewport, type Node, type Edge } from 'reactflow';
+import { useStore, type Node, type Edge } from 'reactflow';
+import { shallow } from 'zustand/shallow';
+import { canvasPerfFlags } from '@/lib/canvasPerf';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 import { SelectionConnectMenu } from '@/components/canvas/SelectionConnectMenu';
 
@@ -36,6 +38,8 @@ interface SelectionOverlayProps {
   nodes: Node[];
   edges: Edge[];
   wrapperRef: React.RefObject<HTMLDivElement | null>;
+  /** Fewer viewport-driven commits during pan/zoom by quantizing RF transform (see `canvasPerfFlags`). */
+  interactionCompressViewport?: boolean;
 }
 
 type FlowBounds = { minX: number; minY: number; maxX: number; maxY: number };
@@ -126,8 +130,28 @@ function nodeIsUnderSelection(nodeId: string, allNodes: Node[], selectedIds: Set
   return false;
 }
 
-export default function SelectionOverlay({ nodes, edges, wrapperRef }: SelectionOverlayProps) {
-  const viewport = useViewport();
+export default function SelectionOverlay({
+  nodes,
+  edges,
+  wrapperRef,
+  interactionCompressViewport = false,
+}: SelectionOverlayProps) {
+  const compress = Boolean(interactionCompressViewport);
+  const [vx, vy, vzoom] = useStore(
+    useCallback(
+      (s) => {
+        const [x, y, z] = s.transform;
+        const q = canvasPerfFlags.selectionOverlayViewportQuantizePx;
+        if (compress && q > 0) {
+          return [Math.round(x / q) * q, Math.round(y / q) * q, z] as const;
+        }
+        return [x, y, z] as const;
+      },
+      [compress]
+    ),
+    shallow
+  );
+  const viewport = useMemo(() => ({ x: vx, y: vy, zoom: vzoom }), [vx, vy, vzoom]);
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
   const removeEdgeById = useWorkflowStore((s) => s.removeEdgeById);

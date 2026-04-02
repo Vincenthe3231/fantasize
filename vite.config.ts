@@ -29,4 +29,21 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/react-dom") || id.includes("node_modules/react/")) {
+            return "react-vendor";
+          }
+          if (id.includes("node_modules/reactflow")) {
+            return "reactflow-vendor";
+          }
+          if (id.includes("node_modules/@supabase")) {
+            return "supabase-vendor";
+          }
+        },
+      },
+    },
+  },
 }));

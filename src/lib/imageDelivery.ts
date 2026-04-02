@@ -60,12 +60,83 @@ export function canvasResponsiveSrcSet(
     quality = 62,
     format = 'webp',
     resize = 'cover',
+    height,
   }: ImageVariantOptions = {}
 ): string | undefined {
   const trimmed = src.trim();
   if (!shouldTransform(trimmed)) return undefined;
   const entries = widths
     .filter((w) => Number.isFinite(w) && w > 0)
-    .map((w) => `${withTransformParams(trimmed, { width: w, quality, format, resize })} ${Math.round(w)}w`);
+    .map(
+      (w) =>
+        `${withTransformParams(trimmed, { width: w, height, quality, format, resize })} ${Math.round(w)}w`
+    );
   return entries.length > 0 ? entries.join(', ') : undefined;
+}
+
+function uniqueSortedPositiveWidths(values: number[]): number[] {
+  const seen = new Set<number>();
+  for (const v of values) {
+    const n = Math.round(v);
+    if (Number.isFinite(n) && n >= 48) seen.add(Math.min(4096, n));
+  }
+  return [...seen].sort((a, b) => a - b);
+}
+
+/**
+ * Build `src` / `srcSet` / `sizes` from the **CSS box** the image occupies (post-zoom, in layout px),
+ * scaled by devicePixelRatio for Supabase transform widths. Non-HTTP / non-Supabase URLs pass through.
+ */
+export function canvasImagePlanForBox(
+  src: string,
+  cssWidthPx: number,
+  cssHeightPx: number | undefined,
+  {
+    quality = 62,
+    format = 'webp',
+    resize = 'cover',
+  }: ImageVariantOptions = {}
+): { src: string; srcSet: string | undefined; sizes: string } {
+  const trimmed = src.trim();
+  const safeW = Math.max(1, cssWidthPx);
+  const sizes = `${Math.ceil(safeW)}px`;
+
+  if (!shouldTransform(trimmed)) {
+    return { src: trimmed, srcSet: undefined, sizes };
+  }
+
+  const dpr =
+    typeof window !== 'undefined' ? Math.min(2.25, window.devicePixelRatio || 1) : 1.5;
+  const targetW = Math.min(4096, Math.max(48, Math.ceil(safeW * dpr)));
+  const targetH =
+    cssHeightPx != null && cssHeightPx > 0
+      ? Math.min(4096, Math.max(48, Math.ceil(cssHeightPx * dpr)))
+      : undefined;
+
+  let tiers = uniqueSortedPositiveWidths([
+    targetW * 0.45,
+    targetW * 0.7,
+    targetW,
+    targetW * 1.15,
+    targetW * 1.35,
+  ]);
+  if (tiers.length === 0) tiers = [Math.max(48, Math.min(4096, targetW))];
+
+  const srcSet = canvasResponsiveSrcSet(trimmed, tiers, {
+    quality,
+    format,
+    resize,
+    height: targetH,
+  });
+
+  const fallbackW = tiers[Math.min(1, tiers.length - 1)] ?? targetW;
+  const srcOut = canvasPreviewImageUrl(trimmed, {
+    width: fallbackW,
+    height: targetH,
+    quality,
+    format,
+    resize,
+  });
+
+  return { src: srcOut, srcSet, sizes };
 }
