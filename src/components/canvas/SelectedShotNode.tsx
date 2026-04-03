@@ -37,7 +37,6 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
   const { connectMenuItems } = useQuickConnect(id, selfPos, quickOverrides);
   const [hovered, setHovered] = useState(false);
   const replaceInputRef = useRef<HTMLInputElement>(null);
-  const heroMeasureRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useCanvasReduceMotion();
   const gestureActive = useCanvasViewportGestureActive();
 
@@ -91,12 +90,9 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
         />
 
         <NodeContentFocus nodeId={id} shellMoveCursor>
-          <div ref={heroMeasureRef} className="relative aspect-[16/9] w-full">
+          <div className="relative aspect-[16/9] w-full">
             <CanvasNodeImage
               mediaUrl={mediaUrl}
-              measureRef={heroMeasureRef}
-              fallbackCssWidth={640}
-              fallbackCssHeight={360}
               quality={66}
               resize="cover"
               alt="Selected shot"

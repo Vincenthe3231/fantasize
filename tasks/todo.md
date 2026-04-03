@@ -11,7 +11,7 @@
 - [x] Settings Shortcuts tab: shared `CANVAS_SHORTCUT_SECTIONS` + `isCanvasShortcutTargetBlocked` / `nextCanvasPattern` in `src/lib/canvasKeymap.ts`; zoom +/- and `G` cycle background in `Index.tsx`; Toolbar keydown uses same focus guard as Index.
 - [x] INP / presentation delay: no per-pan `refreshAllHandleBounds` or `setLastViewport` (`Index.tsx`); route profiler removed from `App.tsx`; zoom epsilon + viewport-only parity debounce (`useViewportHandleBoundsSync`, `useSpaceLocalPersistence`); `Toolbar` memoized.
 - [x] Phase 5 — Edge / overlay LOD: `CanvasEdgeLodContext` + simplified `CustomEdge` during viewport/node-drag gestures (and optional dense-graph mode via `vf.perf.canvasEdgeLodDense`); quantized RF transform for `SelectionOverlay` during gestures (`canvasPerf.ts` flags).
-- [x] Canvas image delivery: `CanvasNodeImage` + `canvasImagePlanForBox` (Supabase `src`/`srcSet`/`sizes` from CSS box × DPR, debounced `ResizeObserver`); freeze URL churn during viewport/node drag (`CanvasViewportGestureContext`); `decode()` after load; video `preload="metadata"` on `UploadNode`. **Toggles:** `vf.perf.canvasImageDeferGesture`, `canvasImageResizeDebounceMs` in `canvasPerf.ts`.
+- [x] Canvas image delivery: `CanvasNodeImage` uses **stable** Supabase URLs (`canvasStableImageUrl` — fixed `width` from `canvasImageStableMaxWidth`, default 1280) or explicit `fixedCssWidth` for small thumbs; no `ResizeObserver`/zoom-churn. `canvasImagePlanForBox` kept for any legacy/tests. Gesture defer + low-zoom placeholder unchanged. **Toggles:** `vf.perf.canvasImageDeferGesture`, `?canvasImageStableMaxWidth=…` / `vf.perf.canvasImageStableMaxWidth`.
 - [x] Hybrid v1 (grid + edges): Pixi layer now mirrors dense-edge geometry from RF internals in hybrid mode (`PixiHybridBackground`); interaction LOD + DOM edge cutover flags added in `canvasPerf.ts`; image-heavy drag hardening suppresses hover overlays during gestures (`ImageCellOverlay`, `SelectedShotNode`).
 
 ## INP / presentation delay
@@ -43,6 +43,8 @@ If presentation delay is still high due to DOM/layout: move toward **Hybrid (Web
 Use **WASM** only for proven hot math paths (edge picking/spatial queries), not as a general INP fix.
 
 ## Review
+
+- **Stable canvas image URLs (2026-04):** `CanvasNodeImage` no longer measures CSS box × DPR for Supabase transforms. Default path: `canvasStableImageUrl` with `canvasPerfFlags.canvasImageStableMaxWidth` (1280). Optional `fixedCssWidth`/`fixedCssHeight` for grid/list thumbs. **Verify:** Network tab — same `width=` in URL when panning/zooming; crossing low-zoom placeholder still remounts `<img>` once.
 
 - **Middle-mouse pan (2026-04):** Hand tool uses `panOnDrag={[0, 1]}`; Select/other tools use `[1]` for middle-only pan. **Removed** `middleMouseButtonHeld` gating of wheel — wheel follows Settings only (Zoom = scale, Pan = move view); middle **drag** is separate (React Flow `panOnDrag`). Settings copy documents this. **Verify:** wheel Zoom vs Pan modes; middle-drag pans without affecting wheel semantics.
 

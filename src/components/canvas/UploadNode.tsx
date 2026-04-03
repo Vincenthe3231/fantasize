@@ -76,7 +76,6 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [mediaDims, setMediaDims] = useState<{ w: number; h: number } | null>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
-  const mediaMeasureRef = useRef<HTMLDivElement>(null);
   const isRunning = useWorkflowStore((s) => s.runningNodes.has(id));
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
   const updateNodeDataSilent = useWorkflowStore((s) => s.updateNodeDataSilent);
@@ -213,10 +212,7 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
             <div className="rounded-[10px] overflow-hidden bg-[var(--node-inner-deep)] flex min-h-0 min-w-0 flex-1 flex-col">
               {mediaUrl ? (
                 <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                  <div
-                    ref={mediaMeasureRef}
-                    className="absolute inset-0 min-h-0 min-w-0 overflow-hidden"
-                  >
+                  <div className="absolute inset-0 min-h-0 min-w-0 overflow-hidden">
                     {isVideoUrl(mediaUrl) ? (
                       <video
                         src={mediaUrl}
@@ -233,9 +229,6 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
                     ) : (
                       <CanvasNodeImage
                         mediaUrl={mediaUrl}
-                        measureRef={mediaMeasureRef}
-                        fallbackCssWidth={560}
-                        fallbackCssHeight={420}
                         quality={68}
                         resize="cover"
                         alt=""

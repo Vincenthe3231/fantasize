@@ -63,18 +63,13 @@ const ListNodeGridImageTile = memo(function ListNodeGridImageTile({
   onDownload: () => void;
   onRemove: () => void;
 }) {
-  const cellRef = useRef<HTMLDivElement>(null);
   const url = item.mediaUrl || '/placeholder.svg';
   return (
-    <div
-      ref={cellRef}
-      className="group relative aspect-square overflow-hidden rounded-xl bg-[var(--node-control-bg)]"
-    >
+    <div className="group relative aspect-square overflow-hidden rounded-xl bg-[var(--node-control-bg)]">
       <CanvasNodeImage
         mediaUrl={url}
-        measureRef={cellRef}
-        fallbackCssWidth={120}
-        fallbackCssHeight={120}
+        fixedCssWidth={120}
+        fixedCssHeight={120}
         quality={58}
         alt={item.mediaName ?? ''}
         loading="lazy"

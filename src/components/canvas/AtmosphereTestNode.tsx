@@ -34,7 +34,6 @@ const AtmosphereTestNode = memo(({ id, selected, data }: NodeProps) => {
   const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
   const { connectMenuItems } = useQuickConnect(id, selfPos);
   const refInputRef = useRef<HTMLInputElement>(null);
-  const referencePreviewMeasureRef = useRef<HTMLDivElement>(null);
 
   const moodText = String((data as { moodText?: string }).moodText ?? '');
   const referenceUrl = String((data as { referenceUrl?: string }).referenceUrl ?? '');
@@ -203,16 +202,14 @@ const AtmosphereTestNode = memo(({ id, selected, data }: NodeProps) => {
             <div className="space-y-2">
               <div className="text-[10px] font-mono-display uppercase text-[var(--text-muted)]">Reference pipeline</div>
               <div
-                ref={referencePreviewMeasureRef}
                 className={`${NODE_INTERACTIVE_CLASS} flex min-h-[72px] cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[var(--node-control-border)] p-2`}
                 onClick={() => refInputRef.current?.click()}
               >
                 {referenceUrl ? (
                   <CanvasNodeImage
                     mediaUrl={referenceUrl}
-                    measureRef={referencePreviewMeasureRef}
-                    fallbackCssWidth={160}
-                    fallbackCssHeight={80}
+                    fixedCssWidth={160}
+                    fixedCssHeight={80}
                     quality={60}
                     resize="contain"
                     alt=""

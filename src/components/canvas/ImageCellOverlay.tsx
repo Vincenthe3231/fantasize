@@ -33,8 +33,6 @@ const ImageCellOverlay = ({
 }: ImageCellOverlayProps) => {
   const [hovered, setHovered] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const cellMeasureRef = useRef<HTMLDivElement>(null);
-  const dialogMeasureRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useCanvasReduceMotion();
   const gestureActive = useCanvasViewportGestureActive();
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,15 +69,11 @@ const ImageCellOverlay = ({
         </div>
       )}
 
-      <div
-        ref={cellMeasureRef}
-        className="relative aspect-[4/3] bg-[var(--node-control-bg)] border border-[var(--node-control-border)] rounded-xl overflow-hidden group/cell"
-      >
+      <div className="relative aspect-[4/3] bg-[var(--node-control-bg)] border border-[var(--node-control-border)] rounded-xl overflow-hidden group/cell">
         <CanvasNodeImage
           mediaUrl={src}
-          measureRef={cellMeasureRef}
-          fallbackCssWidth={180}
-          fallbackCssHeight={135}
+          fixedCssWidth={180}
+          fixedCssHeight={135}
           quality={60}
           resize="cover"
           alt={label || 'image'}
@@ -131,12 +125,11 @@ const ImageCellOverlay = ({
                     className="max-w-[90vw] max-h-[90vh] p-2 border border-[var(--node-control-border)] bg-[var(--node-inner-deep)]"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div ref={dialogMeasureRef} className="mx-auto w-full max-h-[85vh] min-h-[120px]">
+                    <div className="mx-auto w-full max-h-[85vh] min-h-[120px]">
                       <CanvasNodeImage
                         mediaUrl={src}
-                        measureRef={dialogMeasureRef}
-                        fallbackCssWidth={typeof window !== 'undefined' ? Math.min(1200, Math.round(window.innerWidth * 0.88)) : 960}
-                        fallbackCssHeight={typeof window !== 'undefined' ? Math.min(900, Math.round(window.innerHeight * 0.78)) : 720}
+                        fixedCssWidth={1280}
+                        fixedCssHeight={960}
                         quality={72}
                         resize="contain"
                         alt=""

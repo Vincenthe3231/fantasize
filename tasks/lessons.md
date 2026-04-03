@@ -1,5 +1,12 @@
 # Lessons (session corrections)
 
+## Supabase image transforms: do not key URLs to live CSS box × zoom (canvas)
+
+- Measuring node thumbnails with **ResizeObserver** under a **zoomed** React Flow viewport makes **CSS pixel width change on every zoom** → different `?width=` query params → new transform + egress.
+- **Pattern:** one **stable** URL per asset for canvas previews (`fixed` max width transform, or `fixedCssWidth` for tiny grid cells); **CSS `object-fit`** scales the decoded bitmap. Request-time transforms should not track pan/zoom.
+
+_Date: 2026-04-03 — stable `canvasStableImageUrl` + `CanvasNodeImage` refactor._
+
 ## React Flow: Select tool vs Hand tool — do not disable `selectionOnDrag` to “fix” pan
 
 - **Select** (marquee, node picking) needs **`selectionOnDrag`** when the select tool is active; **`panOnDrag`** must **not** include left button (`0`) in that mode, or left-drag on the pane cannot draw the marquee (RF prioritizes one gesture).

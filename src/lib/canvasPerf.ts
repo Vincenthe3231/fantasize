@@ -82,7 +82,7 @@ export const canvasPerfFlags = {
   selectionOverlayViewportQuantizePx: 8,
   /** Freeze CDN `src` / `srcSet` churn while panning/zooming or dragging nodes (see `CanvasNodeImage`). */
   deferCanvasImageUrlDuringViewport: readBoolFlag('canvasImageDeferGesture', true),
-  /** Debounce ResizeObserver → image delivery plan updates (ms). */
+  /** Legacy: was used by `CanvasNodeImage` + ResizeObserver; stable URLs no longer debounce layout. */
   canvasImageResizeDebounceMs: 120,
   /**
    * Minimum interval between full handle-bounds refreshes driven by **zoom** changes
@@ -97,6 +97,11 @@ export const canvasPerfFlags = {
   canvasImageHideLowZoom: readBoolFlag('canvasImageHideLowZoom', true),
   /** Hide node images when `transform[2]` is at or below this value (e.g. 0.5 = 50% zoom). */
   canvasImageLowZoomMax: readNumberFlag('canvasImageLowZoomMax', 0.5, 0.05, 1),
+  /**
+   * Fixed Supabase transform width for `CanvasNodeImage` when not using `fixedCssWidth` (stable URL,
+   * no zoom-based churn). Query `?canvasImageStableMaxWidth=1024` or `vf.perf.canvasImageStableMaxWidth`.
+   */
+  canvasImageStableMaxWidth: readNumberFlag('canvasImageStableMaxWidth', 1280, 128, 4096),
   spatialIndexThreshold: 250,
 } as const;
 

@@ -1,4 +1,4 @@
-import { memo, useMemo, useCallback, useRef } from 'react';
+import { memo, useMemo, useCallback } from 'react';
 import { type NodeProps } from 'reactflow';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
@@ -49,17 +49,12 @@ const ImageGenGridCell = memo(function ImageGenGridCell({
   idx: number;
   onDownloadClick: (e: React.MouseEvent) => void;
 }) {
-  const cellRef = useRef<HTMLDivElement>(null);
   return (
-    <div
-      ref={cellRef}
-      className="group relative aspect-square overflow-hidden rounded-lg bg-[var(--node-control-bg)]"
-    >
+    <div className="group relative aspect-square overflow-hidden rounded-lg bg-[var(--node-control-bg)]">
       <CanvasNodeImage
         mediaUrl={url}
-        measureRef={cellRef}
-        fallbackCssWidth={140}
-        fallbackCssHeight={140}
+        fixedCssWidth={140}
+        fixedCssHeight={140}
         quality={60}
         resize="cover"
         alt={`Generated ${idx + 1}`}
@@ -182,7 +177,6 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
   }, [generatedUrl, id]);
 
   const canRun = status !== 'generating';
-  const heroMeasureRef = useRef<HTMLDivElement>(null);
 
   const FloatBtn = ({
     children,
@@ -253,12 +247,9 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
                     className="absolute inset-0 min-h-0 min-w-0 overflow-hidden"
                   >
                     {/* Ref on a plain div: AnimatePresence/PopChild must not receive `ref` on motion nodes — causes React ref warning + jank while dragging. */}
-                    <div ref={heroMeasureRef} className="absolute inset-0 min-h-0 min-w-0">
+                    <div className="absolute inset-0 min-h-0 min-w-0">
                       <CanvasNodeImage
                         mediaUrl={generatedUrl}
-                        measureRef={heroMeasureRef}
-                        fallbackCssWidth={520}
-                        fallbackCssHeight={520}
                         quality={64}
                         resize="cover"
                         alt=""

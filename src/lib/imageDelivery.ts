@@ -50,6 +50,34 @@ export function canvasPreviewImageUrl(
   return withTransformParams(trimmed, { width, height, quality, format, resize });
 }
 
+export type StableImageOptions = {
+  /** Supabase transform `width` (no height; client scales via CSS). */
+  maxWidth?: number;
+  quality?: number;
+  format?: 'origin' | 'webp';
+  resize?: 'cover' | 'contain' | 'fill';
+};
+
+/**
+ * Single stable URL per asset for canvas nodes: fixed `width` transform params only.
+ * Does not vary with zoom or measured layout — browser GPU scales the bitmap.
+ * Non-HTTP / non-Supabase URLs pass through unchanged.
+ */
+export function canvasStableImageUrl(
+  src: string,
+  {
+    maxWidth = 1280,
+    quality = 70,
+    format = 'webp',
+    resize = 'cover',
+  }: StableImageOptions = {}
+): string {
+  const trimmed = src.trim();
+  const w = Math.min(4096, Math.max(48, Math.round(maxWidth)));
+  if (!shouldTransform(trimmed)) return trimmed;
+  return withTransformParams(trimmed, { width: w, quality, format, resize });
+}
+
 /**
  * Build responsive sources for larger media previews.
  */
