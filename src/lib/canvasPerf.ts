@@ -20,6 +20,25 @@ function readBoolFlag(name: string, defaultValue: boolean): boolean {
   return defaultValue;
 }
 
+/** Query `?zoomHandleThrottleMs=150` or `localStorage` `vf.perf.zoomHandleThrottleMs`. `0` = no throttle (legacy per-zoom rAF). */
+function readNumberFlag(name: string, defaultValue: number, min: number, max: number): number {
+  if (typeof globalThis === 'undefined' || typeof window === 'undefined') return defaultValue;
+  const parseRaw = (raw: string | null): number | null => {
+    if (raw == null || raw === '') return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  };
+  const fromQuery = parseRaw(new URLSearchParams(window.location.search).get(name));
+  if (fromQuery != null) return Math.min(max, Math.max(min, fromQuery));
+  try {
+    const fromStored = parseRaw(window.localStorage.getItem(`${FLAG_PREFIX}${name}`));
+    if (fromStored != null) return Math.min(max, Math.max(min, fromStored));
+  } catch {
+    /* ignore */
+  }
+  return defaultValue;
+}
+
 export const canvasPerfFlags = {
   enablePerfMarks: readBoolFlag('canvasPerfMarks', import.meta.env.DEV),
   deltaDragTxn: readBoolFlag('canvasDeltaDragTxn', true),
@@ -65,6 +84,19 @@ export const canvasPerfFlags = {
   deferCanvasImageUrlDuringViewport: readBoolFlag('canvasImageDeferGesture', true),
   /** Debounce ResizeObserver → image delivery plan updates (ms). */
   canvasImageResizeDebounceMs: 120,
+  /**
+   * Minimum interval between full handle-bounds refreshes driven by **zoom** changes
+   * (`useViewportHandleBoundsSync`). Reduces `updateNodeInternals(all nodes)` during wheel/pinch.
+   * `onMoveEnd` in `Index.tsx` still runs a full refresh after the gesture. `0` disables throttling.
+   */
+  zoomHandleBoundsThrottleMs: readNumberFlag('zoomHandleThrottleMs', 120, 0, 2000),
+  /**
+   * When true and viewport zoom ≤ `canvasImageLowZoomMax`, `CanvasNodeImage` renders a placeholder
+   * instead of `<img>` (saves decode + compositing when zoomed out). Query `?canvasImageHideLowZoom=0`.
+   */
+  canvasImageHideLowZoom: readBoolFlag('canvasImageHideLowZoom', true),
+  /** Hide node images when `transform[2]` is at or below this value (e.g. 0.5 = 50% zoom). */
+  canvasImageLowZoomMax: readNumberFlag('canvasImageLowZoomMax', 0.5, 0.05, 1),
   spatialIndexThreshold: 250,
 } as const;
 

@@ -1,5 +1,20 @@
 # Lessons (session corrections)
 
+## React Flow: Select tool vs Hand tool — do not disable `selectionOnDrag` to “fix” pan
+
+- **Select** (marquee, node picking) needs **`selectionOnDrag`** when the select tool is active; **`panOnDrag`** must **not** include left button (`0`) in that mode, or left-drag on the pane cannot draw the marquee (RF prioritizes one gesture).
+- **Hand** is the dedicated **left-drag pan** mode: set **`panOnDrag`** to **`[0, 1]`** (or `true` for left-only) **only for hand**, and keep **`selectionOnDrag`** off when hand is selected (it already is if `selectionOnDrag` is gated on `selectedTool === 'select'`).
+- Never replace that split with global `selectionOnDrag={false}` + `panOnDrag` including `0` for all tools — it removes marquee and blurs product meaning of the toolbar.
+
+_Date: 2026-04-02 — correction after mistaken removal of marquee._
+
+## Canvas wheel vs middle-button drag
+
+- **Mouse wheel** (Zoom vs Pan mode in settings) only changes **scale** (zoom mode) or **translates the viewport** (pan mode) — do not disable these while the middle button is held; that conflates **wheel** with **middle-drag pan** and breaks the mental model.
+- **Middle mouse drag** is **`panOnDrag` button `1`** in React Flow: moves the viewing area at the same scale, independent of wheel mode.
+
+_Date: 2026-04-02 — after removing `middleMouseButtonHeld` wheel gating._
+
 ## Browser MCP when the user asks for in-app verification
 
 - If the user asks to **test in the browser**, **@Browser**, or to reproduce something at a given zoom (e.g. ~10%), **use the Cursor IDE Browser MCP** (`cursor-ide-browser`): read tool descriptors under the project `mcps` folder, then run a short loop — `browser_tabs` (list) → optional `browser_navigate` → `browser_lock` before interactions → `browser_snapshot` / `browser_click` / `browser_take_screenshot` → `browser_unlock` when finished.

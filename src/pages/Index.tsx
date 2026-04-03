@@ -8,7 +8,7 @@ import {
   Suspense,
 } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useViewportHandleBoundsSync } from '@/hooks/useViewportHandleBoundsSync';
 import {
   installCanvasEdgeDebugWindowApi,
@@ -23,6 +23,7 @@ import { shouldRestoreDraftFromLocal, type StoredSpaceDraft } from '@/lib/spaceD
 import { SpacePersistenceContext } from '@/contexts/SpacePersistenceContext';
 import { CanvasEdgeLodProvider } from '@/contexts/CanvasEdgeLodContext';
 import { CanvasViewportGestureContext } from '@/contexts/CanvasViewportGestureContext';
+import { CanvasViewportImagePolicyBridge } from '@/contexts/CanvasViewportImagePolicyContext';
 import { useSpaceLocalPersistence } from '@/hooks/useSpaceLocalPersistence';
 import { useAuth } from '@/hooks/useAuth';
 import ReactFlow, {
@@ -945,9 +946,18 @@ const CanvasInnerReactFlow = ({
 
   /** While a node body is content-focused, wheel should scroll inside the node (not zoom/pan the canvas). */
   const nodeContentFocusActive = focusedNodeContentId != null;
-  /** With hand tool, left-drag normally pans the pane — that steals node drags when a node is focused. */
-  const canvasPanOnDrag =
-    !nodeContentFocusActive && selectedTool === 'hand' ? true : [1];
+  /**
+   * **Hand tool:** left (0) + middle (1) drag pan the viewport.
+   * **Select / other tools:** middle (1) only — left-drag on the pane keeps marquee select (Select) or
+   * tool behavior; press **H** or choose Hand to pan with the left button.
+   * When a node body is content-focused, only middle-drag pans.
+   */
+  const canvasPanOnDrag = nodeContentFocusActive
+    ? [1]
+    : selectedTool === 'hand'
+      ? [0, 1]
+      : [1];
+  /** Wheel: Zoom mode → change scale; Pan mode → move viewing area (mutually exclusive in settings). */
   const canvasPanOnScroll = !nodeContentFocusActive && settings.mouseWheelBehavior === 'pan';
   const canvasZoomOnScroll = !nodeContentFocusActive && settings.mouseWheelBehavior === 'zoom';
 
@@ -980,6 +990,7 @@ const CanvasInnerReactFlow = ({
     >
     <DevReactProfiler id="vf-canvas-inner">
     <CanvasViewportGestureContext.Provider value={isViewportInteracting}>
+    <CanvasViewportImagePolicyBridge>
     <div
       className={`w-screen h-screen ${hybridBackground ? 'flex min-h-0 flex-col' : ''} ${shellCanvasClass} ${cursorClass} ${settings.showNodeLabels ? '' : 'workflow-hide-labels'} ${isConnectingFromHandle ? 'vf-connecting-edge' : ''} ${selectedTool === 'cut' ? 'vf-snip-tool' : ''} ${hybridEdgeCutoverActive ? 'vf-hybrid-edge-cutover' : ''}`}
       onClick={handleCanvasClick}
@@ -1321,6 +1332,7 @@ const CanvasInnerReactFlow = ({
         </div>
       ) : null}
     </div>
+    </CanvasViewportImagePolicyBridge>
     </CanvasViewportGestureContext.Provider>
     </DevReactProfiler>
     </SpacePersistenceContext.Provider>
@@ -1347,6 +1359,7 @@ function CanvasRoot() {
   const { spaceId: spaceIdParam } = useParams<{ spaceId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const routeSpaceId = spaceIdParam?.trim();
   const spaceFromQuery = searchParams.get('space')?.trim();
@@ -1391,8 +1404,12 @@ function CanvasRoot() {
     (queryEnabled && (spaceLoading || isFetching) && space === undefined && !isError);
   const holdWorkspaceFetchLoader = useMinLoadingDisplay(spacePending, WORKSPACE_LOADER_MIN_MS);
 
-  if (authLoading || !userId) {
+  if (authLoading) {
     return <CanvasLoadingShell caption="Connecting…" />;
+  }
+  if (!userId) {
+    const redirect = encodeURIComponent(`${location.pathname}${location.search}`);
+    return <Navigate to={`/signin?redirect=${redirect}`} replace />;
   }
 
   if (explicitRouteInvalid) {
@@ -1415,7 +1432,11 @@ function CanvasRoot() {
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-2 bg-[var(--canvas-bg)] px-6 text-center text-muted-foreground">
         <p className="text-foreground">Could not load workspace.</p>
         <p className="max-w-md text-sm">
-          Enable <strong>Anonymous sign-ins</strong> in Supabase Dashboard → Authentication → Providers.
+          Check that you are signed in and that Supabase email auth is enabled. Try{' '}
+          <Link to="/signin" className="font-medium text-[var(--accent-color)] underline-offset-4 hover:underline">
+            signing in again
+          </Link>
+          .
         </p>
         <p className="text-xs opacity-70">{String((error as Error)?.message ?? error)}</p>
         <Link
@@ -1441,10 +1462,12 @@ function CanvasRoot() {
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-[var(--canvas-bg)] px-6 text-center text-muted-foreground">
         <p className="text-foreground">Workspace not found</p>
         <p className="max-w-md text-sm">
-          No space with this id is visible to your account. The id may be wrong, or the space may
-          belong to another user. With <strong>anonymous</strong> sign-in, each browser / cleared
-          storage gets a new account, so old <code className="text-xs">/w/…</code> links stop
-          working.
+          No space with this id is visible to your account. The id may be wrong, the space may belong
+          to another user, or you may need to{' '}
+          <Link to="/signin" className="font-medium text-[var(--accent-color)] underline-offset-4 hover:underline">
+            sign in
+          </Link>{' '}
+          with a different account.
         </p>
         <Link
           to="/"

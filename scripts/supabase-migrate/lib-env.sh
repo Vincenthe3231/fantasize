@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Sourced by migrate scripts. Prefer DATABASE_URL_*; if unset or empty, use session pooler URLs from .env.
+DATABASE_URL_SOURCE="${DATABASE_URL_SOURCE:-${SOURCE_DATABASE_SESSION_POOLER_URL:-}}"
+DATABASE_URL_TARGET="${DATABASE_URL_TARGET:-${TARGET_DATABASE_SESSION_POOLER_URL:-}}"
+export DATABASE_URL_SOURCE DATABASE_URL_TARGET

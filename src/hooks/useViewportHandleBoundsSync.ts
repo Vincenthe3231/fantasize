@@ -10,7 +10,9 @@ import { canvasPerfFlags, runWithCanvasPerfMark } from '@/lib/canvasPerf';
  * transform components ran `updateNodeInternals(all nodes)` on every pan frame and tanked INP on
  * large canvases. Pure translation uses stable flow-space handle geometry; **`onMoveEnd` in
  * `Index.tsx`** still calls `refreshAllHandleBounds()` when a pan gesture finishes to correct any
- * drift. Zoom changes still need timely refresh because scale affects how RF caches bounds.
+ * drift. Zoom changes still need refresh because scale affects how RF caches bounds; those
+ * refreshes are **throttled** (`canvasPerfFlags.zoomHandleBoundsThrottleMs`) so wheel/pinch does
+ * not run `updateNodeInternals(all nodes)` on every zoom tick. `0` disables throttling.
  *
  * Keep this behavior intact: connection UX relies on fresh handle internals so newly connected
  * edges can anchor immediately to the visible handle position.
@@ -64,6 +66,9 @@ export function useViewportHandleBoundsSync(): {
   const lastZoomForInternalsRef = useRef<number | null>(null);
 
   const rafRef = useRef<number | null>(null);
+  const zoomThrottleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastZoomRefreshAtRef = useRef(0);
+
   useEffect(() => {
     const prevZ = lastZoomForInternalsRef.current;
     if (prevZ != null && Math.abs(prevZ - zoom) < 1e-6) {
@@ -71,12 +76,38 @@ export function useViewportHandleBoundsSync(): {
     }
     lastZoomForInternalsRef.current = zoom;
 
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(() => {
-      rafRef.current = null;
-      refreshAllHandleBounds();
-    });
+    const throttleMs = canvasPerfFlags.zoomHandleBoundsThrottleMs;
+
+    const runRefresh = () => {
+      zoomThrottleTimerRef.current = null;
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        lastZoomRefreshAtRef.current = performance.now();
+        refreshAllHandleBounds();
+      });
+    };
+
+    if (throttleMs <= 0) {
+      runRefresh();
+    } else {
+      const now = performance.now();
+      const elapsed = now - lastZoomRefreshAtRef.current;
+      if (elapsed >= throttleMs) {
+        runRefresh();
+      } else {
+        if (zoomThrottleTimerRef.current != null) {
+          clearTimeout(zoomThrottleTimerRef.current);
+        }
+        zoomThrottleTimerRef.current = setTimeout(runRefresh, throttleMs - elapsed);
+      }
+    }
+
     return () => {
+      if (zoomThrottleTimerRef.current != null) {
+        clearTimeout(zoomThrottleTimerRef.current);
+        zoomThrottleTimerRef.current = null;
+      }
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;

@@ -184,8 +184,13 @@ const SettingsPanel = ({ open, onClose }: SettingsPanelProps) => {
             </div>
 
             <div className="pt-2 border-t border-border">
-              <p className="text-[11px] font-mono-display text-muted-foreground uppercase tracking-widest mb-2">
+              <p className="text-[11px] font-mono-display text-muted-foreground uppercase tracking-widest mb-1">
                 Mouse wheel
+              </p>
+              <p className="text-[11px] text-muted-foreground mb-2 leading-snug" style={{ fontFamily: 'Inter, sans-serif' }}>
+                <span className="text-foreground/90">Zoom</span> — scroll up/down changes scale (magnification).{' '}
+                <span className="text-foreground/90">Pan</span> — scroll moves the viewing area at the same zoom.
+                Middle mouse button <span className="text-foreground/90">drag</span> always pans the canvas (move the view, not zoom).
               </p>
               <div className="flex gap-2">
                 <RadioOption

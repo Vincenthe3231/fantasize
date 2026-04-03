@@ -10,7 +10,9 @@ import {
 } from 'react';
 import { canvasImagePlanForBox } from '@/lib/imageDelivery';
 import { canvasPerfFlags } from '@/lib/canvasPerf';
+import { cn } from '@/lib/utils';
 import { useCanvasViewportGestureActive } from '@/contexts/CanvasViewportGestureContext';
+import { useCanvasViewportHideNodeImages } from '@/contexts/CanvasViewportImagePolicyContext';
 
 type BaseProps = Omit<
   ImgHTMLAttributes<HTMLImageElement>,
@@ -82,6 +84,7 @@ function useDebouncedContentBox(
  * Canvas node image: Supabase-aware `srcSet`/`sizes` from measured (or fixed) CSS box,
  * debounced on resize, optional freeze of URL changes during viewport/node-drag gestures,
  * and `decode()` after load to reduce janky first paint.
+ * When zoomed out (`CanvasViewportImagePolicyBridge`), skips real `<img>` and shows a placeholder.
  */
 const CanvasNodeImage = memo(function CanvasNodeImage({
   mediaUrl,
@@ -98,6 +101,7 @@ const CanvasNodeImage = memo(function CanvasNodeImage({
   fetchPriority,
   ...rest
 }: BaseProps) {
+  const hideImages = useCanvasViewportHideNodeImages();
   const gestureActive =
     useCanvasViewportGestureActive() && canvasPerfFlags.deferCanvasImageUrlDuringViewport;
   const debounceMs = canvasPerfFlags.canvasImageResizeDebounceMs;
@@ -119,17 +123,23 @@ const CanvasNodeImage = memo(function CanvasNodeImage({
   const cssW = observedBox.w;
   const cssH = observedBox.h;
 
-  const desired = useMemo(
-    () => canvasImagePlanForBox(mediaUrl, cssW, cssH, { quality, resize }),
-    [mediaUrl, cssW, cssH, quality, resize]
-  );
+  const desired = useMemo(() => {
+    if (hideImages) {
+      return {
+        src: '',
+        srcSet: undefined as string | undefined,
+        sizes: undefined as string | undefined,
+      };
+    }
+    return canvasImagePlanForBox(mediaUrl, cssW, cssH, { quality, resize });
+  }, [hideImages, mediaUrl, cssW, cssH, quality, resize]);
 
   const [displayed, setDisplayed] = useState(desired);
 
   useEffect(() => {
-    if (gestureActive) return;
+    if (hideImages || gestureActive) return;
     setDisplayed(desired);
-  }, [desired, gestureActive]);
+  }, [desired, gestureActive, hideImages]);
 
   const handleLoad = useCallback(
     (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -141,6 +151,16 @@ const CanvasNodeImage = memo(function CanvasNodeImage({
     },
     [onLoad]
   );
+
+  if (hideImages) {
+    return (
+      <div
+        role="presentation"
+        aria-hidden
+        className={cn(className, 'bg-muted/30')}
+      />
+    );
+  }
 
   return (
     <img

@@ -2,14 +2,21 @@ import { lazy, Suspense } from "react";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { queryClient } from "@/lib/queryClient";
 
 const IndexPage = lazy(() => import("@/pages/Index"));
+const SignInPage = lazy(() => import("@/pages/SignIn"));
 const NotFoundPage = lazy(() => import("./pages/NotFound.tsx"));
+
+/** Common typo: `/siginin` → `/signin` (preserves query string). */
+function SigininAliasRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={{ pathname: "/signin", search }} replace />;
+}
 
 function AppCanvasFallback() {
   return (
@@ -61,6 +68,15 @@ const App = () => (
               </Suspense>
             }
           />
+          <Route
+            path="/signin"
+            element={
+              <Suspense fallback={null}>
+                <SignInPage />
+              </Suspense>
+            }
+          />
+          <Route path="/siginin" element={<SigininAliasRedirect />} />
           <Route
             path="*"
             element={

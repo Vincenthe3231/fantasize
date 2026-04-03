@@ -6,7 +6,7 @@ import { flushCanvasToRemote } from '@/lib/canvasRemoteFlush';
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  /** Prevents auto anonymous sign-in while signing out before `signInWithPassword`. */
+  /** Prevents conflicting auth transitions while signing out before `signInWithPassword`. */
   const pendingCredentialSignInRef = useRef(false);
 
   useEffect(() => {
@@ -22,15 +22,6 @@ export function useAuth() {
     return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (loading) return;
-    if (user) return;
-    if (pendingCredentialSignInRef.current) return;
-    void supabase.auth.signInAnonymously().catch((e) => {
-      console.warn('Anonymous sign-in failed (enable Anonymous in Supabase Auth):', e);
-    });
-  }, [loading, user]);
-
   const signUp = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.updateUser({ email, password });
     return { error };
@@ -42,9 +33,6 @@ export function useAuth() {
       await flushCanvasToRemote();
       await supabase.auth.signOut();
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        await supabase.auth.signInAnonymously();
-      }
       return { error };
     } finally {
       pendingCredentialSignInRef.current = false;

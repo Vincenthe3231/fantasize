@@ -30,6 +30,9 @@ dist-ssr
 secret
 **/secret
 
+# Supabase migrate script output (pg_dump)
+scripts/supabase-migrate/out/
+
 # Supabase CLI local state
 .supabase/
 z-notation.pdf

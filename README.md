@@ -59,8 +59,8 @@ Row Level Security (RLS) restricts `profiles` and `spaces` to the authenticated 
 
 ### Storage (Upload node)
 
-1. Set **`VITE_SUPABASE_STORAGE_BUCKET`** in `.env` to your bucket id (must match the name in **Storage → Buckets**). Defaults in migrations: **`uploads`**, **`canvas`**, or **`workflow-media`**.
-2. **Apply storage policies** (fixes **403** / RLS on upload): run **`pnpm db:push-sync`** (or `pnpx supabase db push`) so migration [`20260321120000_storage_upload_policies.sql`](supabase/migrations/20260321120000_storage_upload_policies.sql) runs — it creates those buckets if missing and adds **INSERT** (`authenticated`) + **SELECT** (`public`) on `storage.objects`.
+1. Set **`VITE_SUPABASE_STORAGE_BUCKET`** in `.env` to your bucket id (must match the name in **Storage → Buckets**). Repo migrations ensure **`uploads`**, **`canvas`**, **`workflow-media`**, and **`bucket-1`** are allowed (see [`20260321120000_storage_upload_policies.sql`](supabase/migrations/20260321120000_storage_upload_policies.sql) and [`20260403120000_storage_bucket_1_policies.sql`](supabase/migrations/20260403120000_storage_bucket_1_policies.sql)).
+2. **Apply storage policies** (fixes **403** / RLS on upload): run **`pnpm db:push-sync`** (or `pnpx supabase db push`) so those migrations run — they create buckets if missing and add **INSERT** (`authenticated`) + **SELECT** (`public`) on `storage.objects`.
 3. **Authentication → Providers → Anonymous** — keep **Anonymous sign-in** enabled (the app uses `signInAnonymously()` so uploads use the `authenticated` role).
 4. If your bucket id is **not** one of the three above, add it to the `array['uploads', ...]` in that migration (or run [`docs/supabase-storage-upload-policies.sql`](docs/supabase-storage-upload-policies.sql) in **SQL Editor** with your bucket name).
 
@@ -92,6 +92,10 @@ The S3-style env vars (`VITE_SUPABASE_STORAGE_ACCESS_KEY`, etc.) are optional; t
 2. Paste the contents of `supabase/migrations/20260318120000_init_vision_forge.sql` and run it.
 
 If you edit the schema only in the dashboard, run **`pnpm db:types`** so [`src/integrations/supabase/types.ts`](src/integrations/supabase/types.ts) stays in sync.
+
+### Moving data to a new Supabase project
+
+See **[`docs/supabase-migrate-between-projects.md`](docs/supabase-migrate-between-projects.md)** and [`scripts/supabase-migrate/`](scripts/supabase-migrate/) (`export-auth.sh`, `export-public.sh`, `import-to-target.sh`, `verify-counts.sql`).
 
 ### Edge Function: `scout-execute` (Virtual Production Scout)
 
