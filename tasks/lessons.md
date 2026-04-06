@@ -7,6 +7,12 @@
 
 _Date: 2026-04-03 — stable `canvasStableImageUrl` + `CanvasNodeImage` refactor._
 
+## Canvas images: avoid `loading="lazy"` inside React Flow’s transformed viewport
+
+- Native **lazy** uses intersection with the viewport; **pan/zoom** via CSS transform can cause **re-load attempts** (DevTools `lazy-img`) even when `src` is stable. Prefer **`loading="eager"`** (or default eager in `CanvasNodeImage`) for in-flow node thumbnails; keep **lazy** only for off-canvas cases (e.g. dialog until opened).
+
+_Date: 2026-04-06 — `canvasImageEagerInFlow` + eager default._
+
 ## React Flow: Select tool vs Hand tool — do not disable `selectionOnDrag` to “fix” pan
 
 - **Select** (marquee, node picking) needs **`selectionOnDrag`** when the select tool is active; **`panOnDrag`** must **not** include left button (`0`) in that mode, or left-drag on the pane cannot draw the marquee (RF prioritizes one gesture).

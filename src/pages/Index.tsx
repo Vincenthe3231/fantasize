@@ -330,6 +330,8 @@ const CanvasInnerReactFlow = ({
   const [addPanelOpen, setAddPanelOpen] = useState(false);
   const [deferredUiReady, setDeferredUiReady] = useState(!canvasPerfFlags.deferNonCriticalCanvasUi);
   const [isViewportInteracting, setIsViewportInteracting] = useState(false);
+  /** Linux / some drivers emit wheel events during middle-button drag; suppress scroll-based zoom/pan until release. */
+  const [middleMouseButtonDown, setMiddleMouseButtonDown] = useState(false);
   /** Lift static edges above nodes while dragging a connection; CSS disables pointer events on that SVG so handles still receive the drop. */
   const [isConnectingFromHandle, setIsConnectingFromHandle] = useState(false);
   const notifications = useSystemNotificationStore((s) => s.notifications);
@@ -337,6 +339,27 @@ const CanvasInnerReactFlow = ({
   const pauseNotificationAutoDismiss = useSystemNotificationStore((s) => s.pauseAutoDismiss);
   const resumeNotificationAutoDismiss = useSystemNotificationStore((s) => s.resumeAutoDismiss);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      if (e.button === 1) setMiddleMouseButtonDown(true);
+    };
+    const onUp = (e: PointerEvent) => {
+      if (e.button === 1) setMiddleMouseButtonDown(false);
+    };
+    const clear = () => setMiddleMouseButtonDown(false);
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointerup', onUp, true);
+    window.addEventListener('pointercancel', onUp, true);
+    window.addEventListener('blur', clear);
+    return () => {
+      window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', onUp, true);
+      window.removeEventListener('blur', clear);
+    };
+  }, []);
+
   const dragGraphSnapshotRef = useRef<Node[] | null>(null);
   const userSelectionRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const spatialBoundsByIdRef = useRef<Map<string, SpatialNodeBounds>>(new Map());
@@ -960,6 +983,8 @@ const CanvasInnerReactFlow = ({
   /** Wheel: Zoom mode → change scale; Pan mode → move viewing area (mutually exclusive in settings). */
   const canvasPanOnScroll = !nodeContentFocusActive && settings.mouseWheelBehavior === 'pan';
   const canvasZoomOnScroll = !nodeContentFocusActive && settings.mouseWheelBehavior === 'zoom';
+  const canvasPanOnScrollWhileMiddleUp = canvasPanOnScroll && !middleMouseButtonDown;
+  const canvasZoomOnScrollWhileMiddleUp = canvasZoomOnScroll && !middleMouseButtonDown;
 
   const edgeLodReduced = useMemo(() => {
     if (canvasPerfFlags.edgeLodDuringViewportInteraction && isViewportInteracting) return true;
@@ -1279,8 +1304,8 @@ const CanvasInnerReactFlow = ({
         nodeTypes={canvasLazyNodeTypes}
         edgeTypes={canvasLazyEdgeTypes}
         panOnDrag={canvasPanOnDrag}
-        panOnScroll={canvasPanOnScroll}
-        zoomOnScroll={canvasZoomOnScroll}
+        panOnScroll={canvasPanOnScrollWhileMiddleUp}
+        zoomOnScroll={canvasZoomOnScrollWhileMiddleUp}
         selectionOnDrag={selectedTool === 'select' && !nodeContentFocusActive}
         selectionMode={SelectionMode.Full}
         fitView={false}

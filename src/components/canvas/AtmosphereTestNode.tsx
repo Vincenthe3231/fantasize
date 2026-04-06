@@ -213,7 +213,6 @@ const AtmosphereTestNode = memo(({ id, selected, data }: NodeProps) => {
                     quality={60}
                     resize="contain"
                     alt=""
-                    loading="lazy"
                     className="max-h-20 w-full rounded object-contain"
                   />
                 ) : (

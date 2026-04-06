@@ -31,6 +31,8 @@ type BaseProps = Omit<
  * Canvas node image: stable Supabase transform URL (fixed width cap, or explicit fixedCssWidth),
  * optional freeze of URL changes during viewport/node-drag gestures, and `decode()` after load.
  * When zoomed out (`CanvasViewportImagePolicyBridge`), skips real `<img>` and shows a placeholder.
+ * Default `loading` follows `canvasPerfFlags.canvasImageEagerInFlow` (eager) so pan inside RF
+ * transforms does not fight native lazy visibility; pass `loading="lazy"` to override (e.g. dialogs).
  */
 const CanvasNodeImage = memo(function CanvasNodeImage({
   mediaUrl,
@@ -40,13 +42,19 @@ const CanvasNodeImage = memo(function CanvasNodeImage({
   fixedCssHeight,
   className,
   onLoad,
-  loading = 'lazy',
+  loading,
   fetchPriority,
   ...rest
 }: BaseProps) {
   const hideImages = useCanvasViewportHideNodeImages();
   const gestureActive =
     useCanvasViewportGestureActive() && canvasPerfFlags.deferCanvasImageUrlDuringViewport;
+  const resolvedLoading =
+    loading !== undefined
+      ? loading
+      : canvasPerfFlags.canvasImageEagerInFlow
+        ? 'eager'
+        : 'lazy';
 
   const desired = useMemo(() => {
     if (hideImages) {
@@ -108,7 +116,7 @@ const CanvasNodeImage = memo(function CanvasNodeImage({
       {...rest}
       src={displayed.src}
       decoding="async"
-      loading={loading}
+      loading={resolvedLoading}
       fetchPriority={fetchPriority}
       className={className}
       onLoad={handleLoad}

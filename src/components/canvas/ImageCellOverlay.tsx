@@ -77,7 +77,6 @@ const ImageCellOverlay = ({
           quality={60}
           resize="cover"
           alt={label || 'image'}
-          loading="lazy"
           className="h-full w-full object-cover"
         />
 

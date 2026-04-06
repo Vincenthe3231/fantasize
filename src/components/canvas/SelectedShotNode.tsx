@@ -96,7 +96,6 @@ const SelectedShotNode = memo(({ id, data, selected }: NodeProps) => {
               quality={66}
               resize="cover"
               alt="Selected shot"
-              loading="lazy"
               className="h-full w-full rounded-b-[12px] object-cover"
             />
 

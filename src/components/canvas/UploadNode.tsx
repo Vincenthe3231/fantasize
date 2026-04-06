@@ -232,7 +232,6 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
                         quality={68}
                         resize="cover"
                         alt=""
-                        loading="lazy"
                         className="h-full w-full object-cover"
                         onLoad={(e) => {
                           const el = e.currentTarget;

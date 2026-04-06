@@ -72,7 +72,6 @@ const ListNodeGridImageTile = memo(function ListNodeGridImageTile({
         fixedCssHeight={120}
         quality={58}
         alt={item.mediaName ?? ''}
-        loading="lazy"
         className="h-full w-full object-cover"
       />
       <button
@@ -443,7 +442,6 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                               fixedCssHeight={56}
                               quality={55}
                               alt={item.mediaName ?? ''}
-                              loading="lazy"
                               className="h-14 w-14 shrink-0 rounded-lg bg-[var(--node-control-bg)] object-cover"
                             />
                             <div className="min-w-0 flex-1">
@@ -498,7 +496,6 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                             fixedCssHeight={56}
                             quality={55}
                             alt={item.mediaName ?? ''}
-                            loading="lazy"
                             className="h-14 w-14 shrink-0 rounded-lg bg-[var(--node-control-bg)] object-cover"
                           />
                           <div className="min-w-0 flex-1">

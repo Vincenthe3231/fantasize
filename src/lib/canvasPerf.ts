@@ -102,6 +102,12 @@ export const canvasPerfFlags = {
    * no zoom-based churn). Query `?canvasImageStableMaxWidth=1024` or `vf.perf.canvasImageStableMaxWidth`.
    */
   canvasImageStableMaxWidth: readNumberFlag('canvasImageStableMaxWidth', 1280, 128, 4096),
+  /**
+   * When true (default), `CanvasNodeImage` uses `loading="eager"` unless overridden — avoids native
+   * lazy-load re-intersection fighting React Flow pan/zoom transforms. Query `?canvasImageEager=0` or
+   * `vf.perf.canvasImageEager=0` to restore lazy for debugging.
+   */
+  canvasImageEagerInFlow: readBoolFlag('canvasImageEager', true),
   spatialIndexThreshold: 250,
 } as const;
 

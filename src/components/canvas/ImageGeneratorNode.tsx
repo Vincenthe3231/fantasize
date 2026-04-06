@@ -58,7 +58,6 @@ const ImageGenGridCell = memo(function ImageGenGridCell({
         quality={60}
         resize="cover"
         alt={`Generated ${idx + 1}`}
-        loading="lazy"
         className="h-full w-full object-cover"
       />
       <button
@@ -253,7 +252,6 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
                         quality={64}
                         resize="cover"
                         alt=""
-                        loading="lazy"
                         className="h-full w-full object-cover"
                       />
                     </div>
