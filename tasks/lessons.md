@@ -15,8 +15,10 @@ _Date: 2026-04-07 — `uploadStorage.ts` + README._
 - **Migrated spaces** can still contain **full old-host strings** in JSON; changing `.env` does not rewrite persisted URLs.
 - **`storage.objects` row parity ≠ downloadable blobs:** Importing metadata without `aws s3 sync` (or equivalent) leaves **404** on the target for those paths. Verify with **HTTP GET** to `/storage/v1/object/public/{bucket}/{path}` (URL-encoded), not only row counts.
 - **After blob migration:** Run **Phase F** SQL (`apply-supabase-host-rewrite.sql`) on the **target** DB so `spaces` / `space_node_versions` JSON no longer embed the old project host — otherwise the browser still requests the old domain. Clear **local drafts** (`vf-space-draft:` / `vision-forge-drafts-v2`) if needed.
+- **New Supabase project:** Redeploy Edge Functions (`scout-execute`) and **secrets** (`OPENROUTER_API_KEY`) on that project. **`POST /functions/v1/scout-execute` → 404 / `NOT_FOUND`** surfaces as **CORS preflight failed** in the browser; fix is deploy, not CORS headers.
+- **Edge Functions vs SQL:** Function code and Edge secrets are **not** applied via `supabase/migrations` SQL — use **`supabase functions deploy`** + **`supabase secrets set`** (or Dashboard). See `scripts/supabase-migrate/sql/edge-functions-not-migrated-via-sql.sql` + `deploy-scout-execute-target.sh`.
 
-_Date: 2026-04-07 — env audit + `client.ts` / `uploadStorage.ts`; storage HEAD/GET verify; Postgres URL rewrite._
+_Date: 2026-04-07 — env audit + `client.ts` / `uploadStorage.ts`; storage HEAD/GET verify; Postgres URL rewrite; Scout 404 vs CORS; Edge deploy vs SQL._
 
 ## Supabase image transform: WebP default + `origin` fallback + dimension cap
 

@@ -1,0 +1,27 @@
+-- =============================================================================
+-- Edge Functions (e.g. scout-execute) are NOT deployed or configured via SQL
+-- =============================================================================
+--
+-- Supabase Edge Functions are Deno bundles deployed to the platform API
+-- (`supabase functions deploy`). They are not rows in your Postgres database.
+--
+-- Secrets for Edge Functions (e.g. OPENROUTER_API_KEY) are **not** the same as
+-- Vault (`vault.create_secret`) for Postgres triggers. Edge runtime reads
+-- `Deno.env.get('OPENROUTER_API_KEY')` from secrets set via:
+--   - Dashboard → Edge Functions → Secrets, or
+--   - CLI: `supabase secrets set OPENROUTER_API_KEY=... --project-ref <REF>`
+--
+-- To deploy `scout-execute` to your **new** project after org migration, run
+-- from the repo root (see also `scripts/supabase-migrate/deploy-scout-execute-target.sh`):
+--
+--   pnpx supabase functions deploy scout-execute --no-verify-jwt --project-ref YOUR_PROJECT_REF
+--   pnpx supabase secrets set OPENROUTER_API_KEY="sk-or-v1-..." --project-ref YOUR_PROJECT_REF
+--
+-- **Never** put a real API key in a committed SQL file. Use Dashboard, CLI, or
+-- a local untracked `env.edge.local` (see `env.edge.example`).
+--
+-- This file exists so you can paste the above into the SQL Editor for reference
+-- only; it runs no statements.
+-- =============================================================================
+
+SELECT 1 AS edge_functions_use_cli_deploy_and_secrets_not_this_sql;

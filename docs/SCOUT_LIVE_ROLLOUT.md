@@ -36,7 +36,41 @@ Or directly:
 pnpx supabase functions deploy scout-execute --no-verify-jwt
 ```
 
+If `supabase link` is wrong or missing, pass the **target** project explicitly:
+
+```bash
+pnpx supabase functions deploy scout-execute --no-verify-jwt --project-ref YOUR_PROJECT_REF
+```
+
 Use `--no-verify-jwt` only if you invoke with the anon key from the browser; tighten with JWT verification for production if required.
+
+### Verify the function exists (avoids “CORS preflight” confusion)
+
+If the function is **not** deployed, the gateway returns **404** for both `OPTIONS` and `POST`. Browsers surface that as **“CORS preflight did not succeed”** even though the real issue is **no route** at `/functions/v1/scout-execute`.
+
+```bash
+curl -sS -w "\nHTTP:%{http_code}\n" -X POST \
+  "https://YOUR_PROJECT_REF.supabase.co/functions/v1/scout-execute" \
+  -H "Content-Type: application/json" -H "apikey: YOUR_ANON_KEY" \
+  -d '{"executionKind":"stage2_instructions","context":{}}' | head -c 200
+```
+
+- **`NOT_FOUND` / HTTP 404** → deploy `scout-execute` to **this** project (new org after migration counts as a new project).
+- After switching `VITE_SUPABASE_URL` to a new project, you must **deploy the function again** and set **`OPENROUTER_API_KEY`** (and any other secrets) in **that** project’s Dashboard → Edge Functions → **Secrets**, or via `supabase secrets set --project-ref YOUR_PROJECT_REF`.
+
+### CLI returns 403 (“necessary privileges”)
+
+Your Supabase user may lack **Owner/Developer** on the organization that owns the project. Fix roles in the Supabase Dashboard, use a **personal access token** from an allowed account (`supabase login`), or deploy from **Dashboard → Edge Functions** (bundle upload) if your org allows it.
+
+### “Migrate Edge Functions with SQL”
+
+Edge Functions are **not** deployed or configured through Postgres migrations. See [`scripts/supabase-migrate/sql/edge-functions-not-migrated-via-sql.sql`](../scripts/supabase-migrate/sql/edge-functions-not-migrated-via-sql.sql) (comments only). To deploy `scout-execute` and set **`OPENROUTER_API_KEY`** on the target project, use the CLI from a privileged account:
+
+```bash
+cp scripts/supabase-migrate/env.edge.example scripts/supabase-migrate/env.edge.local
+# edit env.edge.local — set OPENROUTER_API_KEY (file is gitignored)
+./scripts/supabase-migrate/deploy-scout-execute-target.sh
+```
 
 ## Client
 
