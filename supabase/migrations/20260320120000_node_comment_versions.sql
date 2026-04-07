@@ -3,7 +3,7 @@
 -- whenever spaces is updated. No app code changes; trigger runs after each save.
 
 -- ── space_node_versions (append-only node history) ─────────────────────────
-create table public.space_node_versions (
+create table if not exists public.space_node_versions (
   id uuid primary key default gen_random_uuid(),
   space_id uuid not null references public.spaces (id) on delete cascade,
   node_id text not null,
@@ -13,11 +13,12 @@ create table public.space_node_versions (
   updated_at timestamptz not null default now()
 );
 
-create index space_node_versions_space_node_updated_idx
+create index if not exists space_node_versions_space_node_updated_idx
   on public.space_node_versions (space_id, node_id, updated_at desc);
 
 alter table public.space_node_versions enable row level security;
 
+drop policy if exists "space_node_versions_select_own" on public.space_node_versions;
 create policy "space_node_versions_select_own"
   on public.space_node_versions for select
   to authenticated
@@ -28,6 +29,7 @@ create policy "space_node_versions_select_own"
     )
   );
 
+drop policy if exists "space_node_versions_insert_own" on public.space_node_versions;
 create policy "space_node_versions_insert_own"
   on public.space_node_versions for insert
   to authenticated
@@ -39,7 +41,7 @@ create policy "space_node_versions_insert_own"
   );
 
 -- ── space_comment_versions (versioned comment history) ──────────────────────
-create table public.space_comment_versions (
+create table if not exists public.space_comment_versions (
   id uuid primary key default gen_random_uuid(),
   space_id uuid not null references public.spaces (id) on delete cascade,
   comment_id text not null,
@@ -53,11 +55,12 @@ create table public.space_comment_versions (
   unique (space_id, comment_id, version)
 );
 
-create index space_comment_versions_space_comment_version_idx
+create index if not exists space_comment_versions_space_comment_version_idx
   on public.space_comment_versions (space_id, comment_id, version);
 
 alter table public.space_comment_versions enable row level security;
 
+drop policy if exists "space_comment_versions_select_own" on public.space_comment_versions;
 create policy "space_comment_versions_select_own"
   on public.space_comment_versions for select
   to authenticated
@@ -68,6 +71,7 @@ create policy "space_comment_versions_select_own"
     )
   );
 
+drop policy if exists "space_comment_versions_insert_own" on public.space_comment_versions;
 create policy "space_comment_versions_insert_own"
   on public.space_comment_versions for insert
   to authenticated
@@ -155,6 +159,7 @@ begin
 end;
 $$;
 
+drop trigger if exists spaces_record_node_comment_versions on public.spaces;
 create trigger spaces_record_node_comment_versions
   after update on public.spaces
   for each row execute function public.record_space_node_comment_versions();

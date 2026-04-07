@@ -50,6 +50,8 @@ Use **WASM** only for proven hot math paths (edge picking/spatial queries), not 
 
 ## Review
 
+- **Migrations idempotent (2026-04-08):** `20260318120000_init_vision_forge.sql` + `20260320120000_node_comment_versions.sql` — **`create table if not exists`**, **`create index if not exists`**, **`drop policy if exists` before `create policy`**, **`drop trigger if exists` before `create trigger`**. Storage migrations already used **`drop policy if exists`** / **`on conflict do nothing`**. **Caveat:** `if not exists` skips DDL when the object exists; schema drift vs repo won’t self-heal.
+
 - **Scout `scout-execute` 404 / “CORS preflight” (2026-04-07):** New project `nkij…` returned **`NOT_FOUND`** for `POST /functions/v1/scout-execute` — function **not deployed** there after org move (distinct from CORS). Doc update: `docs/SCOUT_LIVE_ROLLOUT.md` (verify curl, `--project-ref`, secrets on new project). Deploy: `pnpx supabase functions deploy scout-execute --no-verify-jwt --project-ref nkijmkgdazikhyjpwcsl` + `supabase secrets set OPENROUTER_API_KEY=…` on that project; CLI **403** = Dashboard/org role or PAT from an allowed account.
 
 - **Edge deploy automation (2026-04-07):** Added `scripts/supabase-migrate/sql/edge-functions-not-migrated-via-sql.sql` (documents: Edge **not** SQL-migrated), `env.edge.example` + **`deploy-scout-execute-target.sh`** (secrets + deploy from local `env.edge.local`). **Verify (this env):** `POST …/scout-execute` still **404 NOT_FOUND**; **`supabase functions deploy`** still **403** (no org privilege). **User action:** deploy + set `OPENROUTER_API_KEY` from an account with access, or Dashboard. **Security:** any key pasted in chat should be **rotated**; never commit `env.edge.local`.

@@ -20,6 +20,13 @@ _Date: 2026-04-07 — `uploadStorage.ts` + README._
 
 _Date: 2026-04-07 — env audit + `client.ts` / `uploadStorage.ts`; storage HEAD/GET verify; Postgres URL rewrite; Scout 404 vs CORS; Edge deploy vs SQL._
 
+## Supabase migrations: idempotent DDL for CI re-runs
+
+- Use **`create table if not exists`** / **`create index if not exists`**. PostgreSQL has no **`create policy if exists`** — use **`drop policy if exists … on …;` then `create policy`** (same for **`drop trigger if exists`** before **`create trigger`**).
+- **`if not exists`** skips creation when an object is present; it does **not** fix mismatched columns.
+
+_Date: 2026-04-08 — `supabase/migrations` init + node_comment_versions._
+
 ## Supabase image transform: WebP default + `origin` fallback + dimension cap
 
 - **Default** transform URLs use **`format=webp`** when supported; **`CanvasNodeImage`** falls back to **`format=origin`** on first **`error`** for public Supabase object URLs (then same-URL retries as before).
