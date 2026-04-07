@@ -61,16 +61,29 @@ const FlowNodeResizeRoot = memo(function FlowNodeResizeRoot({
       [nodeId]
     )
   );
-  const entranceMotion = useNodeEntranceMotion(nodeId ?? undefined);
+  const {
+    initial: entranceInitial,
+    animate: entranceAnimate,
+    transition: entranceTransition,
+    onAnimationComplete: clearEntranceFlag,
+  } = useNodeEntranceMotion(nodeId ?? undefined);
   const reduceMotion = useCanvasReduceMotion();
+
+  const onRootAnimationComplete = useCallback(() => {
+    clearEntranceFlag?.();
+    // RF’s handle bounds use (handleRect − nodeRect) / zoom; Framer `y`/`scale` on this wrapper
+    // change the handle’s painted rect without changing the outer node box, so bounds can stay
+    // wrong until width/height change. Refresh once the entrance transform has settled.
+    if (nodeId) updateNodeInternals(nodeId);
+  }, [clearEntranceFlag, nodeId, updateNodeInternals]);
 
   return (
     <motion.div
       className={`h-full w-full min-h-0 min-w-0 bg-transparent ${className}`}
-      initial={entranceMotion.initial}
-      animate={entranceMotion.animate}
-      transition={reduceMotion ? { duration: 0 } : entranceMotion.transition}
-      onAnimationComplete={entranceMotion.onAnimationComplete}
+      initial={entranceInitial}
+      animate={entranceAnimate}
+      transition={reduceMotion ? { duration: 0 } : entranceTransition}
+      onAnimationComplete={onRootAnimationComplete}
     >
       <NodeResizer
         isVisible={showResizeHandles}

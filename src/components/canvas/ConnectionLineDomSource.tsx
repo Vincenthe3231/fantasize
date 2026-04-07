@@ -1,24 +1,26 @@
-import { memo } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   ConnectionLineType,
   getBezierPath,
   getSimpleBezierPath,
   getSmoothStepPath,
-  useReactFlow,
+  useStoreApi,
 } from 'reactflow';
 import type { ConnectionLineComponent } from 'reactflow';
-import {
-  measureAndCacheHandleFlowPosition,
-  readCachedHandleFlowPosition,
-} from '@/lib/canvasHandlePositionCache';
+import { isCanvasEdgeDebugEnabled, logCanvasEdgeConnectionAndAudit } from '@/lib/canvasEdgeDebug';
+import { measureHandleFlowPositionWithViewport } from '@/lib/canvasHandlePositionCache';
+import { useWorkflowStore } from '@/stores/workflowStore';
 
 /**
- * Drop-in replacement for React Flow's default connection preview path.
- * Uses the live DOM handle center + screenToFlowPosition for the source point each render
- * so the line stays pinned to the visible handle even if internals lag layout/transform
- * (e.g. grouped nodes, zoom, or subframe updates).
+ * Custom connection preview: uses React Flow’s **`fromX` / `fromY`** (same as the built-in line).
+ * DOM re-projection was removed from the painted path — a parallel client→flow conversion can
+ * disagree with RF’s pipeline and anchor the preview at the wrong flow point (e.g. viewport origin).
+ *
+ * With `?canvasEdgeDebug=1`, logs once per gesture (dev): RF source vs optional DOM-measured check
+ * for comparison only (see `logCanvasEdgeConnectionAndAudit`).
  */
-const ConnectionLineDomSource: ConnectionLineComponent = memo(function ConnectionLineDomSource({
+const ConnectionLineDomSource: ConnectionLineComponent = function ConnectionLineDomSource({
   connectionLineStyle,
   connectionLineType,
   fromNode,
@@ -30,29 +32,73 @@ const ConnectionLineDomSource: ConnectionLineComponent = memo(function Connectio
   fromPosition,
   toPosition,
 }) {
-  const { screenToFlowPosition } = useReactFlow();
+  const [searchParams] = useSearchParams();
+  const canvasEdgeDebug = useMemo(
+    () => isCanvasEdgeDebugEnabled(searchParams),
+    [searchParams]
+  );
+  const storeApi = useStoreApi();
+  const loggedGestureRef = useRef(false);
 
-  let sourceX = fromX;
-  let sourceY = fromY;
   const nodeId = fromNode?.id;
   const hid = fromHandle?.id != null ? String(fromHandle.id) : null;
-  if (nodeId && hid) {
-    const cached = readCachedHandleFlowPosition(nodeId, hid);
-    if (cached) {
-      sourceX = cached.x;
-      sourceY = cached.y;
-    } else {
-      const p = measureAndCacheHandleFlowPosition(nodeId, hid, screenToFlowPosition);
-      if (p) {
-      sourceX = p.x;
-      sourceY = p.y;
+
+  useLayoutEffect(() => {
+    if (!import.meta.env.DEV || !canvasEdgeDebug || !nodeId || loggedGestureRef.current) return;
+    loggedGestureRef.current = true;
+
+    const s = storeApi.getState();
+    const domNode = s.domNode;
+    const transform = s.transform as [number, number, number];
+    const snapToGrid = s.snapToGrid;
+    const snapGrid = s.snapGrid;
+
+    let fromMeasured = { x: fromX, y: fromY };
+    let measureSucceeded = false;
+    if (domNode && hid) {
+      const p = measureHandleFlowPositionWithViewport(
+        nodeId,
+        hid,
+        domNode,
+        domNode,
+        transform,
+        snapToGrid,
+        snapGrid
+      );
+      if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+        fromMeasured = { x: p.x, y: p.y };
+        measureSucceeded = true;
       }
     }
-  }
+
+    logCanvasEdgeConnectionAndAudit({
+      tag: 'connection-line',
+      nodeId,
+      rfGetState: () => storeApi.getState(),
+      workflowNodes: useWorkflowStore.getState().nodes,
+      connectionLine: {
+        fromRf: { x: fromX, y: fromY },
+        fromMeasured,
+        to: { x: toX, y: toY },
+        measureSucceeded,
+        domNodePresent: domNode != null,
+        transform: [...transform],
+      },
+    });
+  }, [
+    canvasEdgeDebug,
+    nodeId,
+    hid,
+    fromX,
+    fromY,
+    toX,
+    toY,
+    storeApi,
+  ]);
 
   const pathParams = {
-    sourceX,
-    sourceY,
+    sourceX: fromX,
+    sourceY: fromY,
     sourcePosition: fromPosition,
     targetX: toX,
     targetY: toY,
@@ -72,7 +118,7 @@ const ConnectionLineDomSource: ConnectionLineComponent = memo(function Connectio
   } else if (connectionLineType === ConnectionLineType.SimpleBezier) {
     [dAttr] = getSimpleBezierPath(pathParams);
   } else {
-    dAttr = `M${sourceX},${sourceY} ${toX},${toY}`;
+    dAttr = `M${fromX},${fromY} ${toX},${toY}`;
   }
 
   return (
@@ -83,6 +129,6 @@ const ConnectionLineDomSource: ConnectionLineComponent = memo(function Connectio
       style={connectionLineStyle}
     />
   );
-});
+};
 
 export default ConnectionLineDomSource;

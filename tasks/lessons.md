@@ -85,3 +85,11 @@ _Date: 2026-03-27 — after Chrome Performance showed ~2s handle pointer process
 - Prefer **zoom (`transform[2]`) only** for continuous sync; run a **full refresh on `onMoveEnd`** (and connect / hydrate paths) so pan still ends in a consistent state.
 
 _Date: 2026-03-27 — pan vs hand tool performance._
+
+## React Flow connection preview: do not override `fromX`/`fromY` with a second DOM→flow pipeline
+
+- **`ConnectionLine`** already passes **`fromX`/`fromY`** from **`handleBounds`** + **`positionAbsolute`**; audits showed these match **DOM handle centers** after the viewport transform.
+- Re-projecting with a custom **`(client − domRect − transform) / zoom`** and **replacing** the preview source can **diverge** from RF’s pipeline (e.g. wrong relative origin → flow for **viewport (0,0)** instead of the handle → huge `fromRfVsMeasured` and visible drift).
+- **Pattern:** use RF’s **`fromX`/`fromY`** for the live **`connectionLineComponent`** path; reserve DOM measurement for **debug-only** comparison, or fix the projection to match **`screenToFlowPosition`** exactly before trusting it for paint.
+
+_Date: 2026-04-07 — after `connection+audit` showed `fromMeasured` at viewport origin while `fromRf` matched DOM._

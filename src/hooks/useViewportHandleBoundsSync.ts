@@ -12,7 +12,9 @@ import { canvasPerfFlags, runWithCanvasPerfMark } from '@/lib/canvasPerf';
  * `Index.tsx`** still calls `refreshAllHandleBounds()` when a pan gesture finishes to correct any
  * drift. Zoom changes still need refresh because scale affects how RF caches bounds; those
  * refreshes are **throttled** (`canvasPerfFlags.zoomHandleBoundsThrottleMs`) so wheel/pinch does
- * not run `updateNodeInternals(all nodes)` on every zoom tick. `0` disables throttling.
+ * not run `updateNodeInternals(all nodes)` on every zoom tick. `0` disables throttling. While
+ * `connectionNodeId` is set (dragging a new connection), throttling is bypassed so the preview
+ * line stays aligned with visible handles.
  *
  * Keep this behavior intact: connection UX relies on fresh handle internals so newly connected
  * edges can anchor immediately to the visible handle position.
@@ -63,6 +65,8 @@ export function useViewportHandleBoundsSync(): {
   }, [getNodes, queueHandleBoundsRefresh]);
 
   const zoom = useStore((s) => s.transform[2]);
+  /** While dragging a new edge, stale handle bounds make the preview line float off the visible port; bypass zoom throttle for those frames. */
+  const isConnecting = useStore((s) => s.connectionNodeId != null);
   const lastZoomForInternalsRef = useRef<number | null>(null);
 
   const rafRef = useRef<number | null>(null);
@@ -88,7 +92,7 @@ export function useViewportHandleBoundsSync(): {
       });
     };
 
-    if (throttleMs <= 0) {
+    if (isConnecting || throttleMs <= 0) {
       runRefresh();
     } else {
       const now = performance.now();
@@ -117,7 +121,7 @@ export function useViewportHandleBoundsSync(): {
         dirtyRafRef.current = null;
       }
     };
-  }, [zoom, refreshAllHandleBounds]);
+  }, [zoom, refreshAllHandleBounds, isConnecting]);
 
   return { refreshAllHandleBounds, queueHandleBoundsRefresh };
 }

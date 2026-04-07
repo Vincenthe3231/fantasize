@@ -1,18 +1,22 @@
 /**
- * Dev-only canvas / edge / handle instrumentation.
+ * Dev-only canvas / edge instrumentation.
  *
- * Enable in the browser (development builds only):
- * - `?canvasEdgeDebug=1` — logs on connect-start, move-end (throttled), periodic global snapshot
- * - `?debugNode=<nodeId>` — every 2s, full audit for that node (works with or without canvasEdgeDebug)
+ * `?canvasEdgeDebug=1` — while dragging a new connection, logs **one** `[canvas-edge-debug] connection+audit`
+ * message per gesture: React Flow `fromX`/`fromY` vs DOM-measured source, target `toX`/`toY`, and the same
+ * full audit snapshot (Zustand vs RF internals vs DOM handles) as before.
  *
- * Paste console output (expand objects) when reporting handle / connection-line mismatch.
+ * No separate flags, intervals, move-end spam, or `window` hooks.
  */
 import { internalsSymbol } from 'reactflow';
 import type { Node } from 'reactflow';
 
-export function isCanvasEdgeDebugEnabled(searchParams: URLSearchParams): boolean {
-  const v = searchParams.get('canvasEdgeDebug')?.trim().toLowerCase();
+function truthyParam(searchParams: URLSearchParams, key: string): boolean {
+  const v = searchParams.get(key)?.trim().toLowerCase();
   return v === '1' || v === 'true' || v === 'yes';
+}
+
+export function isCanvasEdgeDebugEnabled(searchParams: URLSearchParams): boolean {
+  return truthyParam(searchParams, 'canvasEdgeDebug');
 }
 
 type RfStoreState = {
@@ -31,15 +35,13 @@ function readHandleBounds(node: Node | undefined): unknown {
   return undefined;
 }
 
-/** Full snapshot: Zustand vs RF internals vs DOM for every handle under the node. */
-export function logCanvasEdgeAudit(opts: {
+/** Same payload shape as the historical standalone audit log. */
+export function buildCanvasEdgeAuditPayload(opts: {
   tag: string;
   nodeId: string;
   rfGetState: RfGetState;
   workflowNodes: Node[];
-}): void {
-  if (!import.meta.env.DEV) return;
-
+}): Record<string, unknown> {
   const { tag, nodeId, rfGetState, workflowNodes } = opts;
   const state = rfGetState();
   const rfNode = state.nodeInternals.get(nodeId);
@@ -66,7 +68,7 @@ export function logCanvasEdgeAudit(opts: {
     });
   });
 
-  const payload = {
+  return {
     tag,
     nodeId,
     ts: new Date().toISOString(),
@@ -100,111 +102,48 @@ export function logCanvasEdgeAudit(opts: {
           }
         : null,
     handleBoundsFromInternals: readHandleBounds(rfNode),
-    domNodeRect: nodeRect
+    nodeScreenRect: nodeRect
       ? { x: nodeRect.x, y: nodeRect.y, w: nodeRect.width, h: nodeRect.height }
       : null,
     handlesDom,
   };
-
-  console.log('%c[canvas-edge-debug] audit', 'color:#22d3ee;font-weight:bold', payload);
 }
 
-export function logCanvasEdgeGlobal(opts: {
+/**
+ * Single console message: `connectionLineComponent` source (RF vs DOM) + full audit at the same moment.
+ */
+export function logCanvasEdgeConnectionAndAudit(opts: {
   tag: string;
-  rfGetState: RfGetState;
-  workflowNodeCount: number;
-  workflowEdgeCount: number;
-}): void {
-  if (!import.meta.env.DEV) return;
-  const s = opts.rfGetState();
-  console.log('%c[canvas-edge-debug] global', 'color:#a78bfa;font-weight:bold', {
-    tag: opts.tag,
-    ts: new Date().toISOString(),
-    transform: [...s.transform] as [number, number, number],
-    rfNodeInternalsSize: s.nodeInternals.size,
-    workflowNodeCount: opts.workflowNodeCount,
-    workflowEdgeCount: opts.workflowEdgeCount,
-  });
-}
-
-type ConnectStartMeta = {
-  nodeId: string | null;
-  handleId: string | null;
-  handleType: string | null;
-};
-
-export function logCanvasEdgeConnectStart(opts: {
+  nodeId: string;
   rfGetState: RfGetState;
   workflowNodes: Node[];
-  meta: ConnectStartMeta;
+  connectionLine: {
+    fromRf: { x: number; y: number };
+    fromMeasured: { x: number; y: number };
+    to: { x: number; y: number };
+    measureSucceeded: boolean;
+    domNodePresent: boolean;
+    transform: [number, number, number];
+  };
 }): void {
   if (!import.meta.env.DEV) return;
-  console.groupCollapsed(
-    '%c[canvas-edge-debug] connect-start',
-    'color:#f472b6;font-weight:bold',
-    opts.meta
-  );
-  console.log('meta', { ...opts.meta, ts: new Date().toISOString() });
-  if (opts.meta.nodeId) {
-    logCanvasEdgeAudit({
-      tag: 'connect-start',
-      nodeId: opts.meta.nodeId,
-      rfGetState: opts.rfGetState,
-      workflowNodes: opts.workflowNodes,
-    });
-  }
-  console.groupEnd();
-}
-
-export function logCanvasEdgeMoveEnd(opts: {
-  tag: string;
-  rfGetState: RfGetState;
-  workflowNodeCount: number;
-  workflowEdgeCount: number;
-  viewport: { x: number; y: number; zoom: number };
-}): void {
-  if (!import.meta.env.DEV) return;
-  const s = opts.rfGetState();
-  console.log('%c[canvas-edge-debug] move-end', 'color:#86efac;font-weight:bold', {
+  const audit = buildCanvasEdgeAuditPayload({
+    tag: opts.tag,
+    nodeId: opts.nodeId,
+    rfGetState: opts.rfGetState,
+    workflowNodes: opts.workflowNodes,
+  });
+  const { fromRf, fromMeasured } = opts.connectionLine;
+  console.log('%c[canvas-edge-debug] connection+audit', 'color:#22d3ee;font-weight:bold', {
     tag: opts.tag,
     ts: new Date().toISOString(),
-    viewport: opts.viewport,
-    transform: [...s.transform] as [number, number, number],
-    workflowNodeCount: opts.workflowNodeCount,
-    workflowEdgeCount: opts.workflowEdgeCount,
-    rfNodeInternalsSize: s.nodeInternals.size,
+    connectionLine: {
+      ...opts.connectionLine,
+      fromRfVsMeasured: {
+        dx: fromMeasured.x - fromRf.x,
+        dy: fromMeasured.y - fromRf.y,
+      },
+    },
+    audit,
   });
-}
-
-/** Attach manual triggers on `window` when `canvasEdgeDebug=1` (dev only). */
-export function installCanvasEdgeDebugWindowApi(opts: {
-  rfGetState: RfGetState;
-  getWorkflowNodes: () => Node[];
-  getWorkflowEdgeCount: () => number;
-}): () => void {
-  if (!import.meta.env.DEV || typeof window === 'undefined') {
-    return () => {};
-  }
-  const api = {
-    audit: (nodeId: string) =>
-      logCanvasEdgeAudit({
-        tag: 'manual-audit',
-        nodeId,
-        rfGetState: opts.rfGetState,
-        workflowNodes: opts.getWorkflowNodes(),
-      }),
-    global: () =>
-      logCanvasEdgeGlobal({
-        tag: 'manual-global',
-        rfGetState: opts.rfGetState,
-        workflowNodeCount: opts.getWorkflowNodes().length,
-        workflowEdgeCount: opts.getWorkflowEdgeCount(),
-      }),
-  };
-  (window as unknown as { __VISION_FORGE_EDGE_DEBUG__?: typeof api }).__VISION_FORGE_EDGE_DEBUG__ =
-    api;
-  return () => {
-    delete (window as unknown as { __VISION_FORGE_EDGE_DEBUG__?: typeof api })
-      .__VISION_FORGE_EDGE_DEBUG__;
-  };
 }

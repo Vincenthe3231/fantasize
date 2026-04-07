@@ -10,14 +10,6 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useViewportHandleBoundsSync } from '@/hooks/useViewportHandleBoundsSync';
-import {
-  installCanvasEdgeDebugWindowApi,
-  isCanvasEdgeDebugEnabled,
-  logCanvasEdgeAudit,
-  logCanvasEdgeConnectStart,
-  logCanvasEdgeGlobal,
-  logCanvasEdgeMoveEnd,
-} from '@/lib/canvasEdgeDebug';
 import { fetchOrCreateSpace, fetchSpaceById, isUuidParam, type SpaceRow } from '@/lib/spaceApi';
 import { shouldRestoreDraftFromLocal, type StoredSpaceDraft } from '@/lib/spaceDraftStorage';
 import { SpacePersistenceContext } from '@/contexts/SpacePersistenceContext';
@@ -260,9 +252,6 @@ const CanvasInnerReactFlow = ({
   const hydrateFromSpace = useWorkflowStore((s) => s.hydrateFromSpace);
   const setLastViewport = useWorkflowStore((s) => s.setLastViewport);
   const updateSettings = useWorkflowStore((s) => s.updateSettings);
-  const [searchParams] = useSearchParams();
-  const debugNodeParam = useMemo(() => searchParams.get('debugNode')?.trim() ?? '', [searchParams]);
-  const canvasEdgeDebugOn = useMemo(() => isCanvasEdgeDebugEnabled(searchParams), [searchParams]);
 
   const [nodes, setNodes] = useNodesState(storeNodes);
   const isNodeResizeActiveRef = useRef(false);
@@ -379,7 +368,6 @@ const CanvasInnerReactFlow = ({
   const updateNodeInternals = useUpdateNodeInternals();
   const { refreshAllHandleBounds, queueHandleBoundsRefresh } = useViewportHandleBoundsSync();
   const storeApi = useStoreApi();
-  const moveEndDebugLastTsRef = useRef(0);
 
   const onConnectStart = useCallback(
     (
@@ -387,17 +375,6 @@ const CanvasInnerReactFlow = ({
       meta: { nodeId?: string | null; handleId?: string | null; handleType?: string | null }
     ) => {
       const nodeId = meta?.nodeId ?? undefined;
-      if (import.meta.env.DEV && canvasEdgeDebugOn) {
-        logCanvasEdgeConnectStart({
-          rfGetState: () => storeApi.getState(),
-          workflowNodes: useWorkflowStore.getState().nodes,
-          meta: {
-            nodeId: meta?.nodeId ?? null,
-            handleId: meta?.handleId ?? null,
-            handleType: meta?.handleType != null ? String(meta.handleType) : null,
-          },
-        });
-      }
       if (nodeId) {
         bumpHandleFlowPositionRevision();
         const handleId = meta?.handleId != null ? String(meta.handleId) : null;
@@ -423,14 +400,7 @@ const CanvasInnerReactFlow = ({
         setIsConnectingFromHandle(true);
       });
     },
-    [
-      canvasEdgeDebugOn,
-      storeApi,
-      refreshAllHandleBounds,
-      updateNodeInternals,
-      getNode,
-      screenToFlowPosition,
-    ]
+    [storeApi, refreshAllHandleBounds, updateNodeInternals, getNode, screenToFlowPosition]
   );
   const onConnectEnd = useCallback(() => {
     setIsConnectingFromHandle(false);
@@ -444,22 +414,8 @@ const CanvasInnerReactFlow = ({
       requestAnimationFrame(() => {
         refreshAllHandleBounds();
       });
-      if (import.meta.env.DEV && canvasEdgeDebugOn) {
-        const now = Date.now();
-        if (now - moveEndDebugLastTsRef.current >= 600) {
-          moveEndDebugLastTsRef.current = now;
-          const wf = useWorkflowStore.getState();
-          logCanvasEdgeMoveEnd({
-            tag: 'onMoveEnd',
-            rfGetState: () => storeApi.getState(),
-            workflowNodeCount: wf.nodes.length,
-            workflowEdgeCount: wf.edges.length,
-            viewport: vp,
-          });
-        }
-      }
     },
-    [setLastViewport, refreshAllHandleBounds, canvasEdgeDebugOn, storeApi]
+    [setLastViewport, refreshAllHandleBounds]
   );
 
   useEffect(() => {
@@ -549,41 +505,6 @@ const CanvasInnerReactFlow = ({
 
   const userSelectionRect = useStore((s) => s.userSelectionRect);
   const hydratedSpaceId = useRef<string | null>(null);
-
-  /** Console instrumentation: `?canvasEdgeDebug=1` and/or `?debugNode=<id>` (dev only). */
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    if (!debugNodeParam && !canvasEdgeDebugOn) return;
-    const id = window.setInterval(() => {
-      const wf = useWorkflowStore.getState();
-      if (canvasEdgeDebugOn) {
-        logCanvasEdgeGlobal({
-          tag: 'interval-2s',
-          rfGetState: () => storeApi.getState(),
-          workflowNodeCount: wf.nodes.length,
-          workflowEdgeCount: wf.edges.length,
-        });
-      }
-      if (debugNodeParam) {
-        logCanvasEdgeAudit({
-          tag: 'interval-2s',
-          nodeId: debugNodeParam,
-          rfGetState: () => storeApi.getState(),
-          workflowNodes: wf.nodes,
-        });
-      }
-    }, 2000);
-    return () => clearInterval(id);
-  }, [debugNodeParam, canvasEdgeDebugOn, storeApi]);
-
-  useEffect(() => {
-    if (!import.meta.env.DEV || !canvasEdgeDebugOn) return;
-    return installCanvasEdgeDebugWindowApi({
-      rfGetState: () => storeApi.getState(),
-      getWorkflowNodes: () => useWorkflowStore.getState().nodes,
-      getWorkflowEdgeCount: () => useWorkflowStore.getState().edges.length,
-    });
-  }, [canvasEdgeDebugOn, storeApi]);
 
   useEffect(() => {
     userSelectionRectRef.current = userSelectionRect ?? null;

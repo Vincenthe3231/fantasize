@@ -8,7 +8,7 @@ type RFStoreGetState = () => {
 
 /**
  * Legacy minimal handle snapshot (still exported for ad-hoc imports).
- * Prefer `canvasEdgeDebug.ts` + URL flags `?canvasEdgeDebug=1` and `?debugNode=<id>` on the canvas.
+ * Prefer `canvasEdgeDebug.ts` + `?canvasEdgeDebug=1` — combined connection-line + audit log while dragging.
  */
 export function logCanvasHandleDebug(getState: RFStoreGetState, nodeId: string): void {
   if (!import.meta.env.DEV) return;
