@@ -167,6 +167,8 @@ aws s3 sync s3://canvas s3://bucket-1 \
 
 You may need **separate** configure profiles or env vars for source vs target endpoints. If sync is one-way from old → new, run two commands with different `--endpoint-url` and credentials (see Supabase docs: [S3 compatibility](https://supabase.com/docs/guides/storage/s3-compatibility)).
 
+**Vision Forge — S3 sync vs Storage REST:** Copying binaries with `aws s3 sync` alone can leave **`download()` / public URLs returning 404** while S3 `HeadObject` succeeds. After syncing into the target bucket, run [`scripts/supabase-migrate/rest-upload-canvas-from-staging.mjs`](../scripts/supabase-migrate/rest-upload-canvas-from-staging.mjs) (same local tree as the sync staging dir) so objects are written through the **Storage API** (`upsert: true`). Or use [`scripts/supabase-migrate/sync-canvas-s3.sh`](../scripts/supabase-migrate/sync-canvas-s3.sh), which runs S3 sync then that step. Requires `VITE_SUPABASE_URL` + `VITE_SUPABASE_SERVICE_ROLE_KEY` in `.env`.
+
 After sync, if `bucket_id` or path prefixes changed, update `storage.objects` accordingly or re-import metadata (Phase A3/B5).
 
 ---
@@ -181,6 +183,28 @@ psql "$DATABASE_URL_TARGET" -f scripts/supabase-migrate/verify-counts.sql
 ```
 
 Then in the app (target keys only): sign in, open `/w/{space_id}`, confirm canvas and media URLs load.
+
+---
+
+## Phase F — Rewrite old project URLs in `spaces` (Postgres)
+
+After storage blobs exist on the **target** project, JSON in `public.spaces` and `public.space_node_versions` may still contain full `https://OLD_REF.supabase.co/...` (and optional `https://OLD_REF.storage.supabase.co/...`) strings. The app does not auto-rewrite those on load.
+
+1. **Preview** (read-only):
+
+   ```bash
+   ./scripts/supabase-migrate/rewrite-supabase-host-in-db.sh
+   ```
+
+2. **Apply** on **`TARGET_DATABASE_SESSION_POOLER_URL`** (single transaction; post-check included):
+
+   ```bash
+   APPLY=1 ./scripts/supabase-migrate/rewrite-supabase-host-in-db.sh
+   ```
+
+SQL lives in [`scripts/supabase-migrate/sql/preview-supabase-host-rewrite.sql`](../scripts/supabase-migrate/sql/preview-supabase-host-rewrite.sql) and [`apply-supabase-host-rewrite.sql`](../scripts/supabase-migrate/sql/apply-supabase-host-rewrite.sql). Edit literals if your old/new refs differ.
+
+**Client cache / drafts:** Clear site data for your app origin or remove IndexedDB `vision-forge-drafts-v2` and `localStorage` keys prefixed `vf-space-draft:` so offline drafts do not keep old URLs. Use DevTools → Network → **Disable cache** while verifying.
 
 ---
 

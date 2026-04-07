@@ -8,6 +8,16 @@
 
 _Date: 2026-04-07 — `uploadStorage.ts` + README._
 
+## Supabase: `VITE_SUPABASE_URL` vs `VITE_SUPABASE_STORAGE_PUBLIC_URL`
+
+- **Public `<img>` / `getPublicUrl` URLs** use the **project API host** `https://<ref>.supabase.co` from **`VITE_SUPABASE_URL`** (via `createClient` + `storage.getPublicUrl`). There is **no** app code that reads `VITE_SUPABASE_STORAGE_PUBLIC_URL`.
+- **`*.storage.supabase.co/.../storage/v1/s3`** is the **S3-compatible API** for tools (e.g. `aws s3 sync`), not the browser public object path (`/storage/v1/object/public/...`).
+- **Migrated spaces** can still contain **full old-host strings** in JSON; changing `.env` does not rewrite persisted URLs.
+- **`storage.objects` row parity ≠ downloadable blobs:** Importing metadata without `aws s3 sync` (or equivalent) leaves **404** on the target for those paths. Verify with **HTTP GET** to `/storage/v1/object/public/{bucket}/{path}` (URL-encoded), not only row counts.
+- **After blob migration:** Run **Phase F** SQL (`apply-supabase-host-rewrite.sql`) on the **target** DB so `spaces` / `space_node_versions` JSON no longer embed the old project host — otherwise the browser still requests the old domain. Clear **local drafts** (`vf-space-draft:` / `vision-forge-drafts-v2`) if needed.
+
+_Date: 2026-04-07 — env audit + `client.ts` / `uploadStorage.ts`; storage HEAD/GET verify; Postgres URL rewrite._
+
 ## Supabase image transform: WebP default + `origin` fallback + dimension cap
 
 - **Default** transform URLs use **`format=webp`** when supported; **`CanvasNodeImage`** falls back to **`format=origin`** on first **`error`** for public Supabase object URLs (then same-URL retries as before).
