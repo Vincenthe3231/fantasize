@@ -58,6 +58,13 @@ _Date: 2026-03-27 — after persistent handle/edge offset with growing nodes._
 
 _Date: 2026-03-27 — edge origin mismatch persisted after store/viewport fixes._
 
+## React Flow edge / connection SVGs: keep `.react-flow__container` positioning
+
+- RF edge and connection-line `<svg>` elements use **`react-flow__container`**, which is **`position: absolute; top: 0; left: 0; width/height: 100%`** under the transformed viewport. Overriding those SVGs to **`position: relative`** (e.g. for z-index) **breaks the full-pane overlay** — paths are still in **flow coordinates**, but the SVG box no longer aligns with the pane, so the preview can look **hundreds of px offset** from handles and the pointer even when debug logs show correct `fromX`/`toX`.
+- **Fix:** use **`position: absolute !important; top: 0; left: 0`** (preserve RF sizing) and control stacking with **`z-index`** only.
+
+_Date: 2026-04-07 — after connection preview drift with correct `canvasEdgeDebug` coordinates._
+
 ## Never call Zustand `set` inside React `setEdges` / `setNodes` updaters
 
 - **`useEdgesState` + `setEdges((eds) => { connectEdgeWithHistory(...); return next; })`** triggers `set({ edges })` on the store **during** React’s state update → “Cannot update CanvasInner while rendering CanvasInner” / **maximum update depth**. Compute `next` with **`getEdges()`**, **`setEdges(next)`**, then **`queueMicrotask(() => connectEdgeWithHistory(...))`**. Same pattern for **`onEdgesChangeTracked`** vs `applyEdgeRemoval` / `setEdgesSilently`.

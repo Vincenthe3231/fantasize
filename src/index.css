@@ -431,9 +431,15 @@
  * Static edge SVGs paint below nodes. React Flow renders the drag preview in a *separate* SVG that also
  * uses `react-flow__edges` but adds `react-flow__connectionline` — that layer must stay above nodes or the
  * line is invisible while connecting.
+ *
+ * IMPORTANT: `.react-flow__container` is `position: absolute; top: 0; left: 0; width/height 100%`. Do not
+ * override edge/connection SVGs to `position: relative` — they stop filling the viewport and paths in
+ * flow space paint with a large screen offset (preview “detached” from handles / pointer).
  */
 .react-flow .react-flow__viewport svg.react-flow__edges:not(.react-flow__connectionline) {
-  position: relative;
+  position: absolute !important;
+  top: 0;
+  left: 0;
   z-index: 0 !important;
 }
 
@@ -442,7 +448,9 @@
  * If z-index ties static edges (2), sibling paint order can hide the preview entirely.
  */
 .react-flow .react-flow__viewport svg.react-flow__connectionline {
-  position: relative;
+  position: absolute !important;
+  top: 0;
+  left: 0;
   z-index: 10 !important;
   /* Full-viewport SVG must not sit above handles and steal drops while connecting */
   pointer-events: none !important;
@@ -460,7 +468,9 @@
  * connecting-edge rules still neutralize hits until the drag ends.
  */
 .vf-snip-tool .react-flow .react-flow__viewport svg.react-flow__edges:not(.react-flow__connectionline) {
-  position: relative;
+  position: absolute !important;
+  top: 0;
+  left: 0;
   z-index: 5 !important;
 }
 
@@ -471,7 +481,9 @@
  * steal the release event and handles never connect.
  */
 .vf-connecting-edge .react-flow .react-flow__viewport svg.react-flow__edges:not(.react-flow__connectionline) {
-  position: relative;
+  position: absolute !important;
+  top: 0;
+  left: 0;
   z-index: 2 !important;
   pointer-events: none !important;
 }

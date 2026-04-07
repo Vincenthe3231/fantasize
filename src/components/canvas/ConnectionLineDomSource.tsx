@@ -5,12 +5,16 @@ import {
   getBezierPath,
   getSimpleBezierPath,
   getSmoothStepPath,
+  useStore,
   useStoreApi,
 } from 'reactflow';
 import type { ConnectionLineComponent } from 'reactflow';
 import { isCanvasEdgeDebugEnabled, logCanvasEdgeConnectionAndAudit } from '@/lib/canvasEdgeDebug';
 import { measureHandleFlowPositionWithViewport } from '@/lib/canvasHandlePositionCache';
 import { useWorkflowStore } from '@/stores/workflowStore';
+
+/** Keep in sync with `CustomEdge` LOD thresholds. */
+const EDGE_LOD_MEDIUM_ZOOM = 0.9;
 
 /**
  * Custom connection preview: uses React Flow’s **`fromX` / `fromY`** (same as the built-in line).
@@ -39,6 +43,8 @@ const ConnectionLineDomSource: ConnectionLineComponent = function ConnectionLine
   );
   const storeApi = useStoreApi();
   const loggedGestureRef = useRef(false);
+  const zoom = useStore((s) => s.transform[2]);
+  const bezierCurvature = zoom < EDGE_LOD_MEDIUM_ZOOM ? 0.2 : 0.35;
 
   const nodeId = fromNode?.id;
   const hid = fromHandle?.id != null ? String(fromHandle.id) : null;
@@ -107,7 +113,7 @@ const ConnectionLineDomSource: ConnectionLineComponent = function ConnectionLine
 
   let dAttr = '';
   if (connectionLineType === ConnectionLineType.Bezier) {
-    [dAttr] = getBezierPath({ ...pathParams, curvature: 0.35 });
+    [dAttr] = getBezierPath({ ...pathParams, curvature: bezierCurvature });
   } else if (connectionLineType === ConnectionLineType.Step) {
     [dAttr] = getSmoothStepPath({
       ...pathParams,

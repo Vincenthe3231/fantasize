@@ -30,10 +30,6 @@ export const canvasLazyEdgeTypes = {
   custom: lazy(() => import('@/components/canvas/CustomEdge')),
 } as EdgeTypes;
 
-export const ConnectionLineDomSourceLazy = lazy(
-  () => import('@/components/canvas/ConnectionLineDomSource')
-);
-
 export const SettingsPanelLazy = lazy(() => import('@/components/canvas/SettingsPanel'));
 
 export const SelectionOverlayLazy = lazy(() => import('@/components/canvas/SelectionOverlay'));

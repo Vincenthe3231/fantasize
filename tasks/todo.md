@@ -25,6 +25,8 @@
 - [x] Phase 4 — Persistence + toolbar: 350ms debounced `refreshParity` for viewport-only store churn in [`src/hooks/useSpaceLocalPersistence.ts`](src/hooks/useSpaceLocalPersistence.ts); `React.memo` on [`src/components/canvas/Toolbar.tsx`](src/components/canvas/Toolbar.tsx).
 - [ ] Gate: re-measure INP (presentation delay) + profiler; decide Hybrid / WASM using escalation policy below.
 
+- [x] Connection preview drift: `index.css` restored **absolute** positioning for `svg.react-flow__edges` / `svg.react-flow__connectionline` (was overriding RF `.react-flow__container` with `relative`); `ConnectionLineDomSource` eager import + Bezier curvature matches `CustomEdge` by zoom.
+
 ### Hybrid v1 checklist (grid + edges)
 
 - [x] Phase 0: baseline/gates recorded for dense pan/zoom/drag; keep rollback flags for each hybrid behavior.
@@ -43,6 +45,8 @@ If presentation delay is still high due to DOM/layout: move toward **Hybrid (Web
 Use **WASM** only for proven hot math paths (edge picking/spatial queries), not as a general INP fix.
 
 ## Review
+
+- **Connection line screen offset (2026-04-07):** Debug showed `fromRf` ≈ DOM measure; mismatch was **layout**. Custom CSS set edge/connection SVGs to `position: relative`, overriding React Flow’s `react-flow__container` absolute full-pane overlay — preview drew in flow space inside a misaligned SVG. Fixed with `position: absolute !important; top: 0; left: 0` + z-index; aligned preview Bezier curvature with `CustomEdge` via zoom; load `ConnectionLineDomSource` synchronously (small module).
 
 - **Stable canvas image URLs (2026-04):** `CanvasNodeImage` no longer measures CSS box × DPR for Supabase transforms. Default path: `canvasStableImageUrl` with `canvasPerfFlags.canvasImageStableMaxWidth` (1280). Optional `fixedCssWidth`/`fixedCssHeight` for grid/list thumbs. **Verify:** Network tab — same `width=` in URL when panning/zooming; crossing low-zoom placeholder still remounts `<img>` once.
 

@@ -51,11 +51,11 @@ import BeLiveLoader from '@/components/canvas/BeLiveLoader';
 import { SystemNotificationToast } from '@/components/SystemNotificationToast';
 import { CanvasCursor } from '@/components/canvas/CanvasCursor';
 import { PixiHybridBackgroundGate } from '@/components/canvas/PixiHybridBackgroundGate';
+import ConnectionLineDomSource from '@/components/canvas/ConnectionLineDomSource';
 import { DevReactProfiler } from '@/components/dev/DevReactProfiler';
 import {
   canvasLazyEdgeTypes,
   canvasLazyNodeTypes,
-  ConnectionLineDomSourceLazy,
   SelectionOverlayLazy,
   SettingsPanelLazy,
 } from '@/lib/canvasFlowLazy';
@@ -1130,7 +1130,7 @@ const CanvasInnerReactFlow = ({
         onConnectEnd={onConnectEnd}
         isValidConnection={isValidConnection}
         connectionLineType={ConnectionLineType.Bezier}
-        connectionLineComponent={ConnectionLineDomSourceLazy}
+        connectionLineComponent={ConnectionLineDomSource}
         connectionLineStyle={{ stroke: 'var(--edge-stroke)', strokeWidth: 2 }}
         onNodeDragStart={(_, node) => {
           runWithCanvasPerfMark('canvas.dragStart', () => {
