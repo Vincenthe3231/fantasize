@@ -66,6 +66,8 @@ Row Level Security (RLS) restricts `profiles` and `spaces` to the authenticated 
 
 The S3-style env vars (`VITE_SUPABASE_STORAGE_ACCESS_KEY`, etc.) are optional; the app uploads via the Supabase JS client (REST), not direct S3.
 
+**Caching & URLs:** Workflow uploads use **`getPublicUrl`** (not per-request signed URLs). Each file gets a **new object path** (`workflow-media/{time}-{id}-{name}`) so content changes do not fight the browser cache. Uploads set a **long `cacheControl` max-age** (1 year) via [`src/lib/uploadStorage.ts`](src/lib/uploadStorage.ts). **Objects uploaded before this change** keep their previous TTL until re-uploaded or updated in the dashboard.
+
 ### Apply migrations to your remote project
 
 **Option A — Supabase CLI (recommended)**

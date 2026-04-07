@@ -1,5 +1,21 @@
 # Lessons (session corrections)
 
+## Supabase Storage: public URLs + long max-age + new path per revision
+
+- Prefer **`getPublicUrl`** for canvas/node image fields — avoid per-request **signed** URLs in persisted JSON (new token → new cache key → repeated full downloads).
+- Set **`cacheControl`** on **upload** (Supabase defaults to 1h). Use a **long max-age** only when each object path is **immutable**; on content change, **upload to a new key** and update the stored URL (this app uses `workflow-media/{timestamp}-{rand}-{filename}`, `upsert: false`).
+- **`immutable`** is not set via the JS client’s numeric `cacheControl` field; unique paths + long max-age achieve the same practical outcome for browsers.
+
+_Date: 2026-04-07 — `uploadStorage.ts` + README._
+
+## Supabase image transform: WebP default + `origin` fallback + dimension cap
+
+- **Default** transform URLs use **`format=webp`** when supported; **`CanvasNodeImage`** falls back to **`format=origin`** on first **`error`** for public Supabase object URLs (then same-URL retries as before).
+- Cap requested **`width` / `height`** at **`SUPABASE_TRANSFORM_SAFE_MAX_DIMENSION` (2500)** in `imageDelivery` to reduce failures near ~2560px transform limits.
+- Client-side WebP transcoding (canvas/`toBlob`) is usually **worse** here: **CORS/taint**, memory, and CPU vs a single CDN transform; server fallback is the right default.
+
+_Date: 2026-04-07 — `imageDelivery.ts` + `CanvasNodeImage`._
+
 ## Supabase image transforms: do not key URLs to live CSS box × zoom (canvas)
 
 - Measuring node thumbnails with **ResizeObserver** under a **zoomed** React Flow viewport makes **CSS pixel width change on every zoom** → different `?width=` query params → new transform + egress.
@@ -12,6 +28,13 @@ _Date: 2026-04-03 — stable `canvasStableImageUrl` + `CanvasNodeImage` refactor
 - Native **lazy** uses intersection with the viewport; **pan/zoom** via CSS transform can cause **re-load attempts** (DevTools `lazy-img`) even when `src` is stable. Prefer **`loading="eager"`** (or default eager in `CanvasNodeImage`) for in-flow node thumbnails; keep **lazy** only for off-canvas cases (e.g. dialog until opened).
 
 _Date: 2026-04-06 — `canvasImageEagerInFlow` + eager default._
+
+## Low-zoom thumbnails: hysteresis + keep `<img>` mounted (abort / egress)
+
+- A **single** zoom threshold makes **flapping** when wheel-zoom hovers near 50% → repeated unmount/`src` clear → **`NS_BINDING_ABORTED`** and wasted fetches. Use **dual thresholds** around a center (`canvasImageLowZoomMax` ± `canvasImageLowZoomHysteresis`, default **45% / 55%**) with a **latched** boolean in `CanvasViewportImagePolicyBridge`.
+- Do **not** remove `<img>` or set `src=""` for low zoom — keep **stable URL** + **`loading="eager"`** in canvas and hide with **`opacity-0` / `invisible`** so loads can finish and **HTTP cache** works. Reserve **retries** for **`onError`** only, capped (e.g. 2), not for user-driven aborts.
+
+_Date: 2026-04-07 — hysteresis + visual hide + `CanvasNodeImage` error retries._
 
 ## React Flow: Select tool vs Hand tool — do not disable `selectionOnDrag` to “fix” pan
 
@@ -64,6 +87,25 @@ _Date: 2026-03-27 — edge origin mismatch persisted after store/viewport fixes.
 - **Fix:** use **`position: absolute !important; top: 0; left: 0`** (preserve RF sizing) and control stacking with **`z-index`** only.
 
 _Date: 2026-04-07 — after connection preview drift with correct `canvasEdgeDebug` coordinates._
+
+## React Flow marquee: clamp selection; don’t trust `getNodesInside` alone
+
+- During pane marquee, RF’s **`getNodesInside`** marks **`notInitialized`** (no `width`/`height`) and **`dragging`** nodes as selected regardless of overlap with the rectangle.
+- **Fix:** use the same strict test as gesture end — **`getNodesFullyInsideRect`** in flow space — and apply it in **`useLayoutEffect`** when `userSelectionActive` + `userSelectionRect` update (after the store commits the new rect), plus **`onSelectionChange`** while marquee is active so Zustand stays aligned. **`flowRectFromPaneSelection`** keeps conversion consistent with **`onSelectionEnd`**.
+
+_Date: 2026-04-07 — marquee selecting out-of-bounds nodes._
+
+## Store → RF merge: do not force `selected` from `live` when Zustand was just synced
+
+- **`mergeStoreNodesWithFlowGeometry`** had `selected: live.selected`, so the `[storeNodes]` effect overwrote multi-select coming from **`onSelectionChange` / `setNodesSilently`** whenever React Flow’s node state was stale. RF’s pane marquee only calls **`onNodesChange` when the number of selected nodes changes**, so expanding a box from 1 → 3 nodes often never emits updates for the extra IDs — **`live` stayed at one `selected: true`** and the merge **wiped** the store-correct set. **Fix:** use **`selected: sn.selected`** when merging store into RF (geometry still from `live`).
+
+_Date: 2026-04-07 — marquee only selected one node._
+
+## Marquee + `storeNodes` merge: skip the effect while `userSelectionActive`
+
+- Even with **`selected: sn.selected`**, the **`[storeNodes]` → `mergeStoreNodesWithFlowGeometry`** effect can run **before** **`onSelectionChange`** updates Zustand (layout clamp vs passive effect order). **`storeNodes` still has the old single selection**, so the merge **overwrites** the multi-select the layout effect just wrote to React. **Fix:** **`if (storeApi.getState().userSelectionActive) return`** before merging during marquee; resume after release so geometry + selection stay in sync from **`onSelectionEnd`**.
+
+_Date: 2026-04-07 — marquee still one node after `sn.selected` fix._
 
 ## Never call Zustand `set` inside React `setEdges` / `setNodes` updaters
 

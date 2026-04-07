@@ -13,6 +13,8 @@
 - [x] Phase 5 — Edge / overlay LOD: `CanvasEdgeLodContext` + simplified `CustomEdge` during viewport/node-drag gestures (and optional dense-graph mode via `vf.perf.canvasEdgeLodDense`); quantized RF transform for `SelectionOverlay` during gestures (`canvasPerf.ts` flags).
 - [x] Canvas image delivery: `CanvasNodeImage` uses **stable** Supabase URLs (`canvasStableImageUrl` — fixed `width` from `canvasImageStableMaxWidth`, default 1280) or explicit `fixedCssWidth` for small thumbs; no `ResizeObserver`/zoom-churn. `canvasImagePlanForBox` kept for any legacy/tests. Gesture defer + low-zoom placeholder unchanged. **Toggles:** `vf.perf.canvasImageDeferGesture`, `?canvasImageStableMaxWidth=…` / `vf.perf.canvasImageStableMaxWidth`.
 - [x] Hybrid v1 (grid + edges): Pixi layer now mirrors dense-edge geometry from RF internals in hybrid mode (`PixiHybridBackground`); interaction LOD + DOM edge cutover flags added in `canvasPerf.ts`; image-heavy drag hardening suppresses hover overlays during gestures (`ImageCellOverlay`, `SelectedShotNode`).
+- [x] Supabase workflow media: **public** `getPublicUrl` only; uploads set **long `cacheControl` max-age** (1y); **versioned object paths** via `buildWorkflowMediaObjectPath` (new key per upload, no in-place upsert).
+- [x] Supabase transform **WebP-first** (`imageDelivery` defaults); **`CanvasNodeImage`** falls back to **`format=origin`** on first `error` for public object URLs; transform dimensions capped at **2500px** (`SUPABASE_TRANSFORM_SAFE_MAX_DIMENSION`).
 
 ## INP / presentation delay
 
@@ -26,6 +28,8 @@
 - [ ] Gate: re-measure INP (presentation delay) + profiler; decide Hybrid / WASM using escalation policy below.
 
 - [x] Connection preview drift: `index.css` restored **absolute** positioning for `svg.react-flow__edges` / `svg.react-flow__connectionline` (was overriding RF `.react-flow__container` with `relative`); `ConnectionLineDomSource` eager import + Bezier curvature matches `CustomEdge` by zoom.
+- [x] Marquee strict selection: `useLayoutEffect` + `onSelectionChange` use `getNodesFullyInsideRect` / `flowRectFromPaneSelection` while `userSelectionActive` (RF `getNodesInside` false positives on unmeasured/dragging nodes).
+- [x] Low-zoom images: hysteresis (`canvasImageLowZoomMax` ± `canvasImageLowZoomHysteresis`), CSS hide keeps `<img>` + stable `src`, eager default; `onError` retries capped at 2.
 
 ### Hybrid v1 checklist (grid + edges)
 
@@ -46,6 +50,12 @@ Use **WASM** only for proven hot math paths (edge picking/spatial queries), not 
 
 ## Review
 
+- **Supabase transform (2026-04-07):** **WebP** default URLs + **`origin` fallback** on `<img>` error; **2500px** cap on transform width/height. **Verify:** first request `format=webp`, failed loads retry with `format=origin`.
+
+- **Storage caching & public URLs (2026-04-07):** [`uploadWorkflowMedia`](src/lib/uploadStorage.ts) passes `cacheControl: '31536000'` (365d) and documents **store returned public URL** in canvas data. Paths remain **`workflow-media/{time}-{rand}-{name}`** per upload for cache-friendly immutability. README Storage section notes legacy objects keep old TTL until re-upload.
+
+- **Marquee selection (2026-04-07):** Strict **`getNodesFullyInsideRect`** while `userSelectionActive` — `useLayoutEffect` clamps RF node/edge `selected` after rect updates; **`onSelectionChange`** uses the same rule for Zustand during marquee. Shared **`flowRectFromPaneSelection`** with **`onSelectionEnd`**. **`mergeStoreNodesWithFlowGeometry`** uses **`sn.selected`** (RF `live` can lag). **While `userSelectionActive`**, skip the `storeNodes`→`setNodes` merge effect so stale Zustand (before passive `onSelectionChange`) does not overwrite multi-select.
+
 - **Connection line screen offset (2026-04-07):** Debug showed `fromRf` ≈ DOM measure; mismatch was **layout**. Custom CSS set edge/connection SVGs to `position: relative`, overriding React Flow’s `react-flow__container` absolute full-pane overlay — preview drew in flow space inside a misaligned SVG. Fixed with `position: absolute !important; top: 0; left: 0` + z-index; aligned preview Bezier curvature with `CustomEdge` via zoom; load `ConnectionLineDomSource` synchronously (small module).
 
 - **Stable canvas image URLs (2026-04):** `CanvasNodeImage` no longer measures CSS box × DPR for Supabase transforms. Default path: `canvasStableImageUrl` with `canvasPerfFlags.canvasImageStableMaxWidth` (1280). Optional `fixedCssWidth`/`fixedCssHeight` for grid/list thumbs. **Verify:** Network tab — same `width=` in URL when panning/zooming; crossing low-zoom placeholder still remounts `<img>` once.
@@ -56,7 +66,7 @@ Use **WASM** only for proven hot math paths (edge picking/spatial queries), not 
 
 - **Select vs Hand (2026-04):** Toolbar **Select** (V) = marquee + node selection — `selectionOnDrag={selectedTool === 'select' && !nodeContentFocusActive}`, `panOnDrag={[1]}` so left-drag is not canvas pan. **Hand** (H) = move the canvas — `panOnDrag={[0, 1]}` when `selectedTool === 'hand'`. A prior `selectionOnDrag={false}` change wrongly removed marquee; reverted.
 
-- **Low-zoom canvas images (2026-04):** When `canvasPerfFlags.canvasImageHideLowZoom` (default on) and viewport zoom ≤ `canvasImageLowZoomMax` (default **0.5**), `CanvasNodeImage` renders a muted placeholder instead of `<img>` — fewer decodes/composites when zoomed out. Tuning: `?canvasImageHideLowZoom=0`, `?canvasImageLowZoomMax=0.45`, or `localStorage` `vf.perf.canvasImageLowZoomMax`. `CanvasViewportImagePolicyBridge` in `Index.tsx` holds the single `useStore` zoom subscription so only that bridge re-renders per zoom frame; consumers update when crossing the threshold. **Verify:** zoom out past 50% — thumbnails become placeholders; zoom in — images return; list/grid layouts unchanged.
+- **Low-zoom canvas images (2026-04 → 2026-04-07):** **Hysteresis** around `canvasImageLowZoomMax` via `canvasImageLowZoomHysteresis` (default hide ≤45%, show ≥55%). **`CanvasNodeImage`** keeps `<img>` mounted, **CSS-hides** when latched low-zoom (stable `src`, eager default) + **capped `onError` retries**. Tuning: `?canvasImageLowZoomHysteresis=0.05`, `canvasImageLowZoomMax`, `canvasImageHideLowZoom=0`. **Verify:** wobble zoom near 50% — no mount flapping; images still cache; real errors retry up to 2×.
 
 - **Zoom handle-bounds throttle (2026-04):** `useViewportHandleBoundsSync` no longer runs `refreshAllHandleBounds` on **every** zoom tick; interval is capped by `canvasPerfFlags.zoomHandleBoundsThrottleMs` (default **120ms**, query `?zoomHandleThrottleMs=…`, or `localStorage` `vf.perf.zoomHandleThrottleMs`; **0** = legacy unthrottled rAF). `onMoveEnd` in `Index.tsx` still does a full refresh after pan/zoom. **Verify:** dense graph, wheel zoom — INP should improve; after zoom release, edges still meet handles.
 

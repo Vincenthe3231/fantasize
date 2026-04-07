@@ -1,5 +1,8 @@
 const SUPABASE_PUBLIC_OBJECT_MARKER = '/storage/v1/object/public/';
 
+/** Stay under common Storage transform limits (~2560px longest side). */
+export const SUPABASE_TRANSFORM_SAFE_MAX_DIMENSION = 2500;
+
 function isHttpUrl(url: string): boolean {
   return /^https?:\/\//i.test(url);
 }
@@ -7,6 +10,17 @@ function isHttpUrl(url: string): boolean {
 function shouldTransform(url: string): boolean {
   if (!isHttpUrl(url)) return false;
   return url.includes(SUPABASE_PUBLIC_OBJECT_MARKER);
+}
+
+/** True when `src` is a Supabase **public** object URL that can take transform query params. */
+export function isSupabasePublicTransformUrl(src: string): boolean {
+  return shouldTransform(String(src ?? '').trim());
+}
+
+function capTransformDimension(n: number): number {
+  const r = Math.round(n);
+  if (!Number.isFinite(r)) return 48;
+  return Math.min(SUPABASE_TRANSFORM_SAFE_MAX_DIMENSION, Math.max(48, r));
 }
 
 type ImageVariantOptions = {
@@ -24,7 +38,7 @@ function withTransformParams(url: string, opts: ImageVariantOptions): string {
     if (opts.height && opts.height > 0) u.searchParams.set('height', String(Math.round(opts.height)));
     if (opts.quality && opts.quality > 0) u.searchParams.set('quality', String(Math.round(opts.quality)));
     if (opts.resize) u.searchParams.set('resize', opts.resize);
-    if (opts.format && opts.format !== 'origin') u.searchParams.set('format', opts.format);
+    if (opts.format) u.searchParams.set('format', opts.format);
     return u.toString();
   } catch {
     return url;
@@ -47,7 +61,16 @@ export function canvasPreviewImageUrl(
 ): string {
   const trimmed = src.trim();
   if (!shouldTransform(trimmed)) return trimmed;
-  return withTransformParams(trimmed, { width, height, quality, format, resize });
+  const w = capTransformDimension(width);
+  const h =
+    height != null && height > 0 ? capTransformDimension(height) : undefined;
+  return withTransformParams(trimmed, {
+    width: w,
+    height: h,
+    quality,
+    format,
+    resize,
+  });
 }
 
 export type StableImageOptions = {
@@ -73,7 +96,7 @@ export function canvasStableImageUrl(
   }: StableImageOptions = {}
 ): string {
   const trimmed = src.trim();
-  const w = Math.min(4096, Math.max(48, Math.round(maxWidth)));
+  const w = capTransformDimension(maxWidth);
   if (!shouldTransform(trimmed)) return trimmed;
   return withTransformParams(trimmed, { width: w, quality, format, resize });
 }
@@ -93,12 +116,14 @@ export function canvasResponsiveSrcSet(
 ): string | undefined {
   const trimmed = src.trim();
   if (!shouldTransform(trimmed)) return undefined;
+  const h =
+    height != null && height > 0 ? capTransformDimension(height) : undefined;
   const entries = widths
     .filter((w) => Number.isFinite(w) && w > 0)
-    .map(
-      (w) =>
-        `${withTransformParams(trimmed, { width: w, height, quality, format, resize })} ${Math.round(w)}w`
-    );
+    .map((w) => {
+      const cw = capTransformDimension(w);
+      return `${withTransformParams(trimmed, { width: cw, height: h, quality, format, resize })} ${cw}w`;
+    });
   return entries.length > 0 ? entries.join(', ') : undefined;
 }
 
@@ -106,7 +131,7 @@ function uniqueSortedPositiveWidths(values: number[]): number[] {
   const seen = new Set<number>();
   for (const v of values) {
     const n = Math.round(v);
-    if (Number.isFinite(n) && n >= 48) seen.add(Math.min(4096, n));
+    if (Number.isFinite(n) && n >= 48) seen.add(capTransformDimension(n));
   }
   return [...seen].sort((a, b) => a - b);
 }
@@ -135,10 +160,10 @@ export function canvasImagePlanForBox(
 
   const dpr =
     typeof window !== 'undefined' ? Math.min(2.25, window.devicePixelRatio || 1) : 1.5;
-  const targetW = Math.min(4096, Math.max(48, Math.ceil(safeW * dpr)));
+  const targetW = capTransformDimension(Math.ceil(safeW * dpr));
   const targetH =
     cssHeightPx != null && cssHeightPx > 0
-      ? Math.min(4096, Math.max(48, Math.ceil(cssHeightPx * dpr)))
+      ? capTransformDimension(Math.ceil(cssHeightPx * dpr))
       : undefined;
 
   let tiers = uniqueSortedPositiveWidths([
@@ -148,7 +173,7 @@ export function canvasImagePlanForBox(
     targetW * 1.15,
     targetW * 1.35,
   ]);
-  if (tiers.length === 0) tiers = [Math.max(48, Math.min(4096, targetW))];
+  if (tiers.length === 0) tiers = [capTransformDimension(targetW)];
 
   const srcSet = canvasResponsiveSrcSet(trimmed, tiers, {
     quality,

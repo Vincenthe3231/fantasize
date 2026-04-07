@@ -91,12 +91,21 @@ export const canvasPerfFlags = {
    */
   zoomHandleBoundsThrottleMs: readNumberFlag('zoomHandleThrottleMs', 120, 0, 2000),
   /**
-   * When true and viewport zoom ≤ `canvasImageLowZoomMax`, `CanvasNodeImage` renders a placeholder
-   * instead of `<img>` (saves decode + compositing when zoomed out). Query `?canvasImageHideLowZoom=0`.
+   * When true, node images use **visual hiding** (not unmount) below a zoom band centered on
+   * `canvasImageLowZoomMax` with `canvasImageLowZoomHysteresis` — avoids flapping and `NS_BINDING_ABORTED`
+   * from mount/unmount near the threshold. Query `?canvasImageHideLowZoom=0`.
    */
   canvasImageHideLowZoom: readBoolFlag('canvasImageHideLowZoom', true),
-  /** Hide node images when `transform[2]` is at or below this value (e.g. 0.5 = 50% zoom). */
+  /**
+   * Center of the low-zoom band (e.g. 0.5 = 50%). Images **hide** when zoom ≤ `center - hysteresis`
+   * and **show** when zoom ≥ `center + hysteresis` (latched between). Query `?canvasImageLowZoomMax=0.5`.
+   */
   canvasImageLowZoomMax: readNumberFlag('canvasImageLowZoomMax', 0.5, 0.05, 1),
+  /**
+   * Half-width of the hysteresis band around `canvasImageLowZoomMax` (default 0.05 → hide ≤45%, show ≥55%).
+   * Query `?canvasImageLowZoomHysteresis=0.05` or `vf.perf.canvasImageLowZoomHysteresis`.
+   */
+  canvasImageLowZoomHysteresis: readNumberFlag('canvasImageLowZoomHysteresis', 0.05, 0.01, 0.25),
   /**
    * Fixed Supabase transform width for `CanvasNodeImage` when not using `fixedCssWidth` (stable URL,
    * no zoom-based churn). Query `?canvasImageStableMaxWidth=1024` or `vf.perf.canvasImageStableMaxWidth`.
@@ -110,6 +119,24 @@ export const canvasPerfFlags = {
   canvasImageEagerInFlow: readBoolFlag('canvasImageEager', true),
   spatialIndexThreshold: 250,
 } as const;
+
+/** Hysteresis band for low-zoom image hiding; `null` when the feature is off. */
+export function getCanvasImageLowZoomThresholds(): { hideAt: number; showAt: number } | null {
+  if (!canvasPerfFlags.canvasImageHideLowZoom) return null;
+  const c = canvasPerfFlags.canvasImageLowZoomMax;
+  const h = canvasPerfFlags.canvasImageLowZoomHysteresis;
+  let hideAt = c - h;
+  let showAt = c + h;
+  hideAt = Math.max(0.05, hideAt);
+  showAt = Math.min(1, showAt);
+  if (hideAt >= showAt) {
+    const mid = Math.min(1, Math.max(0.05, c));
+    hideAt = Math.max(0.05, mid - 0.01);
+    showAt = Math.min(1, mid + 0.01);
+    if (hideAt >= showAt) showAt = Math.min(1, hideAt + 0.02);
+  }
+  return { hideAt, showAt };
+}
 
 export function markCanvasPerfStart(name: string): number {
   if (!canvasPerfFlags.enablePerfMarks || typeof performance === 'undefined') return 0;

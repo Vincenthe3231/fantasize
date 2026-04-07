@@ -2,6 +2,7 @@ import {
   useCallback,
   useState,
   useEffect,
+  useLayoutEffect,
   useRef,
   useMemo,
   startTransition,
@@ -118,6 +119,22 @@ function getNodesFullyInsideRect(
   });
 }
 
+/** Pane marquee rect (screen space under `.react-flow`) → flow-space box; matches RF `getNodesInside` conversion. */
+function flowRectFromPaneSelection(
+  rect: { x: number; y: number; width: number; height: number },
+  transform: readonly [number, number, number] | undefined
+): { x: number; y: number; width: number; height: number } | null {
+  if (rect.width <= 0 || rect.height <= 0) return null;
+  const [tx, ty, tScale] = transform ?? [0, 0, 1];
+  const z = tScale === 0 || !Number.isFinite(tScale) ? 1 : tScale;
+  return {
+    x: (rect.x - tx) / z,
+    y: (rect.y - ty) / z,
+    width: rect.width / z,
+    height: rect.height / z,
+  };
+}
+
 function toSpatialNodeBounds(node: Node): SpatialNodeBounds | null {
   const w = node.width ?? 0;
   const h = node.height ?? 0;
@@ -177,7 +194,8 @@ function mergeStoreNodesWithFlowGeometry(storeNodes: Node[], flowNodes: Node[]):
       width: live.width ?? sn.width,
       height: live.height ?? sn.height,
       style: live.style ?? sn.style,
-      selected: live.selected,
+      /** Zustand is updated from `onSelectionChange` / `onSelectionEnd`; RF often omits `onNodesChange` when selection *count* is unchanged, so `live.selected` can stay stale during marquee — prefer store flags here. */
+      selected: sn.selected,
     };
     if (parentOrExtentChanged) {
       delete (next as { positionAbsolute?: unknown }).positionAbsolute;
@@ -191,6 +209,42 @@ function mergeStoreNodesWithFlowGeometry(storeNodes: Node[], flowNodes: Node[]):
 
 function applyEdgeSelection(storeEdges: Edge[], selectedEdgeIds: Set<string>): Edge[] {
   return storeEdges.map((e) => ({ ...e, selected: selectedEdgeIds.has(e.id) }));
+}
+
+type MarqueeSnap = {
+  active: boolean;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  tk: string;
+};
+
+function selectMarqueeSnap(s: {
+  userSelectionActive: boolean;
+  userSelectionRect: { x: number; y: number; width: number; height: number } | null | undefined;
+  transform: readonly [number, number, number];
+}): MarqueeSnap {
+  const r = s.userSelectionRect;
+  return {
+    active: s.userSelectionActive,
+    x: r?.x ?? 0,
+    y: r?.y ?? 0,
+    w: r?.width ?? 0,
+    h: r?.height ?? 0,
+    tk: `${s.transform[0]},${s.transform[1]},${s.transform[2]}`,
+  };
+}
+
+function marqueeSnapEqual(a: MarqueeSnap, b: MarqueeSnap): boolean {
+  return (
+    a.active === b.active &&
+    a.x === b.x &&
+    a.y === b.y &&
+    a.w === b.w &&
+    a.h === b.h &&
+    a.tk === b.tk
+  );
 }
 
 function canvasClass(pattern: string) {
@@ -593,8 +647,12 @@ const CanvasInnerReactFlow = ({
 
   useEffect(() => {
     if (useWorkflowStore.getState().isDragging && canvasPerfFlags.deltaDragTxn) return;
+    // During pane marquee, `useLayoutEffect` clamps `selected` on the RF nodes array first; Zustand is
+    // updated in `onSelectionChange`’s passive effect — later in the same tick. Merging here would
+    // still see stale `storeNodes.selected` and collapse multi-select back to one.
+    if (storeApi.getState().userSelectionActive) return;
     setNodes((current) => mergeStoreNodesWithFlowGeometry(storeNodes, current));
-  }, [storeNodes, setNodes]);
+  }, [storeNodes, setNodes, storeApi]);
   useEffect(() => {
     setEdges(storeEdges);
   }, [storeEdges, setEdges]);
@@ -642,42 +700,62 @@ const CanvasInnerReactFlow = ({
   const onSelectionChange = useCallback(
     ({ nodes: selectedNodes, edges: selectedEdges }: { nodes: Node[]; edges: Edge[] }) => {
       const store = useWorkflowStore.getState();
-      // Prefer nodes with measured dimensions (avoids marquee phantom selections). For a
-      // single-node click, keep selection even before width/height exist so NodeResizer shows
-      // on the first click.
-      const measuredSelected = selectedNodes.filter(
-        (n) =>
-          typeof n.width === 'number' &&
-          typeof n.height === 'number' &&
-          n.width > 0 &&
-          n.height > 0
-      );
-      const selectedNodeIds = new Set(
-        measuredSelected.length > 0
-          ? measuredSelected.map((n) => n.id)
-          : selectedNodes.length === 1
-            ? [selectedNodes[0]!.id]
-            : []
-      );
-      const selectedEdgeIds = new Set(
-        selectedEdges.filter(
-          (e) => selectedNodeIds.has(e.source) && selectedNodeIds.has(e.target)
-        ).map((e) => e.id)
-      );
+      const rf = storeApi.getState();
+      const { userSelectionActive, userSelectionRect, transform } = rf;
+      const flowRect =
+        userSelectionActive && userSelectionRect
+          ? flowRectFromPaneSelection(userSelectionRect, transform)
+          : null;
+
+      let selectedNodeIds: Set<string>;
+      let selectedEdgeIds: Set<string>;
+
+      if (flowRect) {
+        // Marquee: RF’s `getNodesInside` selects unmeasured / dragging nodes incorrectly; mirror
+        // `onSelectionEnd` — only nodes fully inside the rect with measured bounds.
+        const strictNodes = getNodesFullyInsideRect(flowRect, getNodes());
+        selectedNodeIds = new Set(strictNodes.map((n) => n.id));
+        selectedEdgeIds = new Set(
+          getConnectedEdges(strictNodes, getEdges()).map((e) => e.id)
+        );
+      } else {
+        // Prefer nodes with measured dimensions (avoids marquee phantom selections). For a
+        // single-node click, keep selection even before width/height exist so NodeResizer shows
+        // on the first click.
+        const measuredSelected = selectedNodes.filter(
+          (n) =>
+            typeof n.width === 'number' &&
+            typeof n.height === 'number' &&
+            n.width > 0 &&
+            n.height > 0
+        );
+        selectedNodeIds = new Set(
+          measuredSelected.length > 0
+            ? measuredSelected.map((n) => n.id)
+            : selectedNodes.length === 1
+              ? [selectedNodes[0]!.id]
+              : []
+        );
+        selectedEdgeIds = new Set(
+          selectedEdges.filter(
+            (e) => selectedNodeIds.has(e.source) && selectedNodeIds.has(e.target)
+          ).map((e) => e.id)
+        );
+      }
+
       const flowNodes = getNodes();
       const nextNodes = mergeNodesWithSelection(store.nodes, flowNodes, selectedNodeIds);
       const nextEdges = applyEdgeSelection(store.edges, selectedEdgeIds);
       setNodesSilently(nextNodes);
       setEdgesSilently(nextEdges);
     },
-    [getNodes, setNodesSilently, setEdgesSilently]
+    [getNodes, getEdges, storeApi, setNodesSilently, setEdgesSilently]
   );
 
   const onSelectionEnd = useCallback(async () => {
     const rect = userSelectionRectRef.current;
     const store = useWorkflowStore.getState();
     const { transform } = storeApi.getState();
-    const [tx, ty, tScale] = transform ?? [0, 0, 1];
 
     let selectedNodeIds: Set<string>;
     let selectedEdgeIds: Set<string>;
@@ -686,38 +764,38 @@ const CanvasInnerReactFlow = ({
       selectedNodeIds = new Set();
       selectedEdgeIds = new Set();
     } else {
-      const flowRect = {
-        x: (rect.x - tx) / tScale,
-        y: (rect.y - ty) / tScale,
-        width: rect.width / tScale,
-        height: rect.height / tScale,
-      };
-      const allNodes = storeApi.getState().getNodes();
-      let candidateNodes = allNodes;
-      const shouldUseSpatial =
-        canvasPerfFlags.enableSpatialIndexing &&
-        allNodes.length >= canvasPerfFlags.spatialIndexThreshold &&
-        spatialRevisionRef.current > 0;
-      if (shouldUseSpatial) {
-        try {
-          const candidateIds = await canvasWorkerClient.spatialQueryRect(
-            flowRect,
-            spatialRevisionRef.current
-          );
-          if (candidateIds.length > 0) {
-            const candidateSet = new Set(candidateIds);
-            candidateNodes = allNodes.filter((n) => candidateSet.has(n.id));
+      const flowRect = flowRectFromPaneSelection(rect, transform);
+      if (!flowRect) {
+        selectedNodeIds = new Set();
+        selectedEdgeIds = new Set();
+      } else {
+        const allNodes = storeApi.getState().getNodes();
+        let candidateNodes = allNodes;
+        const shouldUseSpatial =
+          canvasPerfFlags.enableSpatialIndexing &&
+          allNodes.length >= canvasPerfFlags.spatialIndexThreshold &&
+          spatialRevisionRef.current > 0;
+        if (shouldUseSpatial) {
+          try {
+            const candidateIds = await canvasWorkerClient.spatialQueryRect(
+              flowRect,
+              spatialRevisionRef.current
+            );
+            if (candidateIds.length > 0) {
+              const candidateSet = new Set(candidateIds);
+              candidateNodes = allNodes.filter((n) => candidateSet.has(n.id));
+            }
+          } catch {
+            // Keep marquee selection resilient: fall back to exact full-scan if worker/index fails.
+            candidateNodes = allNodes;
           }
-        } catch {
-          // Keep marquee selection resilient: fall back to exact full-scan if worker/index fails.
-          candidateNodes = allNodes;
         }
+        const validNodes = getNodesFullyInsideRect(flowRect, candidateNodes);
+        selectedNodeIds = new Set(validNodes.map((n) => n.id));
+        selectedEdgeIds = new Set(
+          getConnectedEdges(validNodes, store.edges).map((e) => e.id)
+        );
       }
-      const validNodes = getNodesFullyInsideRect(flowRect, candidateNodes);
-      selectedNodeIds = new Set(validNodes.map((n) => n.id));
-      selectedEdgeIds = new Set(
-        getConnectedEdges(validNodes, store.edges).map((e) => e.id)
-      );
     }
 
     const flowNodes = storeApi.getState().getNodes();
@@ -726,6 +804,51 @@ const CanvasInnerReactFlow = ({
     setNodesSilently(nextNodes);
     setEdgesSilently(nextEdges);
   }, [storeApi, setNodesSilently, setEdgesSilently]);
+
+  const marqueeSnap = useStore(
+    useCallback((s) => selectMarqueeSnap(s), []),
+    marqueeSnapEqual
+  );
+
+  /** RF updates `userSelectionRect` after `onNodesChange`; clamp node/edge `selected` before paint so marquee matches strict geometry (see `getNodesFullyInsideRect`). */
+  useLayoutEffect(() => {
+    if (!marqueeSnap.active || marqueeSnap.w <= 0 || marqueeSnap.h <= 0) return;
+    const paneRect = {
+      x: marqueeSnap.x,
+      y: marqueeSnap.y,
+      width: marqueeSnap.w,
+      height: marqueeSnap.h,
+    };
+    const fr = flowRectFromPaneSelection(paneRect, storeApi.getState().transform);
+    if (!fr) return;
+
+    const live = getNodes();
+    const allowedNodes = getNodesFullyInsideRect(fr, live);
+    const allowedIds = new Set(allowedNodes.map((n) => n.id));
+    const allowedEdgeIds = new Set(getConnectedEdges(allowedNodes, getEdges()).map((e) => e.id));
+
+    setNodes((nds) => {
+      let changed = false;
+      const next = nds.map((n) => {
+        const sel = allowedIds.has(n.id);
+        if (n.selected === sel) return n;
+        changed = true;
+        return { ...n, selected: sel };
+      });
+      return changed ? next : nds;
+    });
+
+    setEdges((eds) => {
+      let changed = false;
+      const next = eds.map((e) => {
+        const sel = allowedEdgeIds.has(e.id);
+        if (e.selected === sel) return e;
+        changed = true;
+        return { ...e, selected: sel };
+      });
+      return changed ? next : eds;
+    });
+  }, [marqueeSnap, getNodes, getEdges, setNodes, setEdges, storeApi]);
 
   const handleAddNode = useCallback(
     (type: string) => {

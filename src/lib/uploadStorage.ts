@@ -3,6 +3,22 @@ import { supabase } from '@/integrations/supabase/client';
 const BUCKET = import.meta.env.VITE_SUPABASE_STORAGE_BUCKET as string | undefined;
 const WORKFLOW_MEDIA_PREFIX = 'workflow-media/';
 
+/**
+ * Browser + CDN cache TTL for workflow media uploads (seconds).
+ * Supabase Storage maps this to `Cache-Control: max-age=…` on the object.
+ * Use **unique object paths** per content revision (`buildWorkflowMediaObjectPath`) so long TTL is safe.
+ */
+export const WORKFLOW_MEDIA_CACHE_CONTROL_MAX_AGE_SECONDS = 31_536_000; // 365 days
+
+/**
+ * Build a new storage object key for each upload so URLs stay immutable at a path:
+ * `workflow-media/{timestamp}-{rand}-{filename}` — never upsert-in-place for user media.
+ */
+export function buildWorkflowMediaObjectPath(originalFilename: string): string {
+  const safeName = sanitizeFilename(originalFilename);
+  return `${WORKFLOW_MEDIA_PREFIX}${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${safeName}`;
+}
+
 function supabaseProjectHost(): string | null {
   const raw = import.meta.env.VITE_SUPABASE_URL as string | undefined;
   if (!raw?.trim()) return null;
@@ -70,8 +86,9 @@ export function sanitizeFilename(name: string): string {
 }
 
 /**
- * Upload a file to Supabase Storage and return its public URL.
- * Requires VITE_SUPABASE_STORAGE_BUCKET and bucket policies that allow insert + public read (or adjust getPublicUrl usage).
+ * Upload a file to Supabase Storage and return its **public** object URL (`getPublicUrl`).
+ * Per-request signed URLs are not used — store the returned `url` in node/canvas data as-is.
+ * Long `cacheControl` maximizes browser/CDN reuse; when content changes, upload again (new path) and update references.
  */
 export async function uploadWorkflowMedia(
   file: File,
@@ -83,12 +100,12 @@ export async function uploadWorkflowMedia(
     );
   }
 
-  const safeName = sanitizeFilename(file.name);
-  const path = `workflow-media/${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${safeName}`;
+  const path = buildWorkflowMediaObjectPath(file.name);
 
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
     contentType: file.type || undefined,
     upsert: false,
+    cacheControl: String(WORKFLOW_MEDIA_CACHE_CONTROL_MAX_AGE_SECONDS),
   });
 
   if (error) {
