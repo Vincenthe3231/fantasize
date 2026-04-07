@@ -7,6 +7,19 @@ This document covers deploying the `scout-execute` Supabase Edge Function and va
 - Supabase project linked (`pnpx supabase link`)
 - `OPENROUTER_API_KEY` available as a **secret** (never in the Vite bundle)
 
+## Why Supabase Git deploy says “No functions to deploy”
+
+The hosted job that **clones your repo and applies `supabase/migrations/*.sql`** only updates the **Postgres schema**. It does **not** bundle or publish **`supabase/functions/**`**. Log lines like **`INFO No functions to deploy`** mean that pipeline step has **no Edge Function artifacts** to push—not that your repo lacks `supabase/functions/scout-execute`.
+
+**Protected branches** may also log **`Skipping configuration for protected branch`** / skip seeds—see your Supabase Dashboard → **Integrations → Git** for branch rules.
+
+**What to do:** deploy functions in a **separate** step:
+
+- **GitHub Actions:** use [`.github/workflows/deploy-supabase-edge-functions.yml`](../.github/workflows/deploy-supabase-edge-functions.yml) with secrets `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_REF`, or
+- **Manual / local:** `pnpm db:deploy-scout-fn` or `pnpx supabase functions deploy scout-execute --no-verify-jwt --project-ref <ref>`.
+
+Set **`OPENROUTER_API_KEY`** on the project (`supabase secrets set` or Dashboard) after the function exists.
+
 ## Configure secrets
 
 Use the Supabase CLI via **`pnpx supabase`** (see [README.md](../README.md)).

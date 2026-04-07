@@ -79,6 +79,12 @@ _Date: 2026-04-07 — env audit + `client.ts` / `uploadStorage.ts`; storage HEAD
 
 _Date: 2026-04-08 — `supabase/migrations` init + node_comment_versions._
 
+## Supabase Git: migrations ≠ Edge Functions
+
+- The **database migration** pipeline (branching / Git integration) applies **`supabase/migrations/*.sql`** only. **`No functions to deploy`** means that job does not publish **`supabase/functions/**`** — use **`supabase functions deploy`** in CI (e.g. GitHub Actions) or manually.
+
+_Date: 2026-04-08 — SCOUT_LIVE_ROLLOUT + `.github/workflows/deploy-supabase-edge-functions.yml`._
+
 ## Supabase image transform: WebP default + `origin` fallback + dimension cap
 
 - **`getPublicUrl()`** returns **`/storage/v1/object/public/{bucket}/{path}`**. **Image transforms** are served from **`/storage/v1/render/image/public/{bucket}/{path}`** with query params — same shape the JS SDK uses when you pass **`transform`** to **`getPublicUrl`**. Appending **`?width=`** only to an **object** URL does **not** run imgproxy; **`imageDelivery`** rewrites **object → render** before adding params.

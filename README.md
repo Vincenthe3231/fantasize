@@ -41,7 +41,7 @@ Open the URL shown in the terminal (usually `http://localhost:5173`).
 
 **CLI convention:** run every Supabase CLI command with **`pnpx supabase …`** (uses the project’s CLI via pnpm; same flags as `supabase` in the official docs).
 
-Migrations live in [`supabase/migrations/`](supabase/migrations/).
+Migrations live in [`supabase/migrations/`](supabase/migrations/). The Supabase **Git / branching** job that applies those migrations **does not deploy Edge Functions**; you will see **`No functions to deploy`** in the log until you add a separate deploy (see [`docs/SCOUT_LIVE_ROLLOUT.md`](docs/SCOUT_LIVE_ROLLOUT.md) and [`.github/workflows/deploy-supabase-edge-functions.yml`](.github/workflows/deploy-supabase-edge-functions.yml)).
 
 ### Tables (MVP)
 

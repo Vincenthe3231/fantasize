@@ -1,1 +1,5 @@
 project_id = "nkijmkgdazikhyjpwcsl"
+
+# Edge Function settings (also respected by `supabase functions deploy` / CI).
+[functions.scout-execute]
+verify_jwt = false
