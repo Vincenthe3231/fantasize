@@ -91,21 +91,15 @@ export const canvasPerfFlags = {
    */
   zoomHandleBoundsThrottleMs: readNumberFlag('zoomHandleThrottleMs', 120, 0, 2000),
   /**
-   * When true, node images use **visual hiding** (not unmount) below a zoom band centered on
-   * `canvasImageLowZoomMax` with `canvasImageLowZoomHysteresis` — avoids flapping and `NS_BINDING_ABORTED`
-   * from mount/unmount near the threshold. Query `?canvasImageHideLowZoom=0`.
+   * When true, `CanvasNodeImage` skips rendering the real image while zoomed out (see `canvasImageLowZoomMax`).
+   * Query `?canvasImageHideLowZoom=0` to disable.
    */
   canvasImageHideLowZoom: readBoolFlag('canvasImageHideLowZoom', true),
   /**
-   * Center of the low-zoom band (e.g. 0.5 = 50%). Images **hide** when zoom ≤ `center - hysteresis`
-   * and **show** when zoom ≥ `center + hysteresis` (latched between). Query `?canvasImageLowZoomMax=0.5`.
+   * **Inclusive** ceiling: at viewport zoom **≤** this value (e.g. 0.49 = 49%), node images are unmounted
+   * or visually hidden; **>** this value they render again (browser cache). Query `?canvasImageLowZoomMax=0.49`.
    */
-  canvasImageLowZoomMax: readNumberFlag('canvasImageLowZoomMax', 0.5, 0.05, 1),
-  /**
-   * Half-width of the hysteresis band around `canvasImageLowZoomMax` (default 0.05 → hide ≤45%, show ≥55%).
-   * Query `?canvasImageLowZoomHysteresis=0.05` or `vf.perf.canvasImageLowZoomHysteresis`.
-   */
-  canvasImageLowZoomHysteresis: readNumberFlag('canvasImageLowZoomHysteresis', 0.05, 0.01, 0.25),
+  canvasImageLowZoomMax: readNumberFlag('canvasImageLowZoomMax', 0.49, 0.05, 1),
   /**
    * Fixed Supabase transform width for `CanvasNodeImage` when not using `fixedCssWidth` (stable URL,
    * no zoom-based churn). Query `?canvasImageStableMaxWidth=1024` or `vf.perf.canvasImageStableMaxWidth`.
@@ -117,25 +111,21 @@ export const canvasPerfFlags = {
    * `vf.perf.canvasImageEager=0` to restore lazy for debugging.
    */
   canvasImageEagerInFlow: readBoolFlag('canvasImageEager', true),
+  /**
+   * When low-zoom hiding is active (`canvasImageHideLowZoom`), **remove** the `<img>` from the DOM
+   * instead of only CSS-hiding it — cuts decode/layout work while zoomed out. Remounting uses the same
+   * `src` (browser cache). Set `?canvasImageUnmountLowZoom=0` or `vf.perf.canvasImageUnmountLowZoom=0`
+   * to keep the legacy invisible-but-mounted `<img>`.
+   */
+  canvasImageUnmountLowZoom: readBoolFlag('canvasImageUnmountLowZoom', true),
   spatialIndexThreshold: 250,
 } as const;
 
-/** Hysteresis band for low-zoom image hiding; `null` when the feature is off. */
-export function getCanvasImageLowZoomThresholds(): { hideAt: number; showAt: number } | null {
+/** Max zoom (inclusive) at which low-zoom image suppression applies; `null` when the feature is off. */
+export function getCanvasImageLowZoomUnmountMaxZoom(): number | null {
   if (!canvasPerfFlags.canvasImageHideLowZoom) return null;
-  const c = canvasPerfFlags.canvasImageLowZoomMax;
-  const h = canvasPerfFlags.canvasImageLowZoomHysteresis;
-  let hideAt = c - h;
-  let showAt = c + h;
-  hideAt = Math.max(0.05, hideAt);
-  showAt = Math.min(1, showAt);
-  if (hideAt >= showAt) {
-    const mid = Math.min(1, Math.max(0.05, c));
-    hideAt = Math.max(0.05, mid - 0.01);
-    showAt = Math.min(1, mid + 0.01);
-    if (hideAt >= showAt) showAt = Math.min(1, hideAt + 0.02);
-  }
-  return { hideAt, showAt };
+  const t = canvasPerfFlags.canvasImageLowZoomMax;
+  return Math.min(1, Math.max(0.05, t));
 }
 
 export function markCanvasPerfStart(name: string): number {

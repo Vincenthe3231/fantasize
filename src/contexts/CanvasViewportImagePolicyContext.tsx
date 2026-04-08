@@ -1,10 +1,10 @@
-import { createContext, useContext, useRef, type ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { useStore } from 'reactflow';
-import { canvasPerfFlags, getCanvasImageLowZoomThresholds } from '@/lib/canvasPerf';
+import { getCanvasImageLowZoomUnmountMaxZoom } from '@/lib/canvasPerf';
 
 /**
- * When true, `CanvasNodeImage` applies **visual** low-zoom hiding (keeps `<img>` mounted so loads can
- * finish and cache). Hysteresis around `canvasImageLowZoomMax` avoids threshold flapping.
+ * When true, viewport zoom is **at or below** `canvasImageLowZoomMax` (default 49%): `CanvasNodeImage`
+ * unmounts the `<img>` (default) or CSS-hides it (`canvasImageUnmountLowZoom=0`).
  */
 const CanvasViewportImagePolicyContext = createContext(false);
 
@@ -18,38 +18,16 @@ export function useCanvasViewportHideNodeImages(): boolean {
 }
 
 /**
- * Subscribes to viewport zoom only in this small subtree so the rest of the canvas does not
- * re-render on every zoom frame. Uses **hysteresis** (hide at center−h, show at center+h) so zoom
- * wobble near 50% does not mount/unmount or thrash image loads.
+ * Subscribes to viewport zoom only in this subtree. Suppresses node images when `zoom <=` configured
+ * max (default 0.49); remounts when `zoom >` that value.
  */
 export function CanvasViewportImagePolicyBridge({ children }: { children: ReactNode }) {
   const zoom = useStore((s) => s.transform[2]);
-  const latchRef = useRef<boolean | null>(null);
-  const thresholds = getCanvasImageLowZoomThresholds();
-
-  let visuallyHidden: boolean;
-  if (!thresholds) {
-    visuallyHidden = false;
-    latchRef.current = null;
-  } else {
-    const { hideAt, showAt } = thresholds;
-    const prev = latchRef.current;
-    if (prev === null) {
-      visuallyHidden = zoom <= hideAt;
-      latchRef.current = visuallyHidden;
-    } else if (zoom <= hideAt) {
-      visuallyHidden = true;
-      latchRef.current = true;
-    } else if (zoom >= showAt) {
-      visuallyHidden = false;
-      latchRef.current = false;
-    } else {
-      visuallyHidden = prev;
-    }
-  }
+  const maxZoomForImages = getCanvasImageLowZoomUnmountMaxZoom();
+  const suppressImages = maxZoomForImages != null && zoom <= maxZoomForImages;
 
   return (
-    <CanvasViewportImagePolicyContext.Provider value={visuallyHidden}>
+    <CanvasViewportImagePolicyContext.Provider value={suppressImages}>
       {children}
     </CanvasViewportImagePolicyContext.Provider>
   );

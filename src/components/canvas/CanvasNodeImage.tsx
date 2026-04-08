@@ -40,8 +40,9 @@ type BaseProps = Omit<
  * Default transform URL (no `format` query — Supabase auto WebP); on `error`, falls back to **`format=origin`** once,
  * then capped same-URL retries. Non-Supabase URLs pass through unchanged.
  * Optional freeze of URL updates during viewport/node-drag gestures, and `decode()` after load.
- * Low zoom uses **CSS hiding** (img stays mounted) with hysteresis from `CanvasViewportImagePolicyBridge`
- * so loads can complete and cache instead of `NS_BINDING_ABORTED` from unmount/`src` churn.
+ * Low zoom: with `canvasImageUnmountLowZoom` (default), the `<img>` is **unmounted** to save DOM work;
+ * remount uses the same `src` (HTTP cache). With unmount off, uses **CSS hiding** (img stays mounted).
+ * Suppressed when viewport zoom ≤ `canvasImageLowZoomMax` (default 0.49); remounts when zoom is above it.
  * Default `loading` is `eager` in flow when `canvasImageEagerInFlow` — stable URL + eager reduces
  * transform fights; pass `loading="lazy"` to override (e.g. dialogs).
  */
@@ -58,7 +59,8 @@ const CanvasNodeImage = memo(function CanvasNodeImage({
   fetchPriority,
   ...rest
 }: BaseProps) {
-  const lowZoomVisualHide = useCanvasViewportLowZoomVisualHide();
+  const lowZoomHidden = useCanvasViewportLowZoomVisualHide();
+  const mountImage = !lowZoomHidden || !canvasPerfFlags.canvasImageUnmountLowZoom;
   const gestureActive =
     useCanvasViewportGestureActive() && canvasPerfFlags.deferCanvasImageUrlDuringViewport;
   const resolvedLoading =
@@ -171,24 +173,26 @@ const CanvasNodeImage = memo(function CanvasNodeImage({
     <div
       className={cn(
         'relative isolate min-h-0 min-w-0 h-full w-full',
-        lowZoomVisualHide && 'bg-muted/30'
+        lowZoomHidden && 'bg-muted/30'
       )}
     >
-      <img
-        {...rest}
-        src={displayed.src}
-        decoding="async"
-        loading={resolvedLoading}
-        {...(fetchPriority != null
-          ? ({ fetchpriority: fetchPriority } as ImgHTMLAttributes<HTMLImageElement>)
-          : {})}
-        className={cn(
-          className,
-          lowZoomVisualHide && 'pointer-events-none opacity-0 invisible'
-        )}
-        onLoad={handleLoad}
-        onError={handleError}
-      />
+      {mountImage ?
+        <img
+          {...rest}
+          src={displayed.src}
+          decoding="async"
+          loading={resolvedLoading}
+          {...(fetchPriority != null
+            ? ({ fetchpriority: fetchPriority } as ImgHTMLAttributes<HTMLImageElement>)
+            : {})}
+          className={cn(
+            className,
+            lowZoomHidden && 'pointer-events-none opacity-0 invisible'
+          )}
+          onLoad={handleLoad}
+          onError={handleError}
+        />
+      : null}
     </div>
   );
 });
