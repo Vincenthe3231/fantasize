@@ -35,8 +35,8 @@ jobs:
           supabase functions deploy scout-execute --no-verify-jwt --project-ref "$SUPABASE_PROJECT_REF"
 
       # Uncomment to sync OpenRouter key from GitHub Actions secrets (one-way to Supabase; prefer Dashboard for prod).
-      # - name: Set OPENROUTER_API_KEY on project
-      #   env:
-      #     OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      #   run: |
-      #     supabase secrets set "OPENROUTER_API_KEY=${OPENROUTER_API_KEY}" --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Set OPENROUTER_API_KEY on project
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          supabase secrets set "OPENROUTER_API_KEY=${OPENROUTER_API_KEY}" --project-ref "$SUPABASE_PROJECT_REF"
