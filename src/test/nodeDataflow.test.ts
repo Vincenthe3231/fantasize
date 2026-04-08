@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Edge, Node } from 'reactflow';
 import { computeNodeInputPatch, computeReactivePatchesFromSources } from '@/lib/nodeDataflow';
+import { resolveStage2ImageGeneratorContext } from '@/lib/scoutContextResolver';
 import { upstreamImageItemsFromNode, upstreamTextFromNode } from '@/lib/graphUpstreamPayload';
 
 function node(id: string, type: string, data: Record<string, unknown>): Node {
@@ -24,43 +25,41 @@ function edge(source: string, target: string, sourceHandle?: string, targetHandl
 }
 
 describe('nodeDataflow', () => {
-  it('propagates assistant refined prompt to image generator text-in', () => {
+  it('does not write upstream text into image generator prompt (context via edges only)', () => {
     const nodes: Node[] = [
       node('assistant-1', 'assistantNode', { refinedPrompt: 'A cinematic interior prompt.' }),
       node('img-1', 'imageGeneratorNode', { prompt: '' }),
     ];
     const edges: Edge[] = [edge('assistant-1', 'img-1', 'text-out', 'text-in')];
     const patches = computeReactivePatchesFromSources(['assistant-1'], nodes, edges);
-    expect(patches['img-1']?.prompt).toBe('A cinematic interior prompt.');
+    expect(patches['img-1']).toBeUndefined();
   });
 
-  it('propagates assistant refined prompt when sourceHandle is missing (default → text-out via target)', () => {
+  it('does not patch target when sourceHandle is omitted (default resolution)', () => {
     const nodes: Node[] = [
       node('assistant-1', 'assistantNode', { refinedPrompt: 'Wired without explicit source handle.' }),
       node('img-1', 'imageGeneratorNode', { prompt: '' }),
     ];
     const edges: Edge[] = [edge('assistant-1', 'img-1', undefined, 'text-in')];
     const patches = computeReactivePatchesFromSources(['assistant-1'], nodes, edges);
-    expect(patches['img-1']?.prompt).toBe('Wired without explicit source handle.');
+    expect(patches['img-1']).toBeUndefined();
   });
 
-  it('merges multiple text sources on same handle with dedupe ordering', () => {
+  it('does not merge text into assistant wiredTextFromEdges field', () => {
     const nodes: Node[] = [
       node('text-1', 'textNode', { content: '<p>Shot from window side</p>' }),
-      node('text-2', 'textNode', { content: '<p>Shot from window side</p>' }),
-      node('text-3', 'textNode', { content: '<p>Warm practical lamp tone</p>' }),
+      node('text-2', 'textNode', { content: '<p>Warm practical lamp tone</p>' }),
       node('assistant-1', 'assistantNode', { prompt: '' }),
     ];
     const edges: Edge[] = [
       edge('text-1', 'assistant-1', 'text-out', 'text-in'),
       edge('text-2', 'assistant-1', 'text-out', 'text-in'),
-      edge('text-3', 'assistant-1', 'text-out', 'text-in'),
     ];
-    const patches = computeReactivePatchesFromSources(['text-1', 'text-2', 'text-3'], nodes, edges);
-    expect(patches['assistant-1']?.wiredTextFromEdges).toBe('Shot from window side\n\nWarm practical lamp tone');
+    const patches = computeReactivePatchesFromSources(['text-1', 'text-2'], nodes, edges);
+    expect(patches['assistant-1']).toBeUndefined();
   });
 
-  it('propagates through downstream chain in one recompute pass', () => {
+  it('does not propagate through chain into downstream node data', () => {
     const nodes: Node[] = [
       node('text-1', 'textNode', { content: '<p>Stage 2 intent</p>' }),
       node('assistant-1', 'assistantNode', { prompt: '' }),
@@ -71,27 +70,21 @@ describe('nodeDataflow', () => {
       edge('assistant-1', 'img-1', 'text-out', 'text-in'),
     ];
     const patches = computeReactivePatchesFromSources(['text-1'], nodes, edges);
-    expect(patches['assistant-1']?.wiredTextFromEdges).toBe('Stage 2 intent');
-    expect(patches['img-1']?.prompt).toBe('Stage 2 intent');
+    expect(patches['assistant-1']).toBeUndefined();
+    expect(patches['img-1']).toBeUndefined();
   });
 
-  it('keeps only unique image urls when merging same-handle media', () => {
+  it('does not copy image wires into assistant referenceUrl', () => {
     const nodes: Node[] = [
       node('upload-1', 'uploadNode', { mediaUrl: 'https://example.com/a.jpg' }),
-      node('upload-2', 'uploadNode', { mediaUrl: 'https://example.com/a.jpg' }),
-      node('upload-3', 'uploadNode', { mediaUrl: 'https://example.com/b.jpg' }),
       node('assistant-1', 'assistantNode', { referenceUrl: '' }),
     ];
-    const edges: Edge[] = [
-      edge('upload-1', 'assistant-1', 'image-out', 'image-in'),
-      edge('upload-2', 'assistant-1', 'image-out', 'image-in'),
-      edge('upload-3', 'assistant-1', 'image-out', 'image-in'),
-    ];
-    const patches = computeReactivePatchesFromSources(['upload-1', 'upload-2', 'upload-3'], nodes, edges);
-    expect(patches['assistant-1']?.referenceUrl).toBe('https://example.com/a.jpg');
+    const edges: Edge[] = [edge('upload-1', 'assistant-1', 'image-out', 'image-in')];
+    const patches = computeReactivePatchesFromSources(['upload-1'], nodes, edges);
+    expect(patches['assistant-1']).toBeUndefined();
   });
 
-  it('merges group-out-text from child text nodes into downstream text-in', () => {
+  it('does not patch image generator from group-out-text', () => {
     const nodes: Node[] = [
       { id: 'g1', type: 'group', data: {}, position: { x: 0, y: 0 } },
       {
@@ -113,10 +106,10 @@ describe('nodeDataflow', () => {
     const edges: Edge[] = [edge('g1', 'img-1', 'group-out-text', 'text-in')];
     const img = nodes.find((n) => n.id === 'img-1')!;
     const patch = computeNodeInputPatch(img, nodes, edges);
-    expect(patch?.prompt).toBe('Alpha\n\nBeta');
+    expect(patch).toBeNull();
   });
 
-  it('propagates group output when both child and parent ids are recomputed (store parity)', () => {
+  it('does not patch when both group and child are recomputed', () => {
     const nodes: Node[] = [
       { id: 'g1', type: 'group', data: {}, position: { x: 0, y: 0 } },
       {
@@ -130,10 +123,10 @@ describe('nodeDataflow', () => {
     ];
     const edges: Edge[] = [edge('g1', 'img-1', 'group-out-text', 'text-in')];
     const patches = computeReactivePatchesFromSources(['t1', 'g1'], nodes, edges);
-    expect(patches['img-1']?.prompt).toBe('From child');
+    expect(patches['img-1']).toBeUndefined();
   });
 
-  it('propagates listNode text items to assistant text-in', () => {
+  it('does not patch listNode text into assistant', () => {
     const nodes: Node[] = [
       node('list-1', 'listNode', {
         items: [
@@ -145,27 +138,10 @@ describe('nodeDataflow', () => {
     ];
     const edges: Edge[] = [edge('list-1', 'assistant-1', 'text-out', 'text-in')];
     const patches = computeReactivePatchesFromSources(['list-1'], nodes, edges);
-    expect(patches['assistant-1']?.wiredTextFromEdges).toBe('Lighting soft cool\n\nGolden hour warmth');
+    expect(patches['assistant-1']).toBeUndefined();
   });
 
-  it('propagates listNode text through chain to image generator prompt', () => {
-    const nodes: Node[] = [
-      node('list-1', 'listNode', {
-        items: [{ id: 't1', type: 'text', text: 'From list to IG' }],
-      }),
-      node('assistant-1', 'assistantNode', { prompt: '' }),
-      node('img-1', 'imageGeneratorNode', { prompt: '' }),
-    ];
-    const edges: Edge[] = [
-      edge('list-1', 'assistant-1', 'text-out', 'text-in'),
-      edge('assistant-1', 'img-1', 'text-out', 'text-in'),
-    ];
-    const patches = computeReactivePatchesFromSources(['list-1'], nodes, edges);
-    expect(patches['assistant-1']?.wiredTextFromEdges).toBe('From list to IG');
-    expect(patches['img-1']?.prompt).toBe('From list to IG');
-  });
-
-  it('propagates first listNode image item to image generator mediaUrl', () => {
+  it('does not patch image generator from list image-out', () => {
     const nodes: Node[] = [
       node('list-1', 'listNode', {
         items: [
@@ -177,10 +153,10 @@ describe('nodeDataflow', () => {
     ];
     const edges: Edge[] = [edge('list-1', 'img-1', 'image-out', 'image-in')];
     const patches = computeReactivePatchesFromSources(['list-1'], nodes, edges);
-    expect(patches['img-1']?.mediaUrl).toBe('https://example.com/first.jpg');
+    expect(patches['img-1']).toBeUndefined();
   });
 
-  it('propagates only selected listNode image items when multi-select mode is enabled', () => {
+  it('does not patch mediaUrl from multi-select list', () => {
     const nodes: Node[] = [
       node('list-1', 'listNode', {
         listMultiSelectMode: true,
@@ -194,7 +170,7 @@ describe('nodeDataflow', () => {
     ];
     const edges: Edge[] = [edge('list-1', 'img-1', 'image-out', 'image-in')];
     const patches = computeReactivePatchesFromSources(['list-1'], nodes, edges);
-    expect(patches['img-1']?.mediaUrl).toBe('https://example.com/second.jpg');
+    expect(patches['img-1']).toBeUndefined();
   });
 
   it('emits no listNode image packet when multi-select mode is enabled and no image is selected', () => {
@@ -223,7 +199,7 @@ describe('nodeDataflow', () => {
     ]);
   });
 
-  it('propagates imageGenerator generatedUrls to listNode image-in and appends items', () => {
+  it('does not append to listNode items from image generator image-out', () => {
     const nodes: Node[] = [
       node('img-1', 'imageGeneratorNode', {
         generatedUrl: 'https://example.com/a.png',
@@ -239,13 +215,35 @@ describe('nodeDataflow', () => {
     ];
     const edges: Edge[] = [edge('img-1', 'list-2', 'image-out', 'image-in')];
     const patches = computeReactivePatchesFromSources(['img-1'], nodes, edges);
-    const listItems = (patches['list-2']?.items as Array<Record<string, unknown>>) ?? [];
-    const imageItems = listItems.filter((it) => it.type === 'image');
-    expect(imageItems).toHaveLength(2);
-    expect(imageItems.map((it) => it.mediaUrl)).toEqual([
-      'https://example.com/a.png',
-      'https://example.com/b.png',
-    ]);
-    expect(String(imageItems[0]?.referer ?? '')).toBe('https://vision-forge.local');
+    expect(patches['list-2']).toBeUndefined();
+  });
+
+  it('resolveStage2ImageGeneratorContext still reads wired text from edge sources', () => {
+    const nodes: Node[] = [
+      node('text-1', 'textNode', { content: '<p>From upstream</p>' }),
+      node('img-1', 'imageGeneratorNode', { prompt: 'Local only' }),
+    ];
+    const edges: Edge[] = [edge('text-1', 'img-1', 'text-out', 'text-in')];
+    const res = resolveStage2ImageGeneratorContext(nodes, edges, 'img-1');
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.value.wiredTextFromEdges).toContain('From upstream');
+    expect(res.value.prompt).toBe('Local only');
+  });
+
+  it('resolveStage2ImageGeneratorContext follows Text → Assistant → IG without patched target data', () => {
+    const nodes: Node[] = [
+      node('text-1', 'textNode', { content: '<p>Chain hint</p>' }),
+      node('asst-1', 'assistantNode', { prompt: '' }),
+      node('img-1', 'imageGeneratorNode', { prompt: '' }),
+    ];
+    const edges: Edge[] = [
+      edge('text-1', 'asst-1', 'text-out', 'text-in'),
+      edge('asst-1', 'img-1', 'text-out', 'text-in'),
+    ];
+    const res = resolveStage2ImageGeneratorContext(nodes, edges, 'img-1');
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.value.wiredTextFromEdges).toContain('Chain hint');
   });
 });

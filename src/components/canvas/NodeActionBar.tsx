@@ -24,7 +24,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
+
+const actionBarTipClass = 'z-[100] max-w-[min(240px,calc(100vw-24px))]';
 
 export type NodeActionBarVariant =
   | 'default'
@@ -73,9 +76,8 @@ const Btn = ({
   className?: string;
   tooltip?: string;
   disabled?: boolean;
-}) => (
-  <div className="node-action-bar-icon">
-    {tooltip && <span className="node-action-bar-tooltip">{tooltip}</span>}
+}) => {
+  const button = (
     <button
       type="button"
       disabled={disabled}
@@ -88,8 +90,24 @@ const Btn = ({
     >
       {children}
     </button>
-  </div>
-);
+  );
+  return (
+    <div className="node-action-bar-icon">
+      {tooltip ?
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {disabled ?
+              <span className="inline-flex">{button}</span>
+            : button}
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={6} className={actionBarTipClass}>
+            {tooltip}
+          </TooltipContent>
+        </Tooltip>
+      : button}
+    </div>
+  );
+};
 
 const NodeActionBar = memo(
   ({
@@ -126,15 +144,21 @@ const NodeActionBar = memo(
         )}
 
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="node-action-bar-icon node-action-bar-btn flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 ease-in-out"
-            >
-              <span className="node-action-bar-tooltip">Run options</span>
-              <ChevronDown size={10} />
-            </button>
-          </DropdownMenuTrigger>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="node-action-bar-icon node-action-bar-btn flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 ease-in-out"
+                >
+                  <ChevronDown size={10} />
+                </button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6} className={actionBarTipClass}>
+              Run options
+            </TooltipContent>
+          </Tooltip>
           <DropdownMenuContent className="node-canvas-dropdown text-xs">
             <DropdownMenuItem onClick={onRun} disabled={runBusy}>
               Run this node
@@ -147,16 +171,22 @@ const NodeActionBar = memo(
 
         {showConnectMenu && (
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="node-action-bar-icon node-action-bar-btn flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 ease-in-out"
-              >
-                <span className="node-action-bar-tooltip">Connect</span>
-                <Link2 size={10} />
-                <ChevronDown size={10} className="ml-0.5" />
-              </button>
-            </DropdownMenuTrigger>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="node-action-bar-icon node-action-bar-btn flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 ease-in-out"
+                  >
+                    <Link2 size={10} />
+                    <ChevronDown size={10} className="ml-0.5" />
+                  </button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6} className={actionBarTipClass}>
+                Connect
+              </TooltipContent>
+            </Tooltip>
             <DropdownMenuContent className="node-canvas-dropdown text-xs min-w-[180px]">
               {connectMenuItems.map((item) => (
                 <DropdownMenuItem
@@ -221,15 +251,21 @@ const NodeActionBar = memo(
         {showDownload && onDownload && <Btn onClick={onDownload} tooltip="Download"><Download size={12} /></Btn>}
 
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="node-action-bar-icon node-action-bar-btn flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 ease-in-out"
-            >
-              <span className="node-action-bar-tooltip">More</span>
-              <MoreHorizontal size={12} />
-            </button>
-          </DropdownMenuTrigger>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="node-action-bar-icon node-action-bar-btn flex items-center justify-center w-6 h-6 rounded-full transition-all duration-300 ease-in-out"
+                >
+                  <MoreHorizontal size={12} />
+                </button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6} className={actionBarTipClass}>
+              More
+            </TooltipContent>
+          </Tooltip>
           <DropdownMenuContent className="node-canvas-dropdown text-xs">
             {onDuplicate && isImageGen && <DropdownMenuItem onClick={onDuplicate}>Duplicate</DropdownMenuItem>}
             {onDuplicate && !isAssistant && !isImageGen && <DropdownMenuItem onClick={onDuplicate}>Duplicate</DropdownMenuItem>}

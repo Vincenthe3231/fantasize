@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback } from 'react';
 import type { Node } from 'reactflow';
 import { Link2, ChevronDown, ChevronLeft } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipWrap } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { notifyError } from '@/lib/systemNotify';
@@ -46,7 +47,10 @@ export function SelectionConnectMenu({
     return nodes
       .filter((n) => n.id !== sourceNode.id)
       .map((n) => ({ n, label: formatCanvasNodeLabelForConnect(n) }))
-      .sort((a, b) => a.label.localeCompare(b.label) || String(a.n.type).localeCompare(String(b.n.type)));
+      .sort(
+        (a, b) =>
+          String(a.label).localeCompare(String(b.label)) || String(a.n.type).localeCompare(String(b.n.type))
+      );
   }, [nodes, sourceNode]);
 
   const resetAndClose = useCallback(() => {
@@ -116,17 +120,25 @@ export function SelectionConnectMenu({
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          disabled={!!disabledReason}
-          title={disabledReason ?? 'Connect to canvas node'}
-          className={`flex items-center justify-center rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 ${NODE_INTERACTIVE_CLASS}`}
-        >
-          <Link2 size={16} />
-          <ChevronDown size={12} className="ml-0.5 opacity-70" aria-hidden />
-        </button>
-      </PopoverTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex">
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                disabled={!!disabledReason}
+                className={`flex items-center justify-center rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 ${NODE_INTERACTIVE_CLASS}`}
+              >
+                <Link2 size={16} />
+                <ChevronDown size={12} className="ml-0.5 opacity-70" aria-hidden />
+              </button>
+            </PopoverTrigger>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={6} className="z-[90] max-w-[min(280px,calc(100vw-24px))]">
+          {disabledReason ?? 'Connect to canvas node'}
+        </TooltipContent>
+      </Tooltip>
       <PopoverContent
         side="bottom"
         align="center"
@@ -153,19 +165,22 @@ export function SelectionConnectMenu({
                     No other nodes on the canvas.
                   </p>
                 ) : (
-                  canvasTargets.map(({ n, label }) => (
-                    <button
-                      key={n.id}
-                      type="button"
-                      onClick={() => onPickTarget(n)}
-                      className="flex w-full flex-col items-start gap-0 rounded-md px-2.5 py-1.5 text-left hover:bg-[var(--node-action-bar-hover-bg)]"
-                    >
-                      <span className="w-full truncate text-[11px] text-[var(--node-popover-text)]">{label}</span>
-                      <span className="w-full truncate font-mono-display text-[9px] text-[var(--node-control-muted)]">
-                        {n.id.length > 14 ? `${n.id.slice(0, 12)}…` : n.id}
-                      </span>
-                    </button>
-                  ))
+                  canvasTargets.map(({ n, label }) => {
+                    const idStr = String(n.id);
+                    return (
+                      <button
+                        key={idStr}
+                        type="button"
+                        onClick={() => onPickTarget(n)}
+                        className="flex w-full flex-col items-start gap-0 rounded-md px-2.5 py-1.5 text-left hover:bg-[var(--node-action-bar-hover-bg)]"
+                      >
+                        <span className="w-full truncate text-[11px] text-[var(--node-popover-text)]">{label}</span>
+                        <span className="w-full truncate font-mono-display text-[9px] text-[var(--node-control-muted)]">
+                          {idStr.length > 14 ? `${idStr.slice(0, 12)}…` : idStr}
+                        </span>
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </ScrollArea>
@@ -173,17 +188,22 @@ export function SelectionConnectMenu({
         ) : (
           <>
             <div className="flex items-center gap-1 border-b border-[var(--node-panel-border)] px-2 py-1.5">
-              <button
-                type="button"
-                className="rounded-md p-1 text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-popover-text)]"
-                title="Back"
-                onClick={() => {
-                  setStep('nodes');
-                  setTargetPick(null);
-                }}
+              <TooltipWrap
+                label="Back"
+                side="bottom"
+                contentClassName="z-[200]"
               >
-                <ChevronLeft size={16} />
-              </button>
+                <button
+                  type="button"
+                  className="rounded-md p-1 text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-popover-text)]"
+                  onClick={() => {
+                    setStep('nodes');
+                    setTargetPick(null);
+                  }}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+              </TooltipWrap>
               <span className="truncate text-[11px] text-[var(--node-popover-text)]">
                 Input on {targetPick ? formatCanvasNodeLabelForConnect(targetPick) : '…'}
               </span>

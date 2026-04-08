@@ -153,7 +153,7 @@ function edgeInputMeta(edge: Edge, src: Node): {
  * Resolve one incoming edge to the assistant into a structured edge input (handle-aware).
  * Uses the same handle kind semantics as `validateScoutConnection` / DefaultNodePortHandles.
  */
-export function resolveAssistantEdgeInput(edge: Edge, nodes: Node[]): AssistantEdgeInput | null {
+export function resolveAssistantEdgeInput(edge: Edge, nodes: Node[], edges?: Edge[]): AssistantEdgeInput | null {
   const src = nodes.find((n) => n.id === edge.source);
   if (!src) return null;
   const meta = edgeInputMeta(edge, src);
@@ -177,7 +177,7 @@ export function resolveAssistantEdgeInput(edge: Edge, nodes: Node[]): AssistantE
   }
 
   if (tk === 'text') {
-    const t = upstreamTextFromNode(src, nodes);
+    const t = upstreamTextFromNode(src, nodes, edges);
     if (!t) return null;
     return { kind: 'text', ...meta, text: t };
   }
@@ -189,7 +189,7 @@ export function resolveAssistantEdgeInput(edge: Edge, nodes: Node[]): AssistantE
     }
     return { kind: 'image', ...meta, url: media.url, label: media.label };
   }
-  const t = upstreamTextFromNode(src, nodes);
+  const t = upstreamTextFromNode(src, nodes, edges);
   if (!t) return null;
   return { kind: 'text', ...meta, text: t };
 }
@@ -240,7 +240,7 @@ export function resolveStage2InstructionsContext(
   const incoming = incomingSources(edges, assistantNodeId).sort((a, b) => a.id.localeCompare(b.id));
   const edgeInputs: AssistantEdgeInput[] = [];
   for (const e of incoming) {
-    const item = resolveAssistantEdgeInput(e, nodes);
+    const item = resolveAssistantEdgeInput(e, nodes, edges);
     if (item) edgeInputs.push(item);
   }
 
@@ -333,7 +333,7 @@ export function resolveStage2ImageGeneratorContext(
           promptItems.push(item);
         }
       }
-      const t = upstreamTextFromNode(src, nodes).trim();
+      const t = upstreamTextFromNode(src, nodes, edges).trim();
       if (t) wiredParts.push(t);
       continue;
     }
@@ -364,7 +364,7 @@ export function resolveStage2ImageGeneratorContext(
     }
     const gotMedia = anchorImageUrls.length > img0 || anchorVideoUrls.length > vid0;
     if (!gotMedia) {
-      const t = upstreamTextFromNode(src, nodes).trim();
+      const t = upstreamTextFromNode(src, nodes, edges).trim();
       if (t) wiredParts.push(t);
     }
   }
@@ -546,7 +546,7 @@ export function resolveStage3Context(
     if (!src) continue;
     const hk = handleKind(e.targetHandle);
     if (hk === 'text') {
-      const t = upstreamTextFromNode(src, nodes).trim();
+      const t = upstreamTextFromNode(src, nodes, edges).trim();
       if (t) textParts.push(t);
     }
   }

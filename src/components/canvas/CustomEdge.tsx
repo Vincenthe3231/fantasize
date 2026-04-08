@@ -3,6 +3,7 @@ import { getBezierPath, useStore, type EdgeProps } from 'reactflow';
 import { Scissors } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
+import { TooltipWrap } from '@/components/ui/tooltip';
 import { effectiveEdgeAnimation } from '@/lib/canvasEffectiveSettings';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 import { useCanvasEdgeLodLevel } from '@/contexts/CanvasEdgeLodContext';
@@ -199,19 +200,20 @@ const CustomEdge = memo(({
             }}
             onPointerLeave={onEdgePointerLeave}
           >
-            <button
-              type="button"
-              title="Remove connection"
-              onClick={handleSnipClick}
-              onPointerDown={handleSnipPointerDown}
-              className={`${NODE_INTERACTIVE_CLASS} flex h-7 w-7 shrink-0 items-center justify-center rounded-full border shadow-md transition-colors ${
-                selected
-                  ? 'border-red-400/50 bg-red-500/90 text-[var(--node-on-accent)] hover:bg-red-500'
-                  : 'border-[var(--node-control-border)] bg-[var(--node-action-bar-bg)] text-[var(--node-action-bar-icon)] hover:border-[var(--accent-color)] hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-action-bar-icon-hover)]'
-              }`}
-            >
-              <Scissors size={14} strokeWidth={2} />
-            </button>
+            <TooltipWrap label="Remove connection" side="top" contentClassName="z-[200]">
+              <button
+                type="button"
+                onClick={handleSnipClick}
+                onPointerDown={handleSnipPointerDown}
+                className={`${NODE_INTERACTIVE_CLASS} flex h-7 w-7 shrink-0 items-center justify-center rounded-full border shadow-md transition-colors ${
+                  selected
+                    ? 'border-red-400/50 bg-red-500/90 text-[var(--node-on-accent)] hover:bg-red-500'
+                    : 'border-[var(--node-control-border)] bg-[var(--node-action-bar-bg)] text-[var(--node-action-bar-icon)] hover:border-[var(--accent-color)] hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-action-bar-icon-hover)]'
+                }`}
+              >
+                <Scissors size={14} strokeWidth={2} />
+              </button>
+            </TooltipWrap>
           </div>
         </foreignObject>
       )}

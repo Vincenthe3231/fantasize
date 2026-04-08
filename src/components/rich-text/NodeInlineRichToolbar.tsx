@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipWrap } from '@/components/ui/tooltip';
 import { getRichTextBlockLabel } from './blockLabel';
 
 const PRESET_COLORS = [
@@ -174,19 +175,25 @@ export function NodeInlineRichToolbar({ editor, variant = 'floating-above' }: No
       transition={{ duration: 0.12 }}
     >
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className="node-inline-toolbar-btn px-2 py-1 rounded text-[11px] transition-colors max-w-[9rem] truncate"
-            title="Block type"
-            onPointerDown={(e) => {
-              // Keep editor focus while opening the menu so toolbar doesn't unmount.
-              e.preventDefault();
-            }}
-          >
-            {t.blockLabel} ▾
-          </button>
-        </DropdownMenuTrigger>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="node-inline-toolbar-btn px-2 py-1 rounded text-[11px] transition-colors max-w-[9rem] truncate"
+                onPointerDown={(e) => {
+                  // Keep editor focus while opening the menu so toolbar doesn't unmount.
+                  e.preventDefault();
+                }}
+              >
+                {t.blockLabel} ▾
+              </button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="z-[100]">
+            Block type
+          </TooltipContent>
+        </Tooltip>
         <DropdownMenuContent className="node-canvas-dropdown p-0 text-xs">
           <ScrollArea className="max-h-[min(70vh,20rem)]">
             <div className="py-1">
@@ -203,71 +210,77 @@ export function NodeInlineRichToolbar({ editor, variant = 'floating-above' }: No
         </DropdownMenuContent>
       </DropdownMenu>
       <div className="w-px h-4 node-inline-toolbar-divider shrink-0" />
-      <button
-        type="button"
-        title="Bold"
-        onClick={() => editor.chain().focus().toggleBold().run()}
-        className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isBold ? 'is-active' : ''}`}
-      >
-        <Bold size={12} />
-      </button>
-      <button
-        type="button"
-        title="Italic"
-        onClick={() => editor.chain().focus().toggleItalic().run()}
-        className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isItalic ? 'is-active' : ''}`}
-      >
-        <Italic size={12} />
-      </button>
-      <button
-        type="button"
-        title="Underline"
-        onClick={() => editor.chain().focus().toggleUnderline().run()}
-        className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isUnderline ? 'is-active' : ''}`}
-      >
-        <Underline size={12} />
-      </button>
-      <button
-        type="button"
-        title="Strikethrough"
-        onClick={() => editor.chain().focus().toggleStrike().run()}
-        className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isStrike ? 'is-active' : ''}`}
-      >
-        <Strikethrough size={12} />
-      </button>
-      <button
-        type="button"
-        title="Inline code"
-        onClick={() => editor.chain().focus().toggleCode().run()}
-        className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isCode ? 'is-active' : ''}`}
-      >
-        <Code size={12} />
-      </button>
+      <TooltipWrap label="Bold" side="top" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isBold ? 'is-active' : ''}`}
+        >
+          <Bold size={12} />
+        </button>
+      </TooltipWrap>
+      <TooltipWrap label="Italic" side="top" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isItalic ? 'is-active' : ''}`}
+        >
+          <Italic size={12} />
+        </button>
+      </TooltipWrap>
+      <TooltipWrap label="Underline" side="top" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+          className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isUnderline ? 'is-active' : ''}`}
+        >
+          <Underline size={12} />
+        </button>
+      </TooltipWrap>
+      <TooltipWrap label="Strikethrough" side="top" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+          className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isStrike ? 'is-active' : ''}`}
+        >
+          <Strikethrough size={12} />
+        </button>
+      </TooltipWrap>
+      <TooltipWrap label="Inline code" side="top" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleCode().run()}
+          className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isCode ? 'is-active' : ''}`}
+        >
+          <Code size={12} />
+        </button>
+      </TooltipWrap>
       <Popover>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            title="Text color"
-            className="node-inline-toolbar-btn flex h-7 w-7 items-center justify-center rounded p-1 transition-colors"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <span
-              className="h-3.5 w-3.5 rounded-sm border border-[var(--node-control-border)]"
-              style={{ backgroundColor: t.textColor || 'var(--text-primary)' }}
-            />
-          </button>
-        </PopoverTrigger>
+        <TooltipWrap label="Text color" side="top" contentClassName="z-[100]">
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="node-inline-toolbar-btn flex h-7 w-7 items-center justify-center rounded p-1 transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span
+                className="h-3.5 w-3.5 rounded-sm border border-[var(--node-control-border)]"
+                style={{ backgroundColor: t.textColor || 'var(--text-primary)' }}
+              />
+            </button>
+          </PopoverTrigger>
+        </TooltipWrap>
         <PopoverContent className="node-canvas-dropdown w-auto p-2" align="start" onClick={(e) => e.stopPropagation()}>
           <div className="mb-2 grid grid-cols-5 gap-1">
             {PRESET_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                className="h-6 w-6 rounded border border-[var(--node-control-border)]"
-                style={{ backgroundColor: c }}
-                title={c}
-                onClick={() => setTextColor(c)}
-              />
+              <TooltipWrap key={c} label={c} side="top" contentClassName="z-[200]">
+                <button
+                  type="button"
+                  className="h-6 w-6 rounded border border-[var(--node-control-border)]"
+                  style={{ backgroundColor: c }}
+                  onClick={() => setTextColor(c)}
+                />
+              </TooltipWrap>
             ))}
           </div>
           <div className="flex items-center gap-2">
@@ -288,75 +301,87 @@ export function NodeInlineRichToolbar({ editor, variant = 'floating-above' }: No
         </PopoverContent>
       </Popover>
       <div className="w-px h-4 node-inline-toolbar-divider shrink-0" />
-      <button
-        type="button"
-        title="Link"
-        onClick={setLink}
-        className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isLink ? 'is-active' : ''}`}
-      >
-        <Link2 size={12} />
-      </button>
-      <button
-        type="button"
-        title="Blockquote"
-        onClick={() => editor.chain().focus().toggleBlockquote().run()}
-        className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isBlockquote ? 'is-active' : ''}`}
-      >
-        <Quote size={12} />
-      </button>
-      <button
-        type="button"
-        title="Code block"
-        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-        className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isCodeBlock ? 'is-active' : ''}`}
-      >
-        <SquareCode size={12} />
-      </button>
+      <TooltipWrap label="Link" side="top" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={setLink}
+          className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isLink ? 'is-active' : ''}`}
+        >
+          <Link2 size={12} />
+        </button>
+      </TooltipWrap>
+      <TooltipWrap label="Blockquote" side="top" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isBlockquote ? 'is-active' : ''}`}
+        >
+          <Quote size={12} />
+        </button>
+      </TooltipWrap>
+      <TooltipWrap label="Code block" side="top" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isCodeBlock ? 'is-active' : ''}`}
+        >
+          <SquareCode size={12} />
+        </button>
+      </TooltipWrap>
       <div className="w-px h-4 node-inline-toolbar-divider shrink-0" />
-      <button
-        type="button"
-        title="Bullet list"
-        onClick={() => editor.chain().focus().toggleBulletList().run()}
-        className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isBulletList ? 'is-active' : ''}`}
-      >
-        <List size={12} />
-      </button>
-      <button
-        type="button"
-        title="Numbered list"
-        onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isOrderedList ? 'is-active' : ''}`}
-      >
-        <ListOrdered size={12} />
-      </button>
+      <TooltipWrap label="Bullet list" side="top" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isBulletList ? 'is-active' : ''}`}
+        >
+          <List size={12} />
+        </button>
+      </TooltipWrap>
+      <TooltipWrap label="Numbered list" side="top" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          className={`node-inline-toolbar-btn p-1.5 rounded transition-colors ${t.isOrderedList ? 'is-active' : ''}`}
+        >
+          <ListOrdered size={12} />
+        </button>
+      </TooltipWrap>
       <div className="w-px h-4 node-inline-toolbar-divider shrink-0" />
-      <button
-        type="button"
-        title="Horizontal rule"
-        onClick={() => editor.chain().focus().setHorizontalRule().run()}
-        className="node-inline-toolbar-btn p-1.5 rounded transition-colors"
-      >
-        <Minus size={12} />
-      </button>
+      <TooltipWrap label="Horizontal rule" side="top" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().setHorizontalRule().run()}
+          className="node-inline-toolbar-btn p-1.5 rounded transition-colors"
+        >
+          <Minus size={12} />
+        </button>
+      </TooltipWrap>
       <div className="w-px h-4 node-inline-toolbar-divider shrink-0" />
-      <button
-        type="button"
-        title="Undo"
-        onClick={() => editor.chain().focus().undo().run()}
-        disabled={!t.canUndo}
-        className="node-inline-toolbar-btn p-1.5 rounded transition-colors disabled:opacity-30"
-      >
-        <Undo2 size={12} />
-      </button>
-      <button
-        type="button"
-        title="Redo"
-        onClick={() => editor.chain().focus().redo().run()}
-        disabled={!t.canRedo}
-        className="node-inline-toolbar-btn p-1.5 rounded transition-colors disabled:opacity-30"
-      >
-        <Redo2 size={12} />
-      </button>
+      <TooltipWrap label="Undo" side="top" contentClassName="z-[100]">
+        <span className="inline-flex">
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().undo().run()}
+            disabled={!t.canUndo}
+            className="node-inline-toolbar-btn p-1.5 rounded transition-colors disabled:opacity-30"
+          >
+            <Undo2 size={12} />
+          </button>
+        </span>
+      </TooltipWrap>
+      <TooltipWrap label="Redo" side="top" contentClassName="z-[100]">
+        <span className="inline-flex">
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().redo().run()}
+            disabled={!t.canRedo}
+            className="node-inline-toolbar-btn p-1.5 rounded transition-colors disabled:opacity-30"
+          >
+            <Redo2 size={12} />
+          </button>
+        </span>
+      </TooltipWrap>
     </motion.div>
   );
 }

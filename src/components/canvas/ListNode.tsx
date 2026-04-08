@@ -14,6 +14,7 @@ import { deleteWorkflowMediaByPublicUrl } from '@/lib/uploadStorage';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 import { mergeTextAndSortedListImages } from '@/lib/listNodeImageSort';
 import CanvasNodeImage from '@/components/canvas/CanvasNodeImage';
+import { TooltipWrap } from '@/components/ui/tooltip';
 
 type ListItemType = 'text' | 'image';
 
@@ -74,22 +75,24 @@ const ListNodeGridImageTile = memo(function ListNodeGridImageTile({
         alt={item.mediaName ?? ''}
         className="h-full w-full object-cover"
       />
-      <button
-        type="button"
-        onClick={onOpenPreview}
-        className="absolute left-1 top-1 z-10 rounded-full bg-[var(--node-badge-bg)] p-0.5 text-[var(--node-overlay-text)] opacity-0 transition-opacity group-hover:opacity-100"
-        title="Open preview"
-      >
-        <ExternalLink size={10} />
-      </button>
-      <button
-        type="button"
-        onClick={onDownload}
-        className="absolute left-7 top-1 z-10 rounded-full bg-[var(--node-badge-bg)] p-0.5 text-[var(--node-overlay-text)] opacity-0 transition-opacity group-hover:opacity-100"
-        title="Download image"
-      >
-        <Download size={10} />
-      </button>
+      <TooltipWrap label="Open preview" side="top" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={onOpenPreview}
+          className="absolute left-1 top-1 z-10 rounded-full bg-[var(--node-badge-bg)] p-0.5 text-[var(--node-overlay-text)] opacity-0 transition-opacity group-hover:opacity-100"
+        >
+          <ExternalLink size={10} />
+        </button>
+      </TooltipWrap>
+      <TooltipWrap label="Download image" side="top" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={onDownload}
+          className="absolute left-7 top-1 z-10 rounded-full bg-[var(--node-badge-bg)] p-0.5 text-[var(--node-overlay-text)] opacity-0 transition-opacity group-hover:opacity-100"
+        >
+          <Download size={10} />
+        </button>
+      </TooltipWrap>
       <button
         type="button"
         onClick={onRemove}
@@ -98,18 +101,23 @@ const ListNodeGridImageTile = memo(function ListNodeGridImageTile({
         <X size={10} />
       </button>
       {multiSelectMode && (
-        <button
-          type="button"
-          onClick={onToggleSelect}
-          className={`absolute left-1 bottom-1 z-10 flex h-5 w-5 items-center justify-center rounded-full border transition-colors ${
-            isImageSelected
-              ? 'border-emerald-400 bg-emerald-500/25 text-emerald-200'
-              : 'border-[var(--node-control-border)] bg-[var(--node-badge-bg)] text-transparent hover:text-[var(--node-overlay-text)]'
-          }`}
-          title={isImageSelected ? 'Deselect image' : 'Select image'}
+        <TooltipWrap
+          label={isImageSelected ? 'Deselect image' : 'Select image'}
+          side="top"
+          contentClassName="z-[100]"
         >
-          <Check size={11} />
-        </button>
+          <button
+            type="button"
+            onClick={onToggleSelect}
+            className={`absolute left-1 bottom-1 z-10 flex h-5 w-5 items-center justify-center rounded-full border transition-colors ${
+              isImageSelected
+                ? 'border-emerald-400 bg-emerald-500/25 text-emerald-200'
+                : 'border-[var(--node-control-border)] bg-[var(--node-badge-bg)] text-transparent hover:text-[var(--node-overlay-text)]'
+            }`}
+          >
+            <Check size={11} />
+          </button>
+        </TooltipWrap>
       )}
     </div>
   );
@@ -423,18 +431,23 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                         <Reorder.Item key={item.id} value={item} className="cursor-grab active:cursor-grabbing">
                           <div className="group flex items-center gap-2.5 rounded-lg border-b border-[var(--node-divider)] px-2 py-1.5 transition-colors last:border-b-0 hover:bg-[var(--node-action-bar-hover-bg)]">
                             {multiSelectMode && (
-                              <button
-                                type="button"
-                                onClick={() => toggleImageSelected(item.id)}
-                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                                  selectedImageIdSet.has(item.id)
-                                    ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
-                                    : 'border-[var(--node-control-border)] text-transparent hover:text-[var(--node-control-muted)]'
-                                }`}
-                                title={selectedImageIdSet.has(item.id) ? 'Deselect image' : 'Select image'}
+                              <TooltipWrap
+                                label={selectedImageIdSet.has(item.id) ? 'Deselect image' : 'Select image'}
+                                side="top"
+                                contentClassName="z-[100]"
                               >
-                                <Check size={10} />
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleImageSelected(item.id)}
+                                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                                    selectedImageIdSet.has(item.id)
+                                      ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
+                                      : 'border-[var(--node-control-border)] text-transparent hover:text-[var(--node-control-muted)]'
+                                  }`}
+                                >
+                                  <Check size={10} />
+                                </button>
+                              </TooltipWrap>
                             )}
                             <CanvasNodeImage
                               mediaUrl={item.mediaUrl || '/placeholder.svg'}
@@ -451,22 +464,26 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                                 {item.referer ? ` • ${item.referer}` : ''}
                               </p>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => openImage(item.supabaseUrl || item.mediaUrl || '')}
-                              className="shrink-0 text-[var(--node-control-muted)] opacity-0 transition-opacity hover:text-[var(--node-control-text)] group-hover:opacity-100"
-                              title="Open preview"
-                            >
-                              <ExternalLink size={11} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => downloadImage(item.supabaseUrl || item.mediaUrl || '', item.mediaName || `image-${item.id}`)}
-                              className="shrink-0 text-[var(--node-control-muted)] opacity-0 transition-opacity hover:text-[var(--node-control-text)] group-hover:opacity-100"
-                              title="Download image"
-                            >
-                              <Download size={11} />
-                            </button>
+                            <TooltipWrap label="Open preview" side="top" contentClassName="z-[100]">
+                              <button
+                                type="button"
+                                onClick={() => openImage(item.supabaseUrl || item.mediaUrl || '')}
+                                className="shrink-0 text-[var(--node-control-muted)] opacity-0 transition-opacity hover:text-[var(--node-control-text)] group-hover:opacity-100"
+                              >
+                                <ExternalLink size={11} />
+                              </button>
+                            </TooltipWrap>
+                            <TooltipWrap label="Download image" side="top" contentClassName="z-[100]">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  downloadImage(item.supabaseUrl || item.mediaUrl || '', item.mediaName || `image-${item.id}`)
+                                }
+                                className="shrink-0 text-[var(--node-control-muted)] opacity-0 transition-opacity hover:text-[var(--node-control-text)] group-hover:opacity-100"
+                              >
+                                <Download size={11} />
+                              </button>
+                            </TooltipWrap>
                             <button type="button" onClick={() => removeItem(item.id)} className="shrink-0 text-[var(--node-control-muted)] opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"><X size={11} /></button>
                           </div>
                         </Reorder.Item>
@@ -477,18 +494,23 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                       {imageItems.map((item) => (
                         <div key={item.id} className="group flex items-center gap-2.5 rounded-lg border-b border-[var(--node-divider)] px-2 py-1.5 last:border-b-0">
                           {multiSelectMode && (
-                            <button
-                              type="button"
-                              onClick={() => toggleImageSelected(item.id)}
-                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                                selectedImageIdSet.has(item.id)
-                                  ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
-                                  : 'border-[var(--node-control-border)] text-transparent hover:text-[var(--node-control-muted)]'
-                              }`}
-                              title={selectedImageIdSet.has(item.id) ? 'Deselect image' : 'Select image'}
+                            <TooltipWrap
+                              label={selectedImageIdSet.has(item.id) ? 'Deselect image' : 'Select image'}
+                              side="top"
+                              contentClassName="z-[100]"
                             >
-                              <Check size={10} />
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleImageSelected(item.id)}
+                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                                  selectedImageIdSet.has(item.id)
+                                    ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
+                                    : 'border-[var(--node-control-border)] text-transparent hover:text-[var(--node-control-muted)]'
+                                }`}
+                              >
+                                <Check size={10} />
+                              </button>
+                            </TooltipWrap>
                           )}
                           <CanvasNodeImage
                             mediaUrl={item.mediaUrl || '/placeholder.svg'}
@@ -574,41 +596,48 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
           <div className="flex-1" />
 
           {items.length > 0 && imageCount > 0 ? (
-            <motion.button
-              type="button"
-              onClick={toggleImageSelectionMode}
-              whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-              className={`flex items-center gap-1 rounded-md px-2 py-1 transition-colors ${
-                multiSelectMode
-                  ? 'bg-emerald-500/15 text-emerald-300'
-                  : 'text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)]'
-              }`}
-              title={multiSelectMode ? 'Disable image multi-selection' : 'Enable image multi-selection'}
+            <TooltipWrap
+              label={multiSelectMode ? 'Disable image multi-selection' : 'Enable image multi-selection'}
+              side="top"
+              contentClassName="z-[100] max-w-[min(260px,calc(100vw-24px))]"
             >
-              {imageSelectionLabel} <Check size={9} />
-            </motion.button>
+              <motion.button
+                type="button"
+                onClick={toggleImageSelectionMode}
+                whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+                className={`flex items-center gap-1 rounded-md px-2 py-1 transition-colors ${
+                  multiSelectMode
+                    ? 'bg-emerald-500/15 text-emerald-300'
+                    : 'text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)]'
+                }`}
+              >
+                {imageSelectionLabel} <Check size={9} />
+              </motion.button>
+            </TooltipWrap>
           ) : items.length > 0 ? (
             <span className="flex items-center gap-1 text-[var(--node-control-muted)]">
               {countLabel} <Check size={9} />
             </span>
           ) : null}
 
-          <button
-            type="button"
-            title="List view"
-            onClick={() => updateNodeData(id, { listViewMode: 'list' })}
-            className={`rounded p-1 transition-colors ${viewMode === 'list' ? 'bg-[var(--node-tab-active-bg)] text-[var(--node-control-text)]' : 'text-[var(--node-tab-inactive)] hover:text-[var(--node-control-text)]'}`}
-          >
-            <LayoutList size={11} />
-          </button>
-          <button
-            type="button"
-            title="Grid view"
-            onClick={() => updateNodeData(id, { listViewMode: 'grid' })}
-            className={`rounded p-1 transition-colors ${viewMode === 'grid' ? 'bg-[var(--node-tab-active-bg)] text-[var(--node-control-text)]' : 'text-[var(--node-tab-inactive)] hover:text-[var(--node-control-text)]'}`}
-          >
-            <LayoutGrid size={11} />
-          </button>
+          <TooltipWrap label="List view" side="top" contentClassName="z-[100]">
+            <button
+              type="button"
+              onClick={() => updateNodeData(id, { listViewMode: 'list' })}
+              className={`rounded p-1 transition-colors ${viewMode === 'list' ? 'bg-[var(--node-tab-active-bg)] text-[var(--node-control-text)]' : 'text-[var(--node-tab-inactive)] hover:text-[var(--node-control-text)]'}`}
+            >
+              <LayoutList size={11} />
+            </button>
+          </TooltipWrap>
+          <TooltipWrap label="Grid view" side="top" contentClassName="z-[100]">
+            <button
+              type="button"
+              onClick={() => updateNodeData(id, { listViewMode: 'grid' })}
+              className={`rounded p-1 transition-colors ${viewMode === 'grid' ? 'bg-[var(--node-tab-active-bg)] text-[var(--node-control-text)]' : 'text-[var(--node-tab-inactive)] hover:text-[var(--node-control-text)]'}`}
+            >
+              <LayoutGrid size={11} />
+            </button>
+          </TooltipWrap>
           <button type="button" className="rounded p-1 text-[var(--node-tab-inactive)] transition-colors hover:text-[var(--node-control-text)]"><Settings size={11} /></button>
         </div>
 
@@ -629,15 +658,15 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                 { icon: SlidersHorizontal, action: () => {}, tip: 'Settings' },
                 { icon: Sparkles, action: () => {}, tip: 'AI' },
               ].map(({ icon: Icon, action, tip }) => (
-                <button
-                  key={tip}
-                  type="button"
-                  onClick={action}
-                  title={tip}
-                  className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--node-float-btn-border)] bg-[var(--node-float-btn-bg)] text-[var(--node-control-muted)] transition-colors hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-control-text)]"
-                >
-                  <Icon size={12} />
-                </button>
+                <TooltipWrap key={tip} label={tip} side="left" contentClassName="z-[100]">
+                  <button
+                    type="button"
+                    onClick={action}
+                    className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--node-float-btn-border)] bg-[var(--node-float-btn-bg)] text-[var(--node-control-muted)] transition-colors hover:bg-[var(--node-action-bar-hover-bg)] hover:text-[var(--node-control-text)]"
+                  >
+                    <Icon size={12} />
+                  </button>
+                </TooltipWrap>
               ))}
             </motion.div>
           )}

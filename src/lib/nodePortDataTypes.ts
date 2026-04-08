@@ -7,7 +7,6 @@ import {
   listNodeTextFromNode,
   mergeTextPartsDedupe,
 } from '@/lib/graphUpstreamPayload';
-import { mergeTextAndSortedListImages } from '@/lib/listNodeImageSort';
 import { richTextToPlainForScout } from '@/lib/richTextForScout';
 
 /** Order handles consistently on group nodes. */
@@ -176,83 +175,16 @@ function videoPacketFromNode(source: Node): NodeDataflowPacket | null {
   return { kind: 'video', value: [{ url }] };
 }
 
-function textInputApply(targetField: string) {
-  return (_target: Node, merged: NodeDataflowPacket): Partial<Record<string, unknown>> | null => {
-    if (merged.kind !== 'text') return null;
-    const next = merged.value.trim();
-    if (!next) return null;
-    return { [targetField]: next };
-  };
-}
-
-function imageInputApply(targetField: string) {
-  return (_target: Node, merged: NodeDataflowPacket): Partial<Record<string, unknown>> | null => {
-    if (merged.kind !== 'image') return null;
-    const first = merged.value[0]?.url?.trim();
-    if (!first) return null;
-    return { [targetField]: first };
-  };
-}
-
-function listImageInputApply(target: Node, merged: NodeDataflowPacket): Partial<Record<string, unknown>> | null {
-  if (merged.kind !== 'image') return null;
-  const incoming = merged.value
-    .map((item) => {
-      const url = String(item.url ?? '').trim();
-      const tsRaw = item.timestamp;
-      const ts =
-        typeof tsRaw === 'number' && Number.isFinite(tsRaw) ? tsRaw : undefined;
-      const createdRaw = String(item.created_at ?? '').trim();
-      const created_at =
-        createdRaw && !Number.isNaN(Date.parse(createdRaw)) ?
-          new Date(createdRaw).toISOString()
-        : ts != null ?
-          new Date(ts).toISOString()
-        : new Date().toISOString();
-      const timestamp = ts ?? Date.parse(created_at);
-      return {
-        url,
-        label: String(item.label ?? '').trim(),
-        referer: String(item.referer ?? '').trim(),
-        generatedBy: String(item.generatedBy ?? '').trim(),
-        timestamp,
-        created_at,
-        supabaseUrl: String(item.supabaseUrl ?? '').trim(),
-      };
-    })
-    .filter((item) => item.url);
-  if (incoming.length === 0) return null;
-
-  const existing =
-    (((target.data ?? {}) as { items?: Array<Record<string, unknown>> }).items ?? []).map((it) => ({
-      ...it,
-    })) ?? [];
-  const text = existing.filter((it) => String(it.type ?? '') === 'text');
-  const imageRows = existing.filter((it) => String(it.type ?? '') === 'image');
-
-  const seenUrls = new Set(imageRows.map((it) => String(it.mediaUrl ?? '').trim()).filter(Boolean));
-
-  const additions = incoming
-    .filter((it) => !seenUrls.has(it.url))
-    .map((it) => ({
-      id: `m-${it.timestamp}-${crypto.randomUUID().slice(0, 8)}`,
-      type: 'image' as const,
-      mediaUrl: it.url,
-      mediaName: it.label || 'Generated image',
-      referer: it.referer || undefined,
-      generatedBy: it.generatedBy || undefined,
-      timestamp: it.timestamp,
-      created_at: it.created_at,
-      supabaseUrl: it.supabaseUrl || undefined,
-    }));
-  if (additions.length === 0) return null;
-  return { items: mergeTextAndSortedListImages(text, [...imageRows, ...additions]) };
-}
+/**
+ * Do not copy upstream packets into the target node's `data`. Edges remain the graph link;
+ * execution context (Scout, `scoutContextResolver`, `graphUpstreamPayload`) reads **sources** via edges.
+ */
+const dataflowApplyNoOp: NodeHandleInputContract['apply'] = (_target, _merged) => null;
 
 const CONTRACTS: Record<string, NodeDataflowContract> = {
   textNode: {
     inputs: {
-      'text-in': { dataType: 'text', merge: 'textConcatDedupe', apply: textInputApply('content') },
+      'text-in': { dataType: 'text', merge: 'textConcatDedupe', apply: dataflowApplyNoOp },
     },
     outputs: {
       'text-out': { dataType: 'text', read: textPacketFromNode },
@@ -260,9 +192,8 @@ const CONTRACTS: Record<string, NodeDataflowContract> = {
   },
   assistantNode: {
     inputs: {
-      // Keep user `prompt` separate from graph-fed text so runs + feedback edges cannot overwrite the draft.
-      'text-in': { dataType: 'text', merge: 'textConcatDedupe', apply: textInputApply('wiredTextFromEdges') },
-      'image-in': { dataType: 'image', merge: 'imageListByUrl', apply: imageInputApply('referenceUrl') },
+      'text-in': { dataType: 'text', merge: 'textConcatDedupe', apply: dataflowApplyNoOp },
+      'image-in': { dataType: 'image', merge: 'imageListByUrl', apply: dataflowApplyNoOp },
     },
     outputs: {
       'text-out': { dataType: 'text', read: assistantTextPacketFromNode },
@@ -270,8 +201,8 @@ const CONTRACTS: Record<string, NodeDataflowContract> = {
   },
   imageGeneratorNode: {
     inputs: {
-      'text-in': { dataType: 'text', merge: 'textConcatDedupe', apply: textInputApply('prompt') },
-      'image-in': { dataType: 'image', merge: 'imageListByUrl', apply: imageInputApply('mediaUrl') },
+      'text-in': { dataType: 'text', merge: 'textConcatDedupe', apply: dataflowApplyNoOp },
+      'image-in': { dataType: 'image', merge: 'imageListByUrl', apply: dataflowApplyNoOp },
     },
     outputs: {
       'image-out': { dataType: 'image', read: imagePacketFromNode },
@@ -280,8 +211,8 @@ const CONTRACTS: Record<string, NodeDataflowContract> = {
   },
   placementRefNode: {
     inputs: {
-      'text-in': { dataType: 'text', merge: 'textConcatDedupe', apply: textInputApply('placementText') },
-      'image-in': { dataType: 'image', merge: 'imageListByUrl', apply: imageInputApply('placementRefUrl') },
+      'text-in': { dataType: 'text', merge: 'textConcatDedupe', apply: dataflowApplyNoOp },
+      'image-in': { dataType: 'image', merge: 'imageListByUrl', apply: dataflowApplyNoOp },
     },
     outputs: {
       'text-out': { dataType: 'text', read: textPacketFromNode },
@@ -290,9 +221,9 @@ const CONTRACTS: Record<string, NodeDataflowContract> = {
   },
   uploadNode: {
     inputs: {
-      'image-in': { dataType: 'image', merge: 'imageListByUrl', apply: imageInputApply('mediaUrl') },
-      'video-in': { dataType: 'video', merge: 'videoListByUrl', apply: imageInputApply('mediaUrl') },
-      'text-in': { dataType: 'text', merge: 'textConcatDedupe', apply: textInputApply('labelText') },
+      'image-in': { dataType: 'image', merge: 'imageListByUrl', apply: dataflowApplyNoOp },
+      'video-in': { dataType: 'video', merge: 'videoListByUrl', apply: dataflowApplyNoOp },
+      'text-in': { dataType: 'text', merge: 'textConcatDedupe', apply: dataflowApplyNoOp },
     },
     outputs: {
       'image-out': { dataType: 'image', read: imagePacketFromNode },
@@ -302,7 +233,7 @@ const CONTRACTS: Record<string, NodeDataflowContract> = {
   },
   listNode: {
     inputs: {
-      'image-in': { dataType: 'image', merge: 'imageListByUrl', apply: listImageInputApply },
+      'image-in': { dataType: 'image', merge: 'imageListByUrl', apply: dataflowApplyNoOp },
     },
     outputs: {
       'text-out': {
@@ -347,12 +278,12 @@ const CONTRACTS: Record<string, NodeDataflowContract> = {
 const DEFAULT_TEXT_INPUT: NodeHandleInputContract = {
   dataType: 'text',
   merge: 'textConcatDedupe',
-  apply: textInputApply('prompt'),
+  apply: dataflowApplyNoOp,
 };
 const DEFAULT_IMAGE_INPUT: NodeHandleInputContract = {
   dataType: 'image',
   merge: 'imageListByUrl',
-  apply: imageInputApply('mediaUrl'),
+  apply: dataflowApplyNoOp,
 };
 const DEFAULT_TEXT_OUTPUT: NodeHandleOutputContract = {
   dataType: 'text',

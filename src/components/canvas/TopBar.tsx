@@ -7,6 +7,7 @@ import SignUpPrompt from '@/components/auth/SignUpPrompt';
 import SignInPrompt from '@/components/auth/SignInPrompt';
 import TemplateGallery from './TemplateGallery';
 import RemoteSavePanel from './RemoteSavePanel';
+import { TooltipWrap } from '@/components/ui/tooltip';
 
 const TopBar = () => {
   const [templatesOpen, setTemplatesOpen] = useState(false);
@@ -39,15 +40,16 @@ const TopBar = () => {
 
         {/* Right side */}
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => updateSettings({ darkMode: !darkMode })}
-            className="p-2 rounded-lg glass-toolbar text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-            title={darkMode ? 'Light mode' : 'Dark mode'}
-            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {darkMode ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
+          <TooltipWrap label={darkMode ? 'Light mode' : 'Dark mode'} side="bottom" contentClassName="z-[200]">
+            <button
+              type="button"
+              onClick={() => updateSettings({ darkMode: !darkMode })}
+              className="p-2 rounded-lg glass-toolbar text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+          </TooltipWrap>
           {isAnonymous && (
             <>
               <button

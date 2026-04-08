@@ -1,5 +1,12 @@
 # Lessons (session corrections)
 
+## React Flow node `id` in JSX and string APIs
+
+- **`Node.id`** is typed as `string` but persisted or merged state can still surface **non-strings**. Never render **`{n.id}`** directly when the value might not be coercible to a safe text child; use **`String(n.id)`** for display and list **`key`s**, and use **`String(a.id).localeCompare(String(b.id))`** (same for labels from node data) before **`localeCompare`** / **`.length` / `.slice`**.
+- Upstream image URLs: only call **`.trim()`** when **`typeof url === 'string'`** — optional chaining on a non-string does not produce a string.
+
+_Date: 2026-04-08 — `GroupNode`, `SelectionConnectMenu`, `SelectionOverlay`._
+
 ## Supabase Storage: public URLs + long max-age + new path per revision
 
 - Prefer **`getPublicUrl`** for canvas/node image fields — avoid per-request **signed** URLs in persisted JSON (new token → new cache key → repeated full downloads).
@@ -37,6 +44,14 @@ _Date: 2026-04-08 — `supabase/migrations` init + node_comment_versions._
 - **Hosted projects:** Image transformation requires a **Pro** (or higher) plan per [Supabase docs](https://supabase.com/docs/guides/storage/serving/image-transformations). **Self-hosted / local** needs **imgproxy** + **`ENABLE_IMAGE_TRANSFORMATION`** on the storage API.
 
 _Date: 2026-04-07 — `imageDelivery.ts` + `CanvasNodeImage`; 2026-04-08 — object→render rewrite + plan note._
+
+## Canvas dataflow: edges = context link only (no target `data` sync)
+
+- **`applyReactiveDataflow`** / `computeNodeInputPatch` used to **copy** upstream packets into downstream node fields (`prompt`, `mediaUrl`, `wiredTextFromEdges`, list `items`, etc.). That made wired **content** appear on the target node UI.
+- **Pattern:** all input `apply` handlers are **no-ops** — **edges remain** for graph structure. **Scout** resolves context by walking **incoming edges** and reading **sources**; **`upstreamTextFromNode(n, nodes, edges)`** must receive **`edges`** so **assistant** / **image generator** nodes include text from **incoming** wires (not stored in `data`) when they sit mid-chain (e.g. Text → Assistant → IG).
+- **Verify:** connect Text → Image generator — target **prompt** stays empty; run Stage 2 resolve / Scout — **wired** text still included; Text → Assistant → IG chain still resolves **wiredTextFromEdges**.
+
+_Date: 2026-04-08 — `nodePortDataTypes.ts` `dataflowApplyNoOp`; `nodeDataflow.test.ts`._
 
 ## Supabase image transforms: do not key URLs to live CSS box × zoom (canvas)
 

@@ -39,6 +39,7 @@ import { notifyInfo } from '@/lib/systemNotify';
 import { makeWorkflowEdge } from '@/lib/portHandles';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 import CanvasNodeImage from '@/components/canvas/CanvasNodeImage';
+import { TooltipWrap } from '@/components/ui/tooltip';
 
 const ImageGenGridCell = memo(function ImageGenGridCell({
   url,
@@ -60,14 +61,15 @@ const ImageGenGridCell = memo(function ImageGenGridCell({
         alt={`Generated ${idx + 1}`}
         className="h-full w-full object-cover"
       />
-      <button
-        type="button"
-        onClick={onDownloadClick}
-        className="absolute right-1 top-1 rounded-md bg-[var(--node-badge-bg)] p-1 text-[var(--node-overlay-text)] opacity-0 transition-opacity group-hover:opacity-100"
-        title="Download image"
-      >
-        <Download size={12} />
-      </button>
+      <TooltipWrap label="Download image" side="top" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={onDownloadClick}
+          className="absolute right-1 top-1 rounded-md bg-[var(--node-badge-bg)] p-1 text-[var(--node-overlay-text)] opacity-0 transition-opacity group-hover:opacity-100"
+        >
+          <Download size={12} />
+        </button>
+      </TooltipWrap>
     </div>
   );
 });
@@ -380,16 +382,17 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
                 open={negativePromptOpen}
                 onOpenChange={(open) => updateNodeData(id, { negativePromptOpen: open })}
               >
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={(e) => e.stopPropagation()}
-                    className="p-2 rounded-lg text-[var(--node-control-muted)] hover:text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
-                    title="Negative prompt"
-                  >
-                    <Settings size={14} />
-                  </button>
-                </PopoverTrigger>
+                <TooltipWrap label="Negative prompt" side="top" contentClassName="z-[100]">
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={(e) => e.stopPropagation()}
+                      className="p-2 rounded-lg text-[var(--node-control-muted)] hover:text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
+                    >
+                      <Settings size={14} />
+                    </button>
+                  </PopoverTrigger>
+                </TooltipWrap>
                 <PopoverContent
                   className="node-canvas-popover w-64 p-3"
                   onPointerDown={(e) => e.stopPropagation()}
@@ -422,17 +425,18 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
                 </PopoverContent>
               </Popover>
 
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDownloadImage();
-                }}
-                className="p-2 rounded-lg text-[var(--node-control-muted)] hover:text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
-                title="Download image"
-              >
-                <Download size={14} />
-              </button>
+              <TooltipWrap label="Download image" side="top" contentClassName="z-[100]">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownloadImage();
+                  }}
+                  className="p-2 rounded-lg text-[var(--node-control-muted)] hover:text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
+                >
+                  <Download size={14} />
+                </button>
+              </TooltipWrap>
 
               <div className="flex-1 min-w-[4px]" />
               {generatedUrls.length > 1 && (

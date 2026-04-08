@@ -11,6 +11,7 @@ import ImageCellOverlay from './ImageCellOverlay';
 import { MOCK } from '@/lib/mockPipelineAssets';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
+import { TooltipWrap } from '@/components/ui/tooltip';
 import { stage1Complete } from '@/lib/scoutPipeline';
 
 const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
@@ -104,18 +105,25 @@ const SetDressingNode = memo(({ id, selected, data }: NodeProps) => {
                   'Regenerate'
                 )}
               </button>
-              <button
-                type="button"
-                disabled={!canApprove}
-                className={`${NODE_INTERACTIVE_CLASS} rounded-lg bg-[var(--accent-color)] px-2 py-1 font-mono-display uppercase tracking-wider text-[var(--node-on-accent)] disabled:cursor-not-allowed disabled:opacity-40`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  approveStage2Pipeline();
-                }}
-                title="Locks Stage 2 so generators and downstream stages can run"
+              <TooltipWrap
+                label="Locks Stage 2 so generators and downstream stages can run"
+                side="top"
+                contentClassName="z-[100] max-w-[min(280px,calc(100vw-24px))]"
               >
-                {approveLabel}
-              </button>
+                <span className="inline-flex">
+                  <button
+                    type="button"
+                    disabled={!canApprove}
+                    className={`${NODE_INTERACTIVE_CLASS} rounded-lg bg-[var(--accent-color)] px-2 py-1 font-mono-display uppercase tracking-wider text-[var(--node-on-accent)] disabled:cursor-not-allowed disabled:opacity-40`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      approveStage2Pipeline();
+                    }}
+                  >
+                    {approveLabel}
+                  </button>
+                </span>
+              </TooltipWrap>
             </div>
           </div>
         </NodeContentFocus>

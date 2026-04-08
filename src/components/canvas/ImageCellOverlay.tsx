@@ -9,6 +9,7 @@ import {
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 import CanvasNodeImage from '@/components/canvas/CanvasNodeImage';
 import { useCanvasViewportGestureActive } from '@/contexts/CanvasViewportGestureContext';
+import { TooltipWrap } from '@/components/ui/tooltip';
 
 interface ImageCellOverlayProps {
   src: string;
@@ -101,25 +102,27 @@ const ImageCellOverlay = ({
                   <ImageIcon size={12} />
                   Replace
                 </button>
-                <button
-                  type="button"
-                  className="rounded-lg bg-white/15 hover:bg-white/25 p-1.5 text-[var(--node-on-accent)] backdrop-blur-sm transition-colors"
-                  title="Download"
-                  onClick={handleDownload}
-                >
-                  <Download size={14} />
-                </button>
+                <TooltipWrap label="Download" side="top" contentClassName="z-[200]">
+                  <button
+                    type="button"
+                    className="rounded-lg bg-white/15 hover:bg-white/25 p-1.5 text-[var(--node-on-accent)] backdrop-blur-sm transition-colors"
+                    onClick={handleDownload}
+                  >
+                    <Download size={14} />
+                  </button>
+                </TooltipWrap>
                 <Dialog>
-                  <DialogTrigger asChild>
-                    <button
-                      type="button"
-                      className="rounded-lg bg-white/15 hover:bg-white/25 p-1.5 text-[var(--node-on-accent)] backdrop-blur-sm transition-colors"
-                      title="Expand"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Maximize2 size={14} />
-                    </button>
-                  </DialogTrigger>
+                  <TooltipWrap label="Expand" side="top" contentClassName="z-[200]">
+                    <DialogTrigger asChild>
+                      <button
+                        type="button"
+                        className="rounded-lg bg-white/15 hover:bg-white/25 p-1.5 text-[var(--node-on-accent)] backdrop-blur-sm transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Maximize2 size={14} />
+                      </button>
+                    </DialogTrigger>
+                  </TooltipWrap>
                   <DialogContent
                     className="max-w-[90vw] max-h-[90vh] p-2 border border-[var(--node-control-border)] bg-[var(--node-inner-deep)]"
                     onClick={(e) => e.stopPropagation()}

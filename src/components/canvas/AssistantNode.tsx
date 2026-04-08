@@ -19,6 +19,7 @@ import {
 import { RichTextField } from '@/components/rich-text/RichTextField';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { makeWorkflowEdge } from '@/lib/portHandles';
+import { TooltipWrap } from '@/components/ui/tooltip';
 
 const ASSISTANT_MODELS = [
   'Auto',
@@ -291,13 +292,14 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
                   </ScrollArea>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <button
-                type="button"
-                className="p-2 rounded-lg text-[var(--node-control-muted)] hover:text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
-                title="Settings"
-              >
-                <Settings size={14} />
-              </button>
+              <TooltipWrap label="Settings" side="top" contentClassName="z-[100]">
+                <button
+                  type="button"
+                  className="p-2 rounded-lg text-[var(--node-control-muted)] hover:text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
+                >
+                  <Settings size={14} />
+                </button>
+              </TooltipWrap>
               <div className="flex-1" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -336,18 +338,21 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <button
-                type="button"
-                disabled={isStoreRunning}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void runFromNode(id);
-                }}
-                className="w-10 h-10 rounded-full bg-[var(--accent-color)] text-[var(--node-on-accent)] flex items-center justify-center hover:bg-[var(--accent-hover)] disabled:opacity-50 shadow-lg shrink-0"
-                title="Run Scout (same as toolbar Run)"
-              >
-                {isStoreRunning ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} className="ml-0.5" />}
-              </button>
+              <TooltipWrap label="Run Scout (same as toolbar Run)" side="top" contentClassName="z-[100]">
+                <span className="inline-flex">
+                  <button
+                    type="button"
+                    disabled={isStoreRunning}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void runFromNode(id);
+                    }}
+                    className="w-10 h-10 rounded-full bg-[var(--accent-color)] text-[var(--node-on-accent)] flex items-center justify-center hover:bg-[var(--accent-hover)] disabled:opacity-50 shadow-lg shrink-0"
+                  >
+                    {isStoreRunning ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} className="ml-0.5" />}
+                  </button>
+                </span>
+              </TooltipWrap>
             </div>
 
             {contentFocused && (

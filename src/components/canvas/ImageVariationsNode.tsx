@@ -21,6 +21,7 @@ import { useQuickConnect } from '@/hooks/useQuickConnect';
 import { NodeContentFocus } from './NodeContentFocus';
 import { NodeLabelRow } from './NodeLabelRow';
 import ImageCellOverlay from './ImageCellOverlay';
+import { TooltipWrap } from '@/components/ui/tooltip';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -365,22 +366,25 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
                       </div>
                     </label>
 
-                    <button
-                      type="button"
-                      disabled={isRunning}
-                      className="w-10 h-10 rounded-full bg-[var(--accent-color)] text-[var(--node-on-accent)] flex items-center justify-center hover:bg-[var(--accent-hover)] disabled:opacity-50 shrink-0"
-                      title="Run"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        runAndAccumulate();
-                      }}
-                    >
-                      {isRunning ? (
-                        <Loader2 size={18} className="animate-spin" />
-                      ) : (
-                        <Play size={18} className="ml-0.5" />
-                      )}
-                    </button>
+                    <TooltipWrap label="Run" side="top" contentClassName="z-[100]">
+                      <span className="inline-flex shrink-0">
+                        <button
+                          type="button"
+                          disabled={isRunning}
+                          className="w-10 h-10 rounded-full bg-[var(--accent-color)] text-[var(--node-on-accent)] flex items-center justify-center hover:bg-[var(--accent-hover)] disabled:opacity-50"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            runAndAccumulate();
+                          }}
+                        >
+                          {isRunning ? (
+                            <Loader2 size={18} className="animate-spin" />
+                          ) : (
+                            <Play size={18} className="ml-0.5" />
+                          )}
+                        </button>
+                      </span>
+                    </TooltipWrap>
                   </div>
                 </div>
               </div>

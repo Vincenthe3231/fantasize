@@ -1,5 +1,6 @@
 import { memo, useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { Pencil } from 'lucide-react';
+import { TooltipWrap } from '@/components/ui/tooltip';
 import { useWorkflowStore, type NodeType } from '@/stores/workflowStore';
 import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 
@@ -117,14 +118,15 @@ export const NodeLabelRow = memo(function NodeLabelRow({
       className={`${NODE_INTERACTIVE_CLASS} mb-1 flex items-center gap-1.5 px-0.5 text-[13px] text-[var(--text-primary)] min-h-[22px] ${className}`}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <button
-        type="button"
-        onClick={beginEdit}
-        className="p-0.5 rounded shrink-0 text-[var(--node-control-muted)] hover:text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
-        title="Rename"
-      >
-        <Pencil size={11} />
-      </button>
+      <TooltipWrap label="Rename" side="top" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={beginEdit}
+          className="p-0.5 rounded shrink-0 text-[var(--node-control-muted)] hover:text-[var(--node-control-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
+        >
+          <Pencil size={11} />
+        </button>
+      </TooltipWrap>
       {editing ? (
         <input
           autoFocus

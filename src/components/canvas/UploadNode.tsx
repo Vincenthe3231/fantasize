@@ -14,6 +14,7 @@ import { NODE_INTERACTIVE_CLASS } from './nodeResizeUtils';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
 import { stage1Complete } from '@/lib/scoutPipeline';
 import CanvasNodeImage from '@/components/canvas/CanvasNodeImage';
+import { TooltipWrap } from '@/components/ui/tooltip';
 
 function isVideoUrl(url: string): boolean {
   return /\.(mp4|mov|webm)(\?|$)/i.test(url);
@@ -271,16 +272,21 @@ const UploadNode = memo(({ id, data, selected }: NodeProps) => {
                     onChange={onReplaceInputChange}
                     disabled={uploading}
                   />
-                  <button
-                    type="button"
-                    disabled={uploading}
-                    title="Replace image or video"
-                    className={`${NODE_INTERACTIVE_CLASS} absolute bottom-2 left-2 z-10 flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1.5 text-[11px] font-medium text-white backdrop-blur-[2px] transition-opacity hover:bg-black/55 disabled:cursor-wait disabled:opacity-60`}
-                    onClick={() => replaceInputRef.current?.click()}
-                  >
-                    <ReplaceIcon size={14} strokeWidth={2} className="shrink-0 opacity-95" aria-hidden />
-                    Replace
-                  </button>
+                  <TooltipWrap label="Replace image or video" side="top" contentClassName="z-[100]">
+                    <span
+                      className={`${NODE_INTERACTIVE_CLASS} absolute bottom-2 left-2 z-10 inline-flex`}
+                    >
+                      <button
+                        type="button"
+                        disabled={uploading}
+                        className="flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1.5 text-[11px] font-medium text-white backdrop-blur-[2px] transition-opacity hover:bg-black/55 disabled:cursor-wait disabled:opacity-60"
+                        onClick={() => replaceInputRef.current?.click()}
+                      >
+                        <ReplaceIcon size={14} strokeWidth={2} className="shrink-0 opacity-95" aria-hidden />
+                        Replace
+                      </button>
+                    </span>
+                  </TooltipWrap>
                 </div>
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col gap-2 p-3 pt-2">

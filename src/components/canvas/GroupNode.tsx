@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { TooltipWrap } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWorkflowStore, type NodeType } from '@/stores/workflowStore';
@@ -69,7 +70,10 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
           n.draggable !== false
       )
       .map((n) => ({ n, label: formatCanvasNodeLabel(n) }))
-      .sort((a, b) => a.label.localeCompare(b.label) || String(a.n.type).localeCompare(String(b.n.type)));
+      .sort(
+        (a, b) =>
+          String(a.label).localeCompare(String(b.label)) || String(a.n.type).localeCompare(String(b.n.type))
+      );
   }, [nodes, id]);
 
   useLayoutEffect(() => {
@@ -257,15 +261,16 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
         style={{ pointerEvents: 'auto' }}
       >
         <Popover>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              title="Add node to group"
-              className="rounded-md bg-[var(--node-control-bg)] p-1 text-[var(--node-control-text)] transition-colors hover:bg-[var(--node-action-bar-hover-bg)]"
-            >
-              <Plus size={12} />
-            </button>
-          </PopoverTrigger>
+          <TooltipWrap label="Add node to group" side="top" contentClassName="z-[100]">
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="rounded-md bg-[var(--node-control-bg)] p-1 text-[var(--node-control-text)] transition-colors hover:bg-[var(--node-action-bar-hover-bg)]"
+              >
+                <Plus size={12} />
+              </button>
+            </PopoverTrigger>
+          </TooltipWrap>
           <PopoverContent side="top" className="node-canvas-popover w-64 p-0 backdrop-blur-xl" align="start">
             <Tabs defaultValue="new" className="w-full">
               <TabsList className="grid h-8 w-full grid-cols-2 gap-0 rounded-none border-b border-[var(--node-panel-border)] bg-[var(--node-control-bg)] p-0.5 text-[var(--node-control-muted)]">
@@ -316,19 +321,22 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
                         No other nodes to add. Create nodes on the canvas first, or use the New tab.
                       </p>
                     ) : (
-                      canvasEligibleNodes.map(({ n, label }) => (
-                        <button
-                          key={n.id}
-                          type="button"
-                          onClick={() => reparentNodeToGroup(id, n.id)}
-                          className="flex w-full flex-col items-start gap-0 rounded-md px-2.5 py-1.5 text-left hover:bg-[var(--node-action-bar-hover-bg)]"
-                        >
-                          <span className="w-full truncate text-[11px] text-[var(--node-popover-text)]">{label}</span>
-                          <span className="w-full truncate font-mono-display text-[9px] text-[var(--node-control-muted)]">
-                            {n.id.length > 14 ? `${n.id.slice(0, 12)}…` : n.id}
-                          </span>
-                        </button>
-                      ))
+                      canvasEligibleNodes.map(({ n, label }) => {
+                        const idStr = String(n.id);
+                        return (
+                          <button
+                            key={idStr}
+                            type="button"
+                            onClick={() => reparentNodeToGroup(id, n.id)}
+                            className="flex w-full flex-col items-start gap-0 rounded-md px-2.5 py-1.5 text-left hover:bg-[var(--node-action-bar-hover-bg)]"
+                          >
+                            <span className="w-full truncate text-[11px] text-[var(--node-popover-text)]">{label}</span>
+                            <span className="w-full truncate font-mono-display text-[9px] text-[var(--node-control-muted)]">
+                              {idStr.length > 14 ? `${idStr.slice(0, 12)}…` : idStr}
+                            </span>
+                          </button>
+                        );
+                      })
                     )}
                   </div>
                 </ScrollArea>

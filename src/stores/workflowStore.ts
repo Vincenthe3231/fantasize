@@ -1122,6 +1122,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       });
     },
 
+    /** Removes every selected `group` node; direct children move to absolute positions and stay selected. Multiple groups may be ungrouped in one action. */
     ungroupSelectedNodes: () => {
       const s = get();
       const selectedGroups = s.nodes.filter((n) => n.selected && n.type === 'group');

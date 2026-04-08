@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { TooltipWrap } from '@/components/ui/tooltip';
 
 const BottomBar = () => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
@@ -23,27 +24,29 @@ const BottomBar = () => {
       </span>
       {settings.performanceMode && <Zap size={12} className="text-amber-400/80" aria-hidden />}
 
-      <button
-        type="button"
-        onClick={() => updateSettings({ showMinimap: !settings.showMinimap })}
-        className={`p-2 rounded-lg transition-colors ${
-          settings.showMinimap ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/80'
-        }`}
-        title="Toggle minimap"
-      >
-        <Map size={16} />
-      </button>
+      <TooltipWrap label="Toggle minimap" side="top" contentClassName="z-[200]">
+        <button
+          type="button"
+          onClick={() => updateSettings({ showMinimap: !settings.showMinimap })}
+          className={`p-2 rounded-lg transition-colors ${
+            settings.showMinimap ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/80'
+          }`}
+        >
+          <Map size={16} />
+        </button>
+      </TooltipWrap>
 
       <div className="w-px h-5 bg-border" />
 
-      <button
-        type="button"
-        onClick={() => zoomOut({ duration: 200 })}
-        className="p-2 rounded-lg text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-        title="Zoom out"
-      >
-        <ZoomOut size={16} />
-      </button>
+      <TooltipWrap label="Zoom out" side="top" contentClassName="z-[200]">
+        <button
+          type="button"
+          onClick={() => zoomOut({ duration: 200 })}
+          className="p-2 rounded-lg text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+        >
+          <ZoomOut size={16} />
+        </button>
+      </TooltipWrap>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -61,23 +64,25 @@ const BottomBar = () => {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <button
-        type="button"
-        onClick={() => zoomIn({ duration: 200 })}
-        className="p-2 rounded-lg text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-        title="Zoom in"
-      >
-        <ZoomIn size={16} />
-      </button>
+      <TooltipWrap label="Zoom in" side="top" contentClassName="z-[200]">
+        <button
+          type="button"
+          onClick={() => zoomIn({ duration: 200 })}
+          className="p-2 rounded-lg text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+        >
+          <ZoomIn size={16} />
+        </button>
+      </TooltipWrap>
 
-      <button
-        type="button"
-        onClick={() => fitView(DEFAULT_FIT_VIEW_OPTIONS)}
-        className="p-2 rounded-lg text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-        title="Fit view"
-      >
-        <Maximize2 size={16} />
-      </button>
+      <TooltipWrap label="Fit view" side="top" contentClassName="z-[200]">
+        <button
+          type="button"
+          onClick={() => fitView(DEFAULT_FIT_VIEW_OPTIONS)}
+          className="p-2 rounded-lg text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+        >
+          <Maximize2 size={16} />
+        </button>
+      </TooltipWrap>
     </div>
   );
 };

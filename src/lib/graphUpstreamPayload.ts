@@ -1,5 +1,5 @@
-import type { Node } from 'reactflow';
-import { effectiveScoutPropSlots, plainTextFromHtml } from '@/lib/scoutPipeline';
+import type { Edge, Node } from 'reactflow';
+import { effectiveScoutPropSlots, handleKind, plainTextFromHtml } from '@/lib/scoutPipeline';
 import { richTextToPlainForScout } from '@/lib/richTextForScout';
 import type { NodeDataflowPacket } from '@/lib/nodePortDataTypes';
 
@@ -117,11 +117,59 @@ function aggregateGroupTextString(groupId: string, nodes: Node[]): string {
 }
 
 /**
- * Plain text extractable from a node for graph edges (assistant, image generator, group aggregate).
+ * Text wired into `targetId` via **text** input handles (recursive), without reading patched `data` on the target.
+ * Used when reactive dataflow no longer copies upstream content onto the target node.
  */
-export function upstreamTextFromNode(n: Node | undefined, nodes: Node[]): string {
+function mergeIncomingTextWire(targetId: string, nodes: Node[], edges: Edge[]): string {
+  const incoming = edges.filter((e) => e.target === targetId).sort((a, b) => a.id.localeCompare(b.id));
+  const parts: string[] = [];
+  for (const e of incoming) {
+    if (handleKind(e.targetHandle) !== 'text') continue;
+    const src = nodes.find((x) => x.id === e.source);
+    if (!src) continue;
+    if (src.type === 'listNode') {
+      for (const item of listNodeTextItemsFromNode(src)) {
+        if (item.trim()) parts.push(item.trim());
+      }
+      continue;
+    }
+    const t = upstreamTextFromNode(src, nodes, edges).trim();
+    if (t) parts.push(t);
+  }
+  return mergeTextPartsDedupe(parts);
+}
+
+/**
+ * Plain text extractable from a node for graph edges (assistant, image generator, group aggregate).
+ * Pass **`edges`** so assistant / image-generator nodes include text from **incoming** wires without storing it in `data`.
+ */
+export function upstreamTextFromNode(n: Node | undefined, nodes: Node[], edges?: Edge[]): string {
   if (!n) return '';
   if (n.type === 'group') return aggregateGroupTextString(n.id, nodes);
+
+  if (n.type === 'assistantNode') {
+    const d = n.data as {
+      refinedPrompt?: string;
+      result?: string;
+      prompt?: string;
+      wiredTextFromEdges?: string;
+    };
+    const refined = String(d?.refinedPrompt ?? '').trim();
+    if (refined) return refined;
+    const result = String(d?.result ?? '').trim();
+    if (result) return result;
+    const wiredData = String(d?.wiredTextFromEdges ?? '').trim();
+    const fromEdges = edges ? mergeIncomingTextWire(n.id, nodes, edges) : '';
+    const promptPlain = richTextToPlainForScout(String(d?.prompt ?? '')).trim();
+    return mergeTextPartsDedupe([wiredData, fromEdges, promptPlain].filter(Boolean));
+  }
+
+  if (n.type === 'imageGeneratorNode' && edges) {
+    const base = leafTextFromNode(n);
+    const fromEdges = mergeIncomingTextWire(n.id, nodes, edges);
+    return mergeTextPartsDedupe([base, fromEdges].filter(Boolean));
+  }
+
   return leafTextFromNode(n);
 }
 

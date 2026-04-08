@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import { TooltipWrap } from '@/components/ui/tooltip';
 import { useWorkflowStore, type SelectedTool } from '@/stores/workflowStore';
 import AddNodePanel from './AddNodePanel';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
@@ -168,15 +169,16 @@ const Toolbar = memo(function Toolbar({
         >
         <div className="flex max-h-[min(92dvh,92vh)] flex-col gap-0.5 overflow-y-auto overflow-x-hidden overscroll-contain rounded-xl p-1.5 glass-toolbar [scrollbar-width:thin]">
       <Popover open={addOpen} onOpenChange={setAddOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="p-2.5 rounded-lg hover:bg-muted transition-colors text-foreground hover:text-foreground"
-            title="Add Node"
-          >
-            <Plus size={18} />
-          </button>
-        </PopoverTrigger>
+        <TooltipWrap label="Add Node" side="right" contentClassName="z-[100]">
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="p-2.5 rounded-lg hover:bg-muted transition-colors text-foreground hover:text-foreground"
+            >
+              <Plus size={18} />
+            </button>
+          </PopoverTrigger>
+        </TooltipWrap>
         <PopoverContent
           side="right"
           sideOffset={12}
@@ -191,14 +193,15 @@ const Toolbar = memo(function Toolbar({
         </PopoverContent>
       </Popover>
 
-      <button
-        type="button"
-        onClick={runAll}
-        className="p-2.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-[var(--port-input)]"
-        title="Run All"
-      >
-        <Play size={18} />
-      </button>
+      <TooltipWrap label="Run All" side="right" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={runAll}
+          className="p-2.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-[var(--port-input)]"
+        >
+          <Play size={18} />
+        </button>
+      </TooltipWrap>
 
       <div className="w-full h-px bg-border my-0.5" />
 
@@ -215,21 +218,26 @@ const Toolbar = memo(function Toolbar({
                 className="flex items-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--canvas-bg)]"
                 tabIndex={0}
               >
-                <button
-                  type="button"
-                  onClick={() => setSelectedTool(activeSub.tool)}
-                  className={`p-2.5 rounded-lg transition-colors relative ${
-                    isActive
-                      ? 'text-foreground bg-muted'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
-                  }`}
-                  title={`${activeSub.label} (${activeSub.shortcut}) — hover for all tools`}
+                <TooltipWrap
+                  label={`${activeSub.label} (${activeSub.shortcut}) — hover for all tools`}
+                  side="right"
+                  contentClassName="z-[100] max-w-[min(280px,calc(100vw-24px))]"
                 >
-                  <Icon size={18} />
-                  {isActive && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r bg-[var(--accent-color)]" />
-                  )}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTool(activeSub.tool)}
+                    className={`p-2.5 rounded-lg transition-colors relative ${
+                      isActive
+                        ? 'text-foreground bg-muted'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
+                    }`}
+                  >
+                    <Icon size={18} />
+                    {isActive && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r bg-[var(--accent-color)]" />
+                    )}
+                  </button>
+                </TooltipWrap>
               </div>
             </HoverCardTrigger>
             <HoverCardContent
@@ -265,73 +273,86 @@ const Toolbar = memo(function Toolbar({
       })}
 
       {singleTools.map(({ tool, icon: Icon, label, shortcut }) => (
-        <button
+        <TooltipWrap
           key={tool}
-          type="button"
-          onClick={() => setSelectedTool(tool)}
-          className={`p-2.5 rounded-lg transition-colors relative ${
-            selectedTool === tool
-              ? 'text-foreground bg-muted'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
-          }`}
-          title={`${label} (${shortcut})`}
+          label={`${label} (${shortcut})`}
+          side="right"
+          contentClassName="z-[100]"
         >
-          <Icon size={18} />
-          {selectedTool === tool && (
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r bg-[var(--accent-color)]" />
-          )}
-        </button>
+          <button
+            type="button"
+            onClick={() => setSelectedTool(tool)}
+            className={`p-2.5 rounded-lg transition-colors relative ${
+              selectedTool === tool
+                ? 'text-foreground bg-muted'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
+            }`}
+          >
+            <Icon size={18} />
+            {selectedTool === tool && (
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r bg-[var(--accent-color)]" />
+            )}
+          </button>
+        </TooltipWrap>
       ))}
 
-      <button
-        type="button"
-        className="p-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
-        title="Group / Panel"
-      >
-        <Square size={18} />
-      </button>
+      <TooltipWrap label="Group / Panel" side="right" contentClassName="z-[100]">
+        <button
+          type="button"
+          className="p-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+        >
+          <Square size={18} />
+        </button>
+      </TooltipWrap>
 
       <div className="w-full h-px bg-border my-0.5" />
 
-      <button
-        type="button"
-        onClick={undo}
-        disabled={!canUndo}
-        aria-disabled={!canUndo}
-        className={`p-2.5 rounded-lg transition-colors ${
-          canUndo
-            ? 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
-            : 'text-muted-foreground/40 cursor-not-allowed opacity-60'
-        }`}
-        title="Undo (Ctrl+Z)"
-      >
-        <Undo2 size={16} />
-      </button>
-      <button
-        type="button"
-        onClick={redo}
-        disabled={!canRedo}
-        aria-disabled={!canRedo}
-        className={`p-2.5 rounded-lg transition-colors ${
-          canRedo
-            ? 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
-            : 'text-muted-foreground/40 cursor-not-allowed opacity-60'
-        }`}
-        title="Redo (Ctrl+Shift+Z or Ctrl+Y)"
-      >
-        <Redo2 size={16} />
-      </button>
+      <TooltipWrap label="Undo (Ctrl+Z)" side="right" contentClassName="z-[100]">
+        <span className="inline-flex">
+          <button
+            type="button"
+            onClick={undo}
+            disabled={!canUndo}
+            aria-disabled={!canUndo}
+            className={`p-2.5 rounded-lg transition-colors ${
+              canUndo
+                ? 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
+                : 'text-muted-foreground/40 cursor-not-allowed opacity-60'
+            }`}
+          >
+            <Undo2 size={16} />
+          </button>
+        </span>
+      </TooltipWrap>
+      <TooltipWrap label="Redo (Ctrl+Shift+Z or Ctrl+Y)" side="right" contentClassName="z-[100]">
+        <span className="inline-flex">
+          <button
+            type="button"
+            onClick={redo}
+            disabled={!canRedo}
+            aria-disabled={!canRedo}
+            className={`p-2.5 rounded-lg transition-colors ${
+              canRedo
+                ? 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
+                : 'text-muted-foreground/40 cursor-not-allowed opacity-60'
+            }`}
+          >
+            <Redo2 size={16} />
+          </button>
+        </span>
+      </TooltipWrap>
 
       <div className="w-full h-px bg-border my-0.5" />
 
-      <button
-        type="button"
-        onClick={onOpenSettings}
-        className="p-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
-        title="Settings"
-      >
-        <Settings size={16} />
-      </button>
+      <TooltipWrap label="Settings" side="right" contentClassName="z-[100]">
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="p-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+        >
+          <Settings size={16} />
+        </button>
+      </TooltipWrap>
         </div>
         </div>
       </motion.div>
