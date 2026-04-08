@@ -3,6 +3,8 @@ import type { ScoutExecutionKind } from './types.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
+  /** Required for browser preflight when POST uses apikey / Authorization / x-client-info. */
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 

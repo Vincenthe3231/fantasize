@@ -16,6 +16,7 @@ _Date: 2026-04-07 — `uploadStorage.ts` + README._
 - **`storage.objects` row parity ≠ downloadable blobs:** Importing metadata without `aws s3 sync` (or equivalent) leaves **404** on the target for those paths. Verify with **HTTP GET** to `/storage/v1/object/public/{bucket}/{path}` (URL-encoded), not only row counts.
 - **After blob migration:** Run **Phase F** SQL (`apply-supabase-host-rewrite.sql`) on the **target** DB so `spaces` / `space_node_versions` JSON no longer embed the old project host — otherwise the browser still requests the old domain. Clear **local drafts** (`vf-space-draft:` / `vision-forge-drafts-v2`) if needed.
 - **New Supabase project:** Redeploy Edge Functions (`scout-execute`) and **secrets** (`OPENROUTER_API_KEY`) on that project. **`POST /functions/v1/scout-execute` → 404 / `NOT_FOUND`** surfaces as **CORS preflight failed** in the browser; fix is deploy, not CORS headers.
+- **Edge Function CORS preflight:** Responses (including **`OPTIONS`**) must include **`Access-Control-Allow-Methods`** (e.g. **`POST, OPTIONS`**) when the real request is **`POST`** with custom headers; **`Access-Control-Allow-Headers`** alone is not always enough for a successful preflight.
 - **Edge Functions vs SQL:** Function code and Edge secrets are **not** applied via `supabase/migrations` SQL — use **`supabase functions deploy`** + **`supabase secrets set`** (or Dashboard). See `scripts/supabase-migrate/sql/edge-functions-not-migrated-via-sql.sql` + `deploy-scout-execute-target.sh`.
 
 _Date: 2026-04-07 — env audit + `client.ts` / `uploadStorage.ts`; storage HEAD/GET verify; Postgres URL rewrite; Scout 404 vs CORS; Edge deploy vs SQL._
@@ -29,11 +30,13 @@ _Date: 2026-04-08 — `supabase/migrations` init + node_comment_versions._
 
 ## Supabase image transform: WebP default + `origin` fallback + dimension cap
 
-- **Default** transform URLs use **`format=webp`** when supported; **`CanvasNodeImage`** falls back to **`format=origin`** on first **`error`** for public Supabase object URLs (then same-URL retries as before).
+- **`getPublicUrl()`** returns **`/storage/v1/object/public/{bucket}/{path}`**. **Image transforms** are served from **`/storage/v1/render/image/public/{bucket}/{path}`** with query params — same shape the JS SDK uses when you pass **`transform`** to **`getPublicUrl`**. Appending **`?width=`** only to an **object** URL does **not** run imgproxy; **`imageDelivery`** rewrites **object → render** before adding params.
+- **Storage `format` query:** only **`format=origin`** is valid to opt out of auto WebP; **`format=webp`** returns **400** (`querystring/format must be equal to one of the allowed values`). Default transform URLs **omit** `format` (Supabase serves auto WebP). **`CanvasNodeImage`** falls back to **`format=origin`** on first **`error`**.
 - Cap requested **`width` / `height`** at **`SUPABASE_TRANSFORM_SAFE_MAX_DIMENSION` (2500)** in `imageDelivery` to reduce failures near ~2560px transform limits.
 - Client-side WebP transcoding (canvas/`toBlob`) is usually **worse** here: **CORS/taint**, memory, and CPU vs a single CDN transform; server fallback is the right default.
+- **Hosted projects:** Image transformation requires a **Pro** (or higher) plan per [Supabase docs](https://supabase.com/docs/guides/storage/serving/image-transformations). **Self-hosted / local** needs **imgproxy** + **`ENABLE_IMAGE_TRANSFORMATION`** on the storage API.
 
-_Date: 2026-04-07 — `imageDelivery.ts` + `CanvasNodeImage`._
+_Date: 2026-04-07 — `imageDelivery.ts` + `CanvasNodeImage`; 2026-04-08 — object→render rewrite + plan note._
 
 ## Supabase image transforms: do not key URLs to live CSS box × zoom (canvas)
 

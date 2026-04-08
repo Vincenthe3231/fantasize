@@ -37,7 +37,7 @@ type BaseProps = Omit<
 
 /**
  * Canvas node image: stable Supabase transform URL (fixed width cap, or explicit fixedCssWidth),
- * **WebP first** for eligible public object URLs; on `error`, falls back to **`format=origin`** once,
+ * Default transform URL (no `format` query — Supabase auto WebP); on `error`, falls back to **`format=origin`** once,
  * then capped same-URL retries. Non-Supabase URLs pass through unchanged.
  * Optional freeze of URL updates during viewport/node-drag gestures, and `decode()` after load.
  * Low zoom uses **CSS hiding** (img stays mounted) with hysteresis from `CanvasViewportImagePolicyBridge`
@@ -82,7 +82,7 @@ const CanvasNodeImage = memo(function CanvasNodeImage({
         resize,
       };
       return {
-        webpSrc: canvasPreviewImageUrl(mediaUrl, { ...base, format: 'webp' }),
+        webpSrc: canvasPreviewImageUrl(mediaUrl, { ...base }),
         originSrc: canvasPreviewImageUrl(mediaUrl, { ...base, format: 'origin' }),
       };
     }
@@ -92,7 +92,7 @@ const CanvasNodeImage = memo(function CanvasNodeImage({
       resize,
     };
     return {
-      webpSrc: canvasStableImageUrl(mediaUrl, { ...base, format: 'webp' }),
+      webpSrc: canvasStableImageUrl(mediaUrl, { ...base }),
       originSrc: canvasStableImageUrl(mediaUrl, { ...base, format: 'origin' }),
     };
   }, [

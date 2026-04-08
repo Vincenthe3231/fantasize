@@ -1,4 +1,11 @@
 const SUPABASE_PUBLIC_OBJECT_MARKER = '/storage/v1/object/public/';
+/**
+ * On-the-fly resize/WebP is served here. `getPublicUrl()` returns **object** URLs
+ * (`…/object/public/…`); transform query params on those URLs are ignored by Storage,
+ * so we rewrite to the render path before adding `width` / `format` / etc.
+ * @see https://supabase.com/docs/guides/storage/serving/image-transformations
+ */
+const SUPABASE_RENDER_IMAGE_PUBLIC_MARKER = '/storage/v1/render/image/public/';
 
 /** Stay under common Storage transform limits (~2560px longest side). */
 export const SUPABASE_TRANSFORM_SAFE_MAX_DIMENSION = 2500;
@@ -9,7 +16,10 @@ function isHttpUrl(url: string): boolean {
 
 function shouldTransform(url: string): boolean {
   if (!isHttpUrl(url)) return false;
-  return url.includes(SUPABASE_PUBLIC_OBJECT_MARKER);
+  return (
+    url.includes(SUPABASE_PUBLIC_OBJECT_MARKER) ||
+    url.includes(SUPABASE_RENDER_IMAGE_PUBLIC_MARKER)
+  );
 }
 
 /** True when `src` is a Supabase **public** object URL that can take transform query params. */
@@ -27,18 +37,29 @@ type ImageVariantOptions = {
   width?: number;
   height?: number;
   quality?: number;
-  format?: 'origin' | 'webp';
+  /**
+   * Omit → Supabase transform default (auto WebP for capable clients). Only `origin` is a valid
+   * `format` query value; `format=webp` is rejected (400) by Storage.
+   */
+  format?: 'origin';
   resize?: 'cover' | 'contain' | 'fill';
 };
 
 function withTransformParams(url: string, opts: ImageVariantOptions): string {
   try {
     const u = new URL(url);
+    const objectIdx = u.pathname.indexOf(SUPABASE_PUBLIC_OBJECT_MARKER);
+    if (objectIdx !== -1) {
+      u.pathname =
+        u.pathname.slice(0, objectIdx) +
+        SUPABASE_RENDER_IMAGE_PUBLIC_MARKER +
+        u.pathname.slice(objectIdx + SUPABASE_PUBLIC_OBJECT_MARKER.length);
+    }
     if (opts.width && opts.width > 0) u.searchParams.set('width', String(Math.round(opts.width)));
     if (opts.height && opts.height > 0) u.searchParams.set('height', String(Math.round(opts.height)));
     if (opts.quality && opts.quality > 0) u.searchParams.set('quality', String(Math.round(opts.quality)));
     if (opts.resize) u.searchParams.set('resize', opts.resize);
-    if (opts.format) u.searchParams.set('format', opts.format);
+    if (opts.format === 'origin') u.searchParams.set('format', 'origin');
     return u.toString();
   } catch {
     return url;
@@ -55,7 +76,7 @@ export function canvasPreviewImageUrl(
     width = 320,
     height,
     quality = 60,
-    format = 'webp',
+    format,
     resize = 'cover',
   }: ImageVariantOptions = {}
 ): string {
@@ -77,7 +98,8 @@ export type StableImageOptions = {
   /** Supabase transform `width` (no height; client scales via CSS). */
   maxWidth?: number;
   quality?: number;
-  format?: 'origin' | 'webp';
+  /** Omit for default transform output; use `origin` to opt out of auto WebP. */
+  format?: 'origin';
   resize?: 'cover' | 'contain' | 'fill';
 };
 
@@ -91,7 +113,7 @@ export function canvasStableImageUrl(
   {
     maxWidth = 1280,
     quality = 70,
-    format = 'webp',
+    format,
     resize = 'cover',
   }: StableImageOptions = {}
 ): string {
@@ -109,7 +131,7 @@ export function canvasResponsiveSrcSet(
   widths: number[],
   {
     quality = 62,
-    format = 'webp',
+    format,
     resize = 'cover',
     height,
   }: ImageVariantOptions = {}
@@ -146,7 +168,7 @@ export function canvasImagePlanForBox(
   cssHeightPx: number | undefined,
   {
     quality = 62,
-    format = 'webp',
+    format,
     resize = 'cover',
   }: ImageVariantOptions = {}
 ): { src: string; srcSet: string | undefined; sizes: string } {
