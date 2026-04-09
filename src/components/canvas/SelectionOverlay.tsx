@@ -181,8 +181,13 @@ export default function SelectionOverlay({
     useCallback(
       (s) => {
         const [x, y, z] = s.transform;
-        const q = canvasPerfFlags.selectionOverlayViewportQuantizePx;
-        if (compress && q > 0) {
+        const q = compress
+          ? Math.max(
+              canvasPerfFlags.selectionOverlayViewportQuantizePx,
+              canvasPerfFlags.selectionOverlayViewportStrongQuantizePx
+            )
+          : 0;
+        if (q > 0) {
           return [Math.round(x / q) * q, Math.round(y / q) * q, z] as const;
         }
         return [x, y, z] as const;

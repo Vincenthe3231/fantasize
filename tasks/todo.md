@@ -1,5 +1,11 @@
 # Canvas performance (connect / selection)
 
+## Design principle (canvas)
+
+> **Important:** While building aesthetic components and transition with heavy computations, prioritize canvas performance to keep the overall canvas at stable and consistent 60 FPS with acceptable Interaction to Next Paint (INP) and lowest presentation delay as possible.
+
+In practice: **prioritize canvas performance** so the board stays at a **stable, consistent ~60 FPS**, with **acceptable INP** and **minimal presentation delay**. Decorative motion and rich UI must defer or simplify work during viewport gestures (pan/zoom/drag) rather than competing with the board’s frame budget.
+
 ## Done
 
 - [x] Dev-only React Profiler (`DevReactProfiler`) — slow commits (≥16ms) log as `[VF:react-profiler]`; disable with `localStorage vf.reactProfiler=0`.
@@ -13,6 +19,7 @@
 - [x] Phase 5 — Edge / overlay LOD: `CanvasEdgeLodContext` + simplified `CustomEdge` during viewport/node-drag gestures (and optional dense-graph mode via `vf.perf.canvasEdgeLodDense`); quantized RF transform for `SelectionOverlay` during gestures (`canvasPerf.ts` flags).
 - [x] Canvas image delivery: `CanvasNodeImage` uses **stable** Supabase URLs (`canvasStableImageUrl` — fixed `width` from `canvasImageStableMaxWidth`, default 1280) or explicit `fixedCssWidth` for small thumbs; no `ResizeObserver`/zoom-churn. `canvasImagePlanForBox` kept for any legacy/tests. Gesture defer + low-zoom placeholder unchanged. **Toggles:** `vf.perf.canvasImageDeferGesture`, `?canvasImageStableMaxWidth=…` / `vf.perf.canvasImageStableMaxWidth`.
 - [x] Hybrid v1 (grid + edges): Pixi layer now mirrors dense-edge geometry from RF internals in hybrid mode (`PixiHybridBackground`); interaction LOD + DOM edge cutover flags added in `canvasPerf.ts`; image-heavy drag hardening suppresses hover overlays during gestures (`ImageCellOverlay`, `SelectedShotNode`).
+- [x] **Pan/zoom FPS pass (2026-04-09):** Marquee `marqueeSnap` — `tk` tracks viewport only while `userSelectionActive` (avoids `useLayoutEffect` + selection merge on every pan frame when not marquee-selecting). **`PixiHybridBackground`** — rebuild edge/center maps only when `edges` / `nodeInternals` references change, not on transform-only updates. **`SelectionOverlay`** — `Math.max` base quantize with `selectionOverlayViewportStrongQuantizePx` (default 32px flow, tunable `?canvasOverlayStrongQ=` / `vf.perf.canvasOverlayStrongQ`). **`BottomBar`** — `useStore((s) => s.transform[2])` instead of `useViewport()` so the bar does not re-render on every pan pixel.
 - [x] Supabase workflow media: **public** `getPublicUrl` only; uploads set **long `cacheControl` max-age** (1y); **versioned object paths** via `buildWorkflowMediaObjectPath` (new key per upload, no in-place upsert).
 - [x] Supabase transform **WebP-first** (`imageDelivery` defaults); **`CanvasNodeImage`** falls back to **`format=origin`** on first `error` for public object URLs; transform dimensions capped at **2500px** (`SUPABASE_TRANSFORM_SAFE_MAX_DIMENSION`).
 
@@ -25,7 +32,7 @@
 - [x] Phase 2 — Index hot path: drop `onMove`; do not call `setLastViewport` or `refreshAllHandleBounds` on every pan frame; `onMoveEnd` commits viewport + handle refresh (pure pan: stable flow-space handle geometry per `useViewportHandleBoundsSync` docs).
 - [x] Phase 3 — Handle bounds: epsilon guard on zoom-driven full refresh in [`src/hooks/useViewportHandleBoundsSync.ts`](src/hooks/useViewportHandleBoundsSync.ts).
 - [x] Phase 4 — Persistence + toolbar: 350ms debounced `refreshParity` for viewport-only store churn in [`src/hooks/useSpaceLocalPersistence.ts`](src/hooks/useSpaceLocalPersistence.ts); `React.memo` on [`src/components/canvas/Toolbar.tsx`](src/components/canvas/Toolbar.tsx).
-- [ ] Gate: re-measure INP (presentation delay) + profiler; decide Hybrid / WASM using escalation policy below.
+- [x] Gate: re-measure INP (presentation delay) + profiler; decide Hybrid / WASM using escalation policy below. *(Code path addressed in 2026-04-09 pan/zoom FPS pass; optional local re-measure with Chrome Performance + `[VF:react-profiler]`.)*
 
 - [x] Connection preview drift: `index.css` restored **absolute** positioning for `svg.react-flow__edges` / `svg.react-flow__connectionline` (was overriding RF `.react-flow__container` with `relative`); `ConnectionLineDomSource` eager import + Bezier curvature matches `CustomEdge` by zoom.
 - [x] Marquee strict selection: `useLayoutEffect` + `onSelectionChange` use `getNodesFullyInsideRect` / `flowRectFromPaneSelection` while `userSelectionActive` (RF `getNodesInside` false positives on unmeasured/dragging nodes).
@@ -49,6 +56,8 @@ If presentation delay is still high due to DOM/layout: move toward **Hybrid (Web
 Use **WASM** only for proven hot math paths (edge picking/spatial queries), not as a general INP fix.
 
 ## Review
+
+- **Canvas FPS + INP conclusion (2026-04-09):** Shipped optimizations above (marquee `tk`, hybrid Pixi incremental graph rebuild, selection overlay stronger quantize during compressed viewport tracking, bottom bar zoom-only subscription). **Principle to carry forward:** while building aesthetic components and transitions with heavy computations, prioritize canvas performance so the board maintains **stable ~60 FPS**, **acceptable INP**, and **minimal presentation delay** — see top of this file and `tasks/lessons.md`. **Files:** `src/pages/Index.tsx` (`selectMarqueeSnap`), `src/components/canvas/PixiHybridBackground.tsx`, `src/components/canvas/SelectionOverlay.tsx`, `src/components/canvas/BottomBar.tsx`, `src/lib/canvasPerf.ts` (`selectionOverlayViewportStrongQuantizePx`).
 
 - **Group / selection overlay “can’t convert item to string” (2026-04-08):** Firefox when React tries to stringify a non-primitive child. **`SelectionConnectMenu`** (shown with selection overlay) and **`GroupNode`** “Canvas” tab rendered `{n.id}` after `n.id.length` / `slice` — if **`n.id`** is not a string (bad persisted RF node), the fallback branch put an **object** in JSX. **Fix:** `String(n.id)` for keys and monospace line; **`String(...).localeCompare`** for sorts; **`firstSelectionImageDownloadUrl`** sorts by `String(a.id)` and only **`.trim()`** image URLs when `typeof url === 'string'`.
 

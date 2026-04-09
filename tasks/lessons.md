@@ -1,5 +1,15 @@
 # Lessons (session corrections)
 
+## Canvas: aesthetics and heavy work must respect the frame budget
+
+> **Important:** While building aesthetic components and transition with heavy computations, prioritize canvas performance to keep the overall canvas at stable and consistent 60 FPS with acceptable Interaction to Next Paint (INP) and lowest presentation delay as possible.
+
+- While building **aesthetic components** and **transitions** that involve **heavy computation**, **prioritize canvas performance** so the **overall canvas** stays at a **stable, consistent ~60 FPS**, with **acceptable Interaction to Next Paint (INP)** and the **lowest presentation delay** feasible.
+- **Implications:** defer or coalesce React commits during pan/zoom/drag; avoid subscribing UI to full viewport `x/y/z` when only zoom or quantized position is needed; do not rebuild large derived structures (maps, graphs) on transform-only store updates; keep hybrid/WebGL layers in sync with cheap per-frame work and expensive work on graph-change only; quantize floating chrome that tracks the viewport during gestures; prefer motion that does not force layout or full-graph work every frame.
+- **Related implementation:** `tasks/todo.md` (Design principle + 2026-04-09 review); `Index.tsx` marquee `tk`, `PixiHybridBackground` incremental rebuild, `SelectionOverlay` / `canvasPerf` strong quantize, `BottomBar` zoom-only store selector.
+
+_Date: 2026-04-09 — pan/zoom FPS optimization pass._
+
 ## React Flow node `id` in JSX and string APIs
 
 - **`Node.id`** is typed as `string` but persisted or merged state can still surface **non-strings**. Never render **`{n.id}`** directly when the value might not be coercible to a safe text child; use **`String(n.id)`** for display and list **`key`s**, and use **`String(a.id).localeCompare(String(b.id))`** (same for labels from node data) before **`localeCompare`** / **`.length` / `.slice`**.

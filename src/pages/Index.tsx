@@ -226,13 +226,18 @@ function selectMarqueeSnap(s: {
   transform: readonly [number, number, number];
 }): MarqueeSnap {
   const r = s.userSelectionRect;
+  const active = s.userSelectionActive;
   return {
-    active: s.userSelectionActive,
+    active,
     x: r?.x ?? 0,
     y: r?.y ?? 0,
     w: r?.width ?? 0,
     h: r?.height ?? 0,
-    tk: `${s.transform[0]},${s.transform[1]},${s.transform[2]}`,
+    // Only subscribe to transform while marquee is active — panning would otherwise re-run
+    // `useLayoutEffect` + node/edge selection merges on every frame (see `marqueeSnap` + equality).
+    tk: active
+      ? `${s.transform[0]},${s.transform[1]},${s.transform[2]}`
+      : 'idle',
   };
 }
 

@@ -94,9 +94,9 @@ export function PixiHybridBackground() {
   }, [drawWorld]);
 
   useEffect(() => {
-    const unsub = store.subscribe((state) => {
-      const [x, y, zoom] = state.transform;
-      vpRef.current = { x, y, zoom };
+    type RFState = ReturnType<typeof store.getState>;
+
+    const rebuildGraph = (state: RFState) => {
       const edges = state.edges ?? [];
       const nodeInternals = state.nodeInternals;
       const sourceByEdge = new Map<string, string>();
@@ -118,10 +118,30 @@ export function PixiHybridBackground() {
         centerByNode.set(id, { x: p.x + w / 2, y: p.y + h / 2 });
       });
       graphRef.current = { edgeIds, sourceByEdge, targetByEdge, centerByNode };
+    };
+
+    const initial = store.getState();
+    const [ix, iy, izoom] = initial.transform;
+    vpRef.current = { x: ix, y: iy, zoom: izoom };
+    rebuildGraph(initial);
+
+    let prevEdges = initial.edges;
+    let prevNodeInternals = initial.nodeInternals;
+
+    const unsub = store.subscribe((state) => {
+      const [x, y, zoom] = state.transform;
+      vpRef.current = { x, y, zoom };
+
+      const edges = state.edges;
+      const nodeInternals = state.nodeInternals;
+      if (edges !== prevEdges || nodeInternals !== prevNodeInternals) {
+        prevEdges = edges;
+        prevNodeInternals = nodeInternals;
+        rebuildGraph(state);
+      }
       scheduleDraw();
     });
-    const initial = store.getState().transform;
-    vpRef.current = { x: initial[0], y: initial[1], zoom: initial[2] };
+
     scheduleDraw();
     return () => {
       unsub();

@@ -1,5 +1,5 @@
 import { ZoomIn, ZoomOut, Maximize2, Map, Zap } from 'lucide-react';
-import { useReactFlow, useViewport } from 'reactflow';
+import { useReactFlow, useStore } from 'reactflow';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { DEFAULT_FIT_VIEW_OPTIONS } from '@/lib/canvasViewport';
 import {
@@ -12,7 +12,8 @@ import { TooltipWrap } from '@/components/ui/tooltip';
 
 const BottomBar = () => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
-  const { zoom } = useViewport();
+  /** Zoom only — `useViewport()` subscribes to x/y and re-renders the whole bar every pan frame. */
+  const zoom = useStore((s) => s.transform[2]);
   const settings = useWorkflowStore((s) => s.settings);
   const updateSettings = useWorkflowStore((s) => s.updateSettings);
   const pct = Math.round(zoom * 100);

@@ -80,6 +80,11 @@ export const canvasPerfFlags = {
   selectionOverlayQuantizeDuringViewport: readBoolFlag('canvasOverlayQuantize', true),
   /** Flow-space pixels to quantize viewport x/y when overlay quantize is active */
   selectionOverlayViewportQuantizePx: 8,
+  /**
+   * While the overlay tracks the viewport (`interactionCompressViewport`), use at least this quantize
+   * step so pan/zoom does not commit React every few pixels. Query `?canvasOverlayStrongQ=32`.
+   */
+  selectionOverlayViewportStrongQuantizePx: readNumberFlag('canvasOverlayStrongQ', 32, 4, 128),
   /** Freeze CDN `src` / `srcSet` churn while panning/zooming or dragging nodes (see `CanvasNodeImage`). */
   deferCanvasImageUrlDuringViewport: readBoolFlag('canvasImageDeferGesture', true),
   /** Legacy: was used by `CanvasNodeImage` + ResizeObserver; stable URLs no longer debounce layout. */

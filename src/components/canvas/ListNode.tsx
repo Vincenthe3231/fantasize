@@ -643,7 +643,7 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
 
         {/* Side action buttons */}
         <AnimatePresence>
-          {(hovered || selected) && !Boolean((data as { nodeUiHidden?: boolean }).nodeUiHidden) && (
+          {(hovered || selected) && !(data as { nodeUiHidden?: boolean }).nodeUiHidden && (
             <motion.div
               initial={{ opacity: 0, x: -4 }}
               animate={{ opacity: 1, x: 0 }}
