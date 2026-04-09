@@ -62,6 +62,7 @@ import {
 } from '@/lib/canvasFlowLazy';
 import { useMinLoadingDisplay } from '@/hooks/useMinLoadingDisplay';
 import { useSystemNotificationStore } from '@/stores/systemNotificationStore';
+import { useShallow } from 'zustand/react/shallow';
 import {
   useWorkflowStore,
   type NodeType,
@@ -281,9 +282,19 @@ const CanvasInnerReactFlow = ({
   const storeEdges = useWorkflowStore((s) => s.edges);
   const comments = useWorkflowStore((s) => s.comments);
   const selectedTool = useWorkflowStore((s) => s.selectedTool);
-  const settings = useWorkflowStore((s) => s.settings);
+  /** Narrow settings subscription — avoids rerenders when unrelated `settings` fields change. */
+  const { canvasPattern, showNodeLabels, darkMode, showMinimap, mouseWheelBehavior } =
+    useWorkflowStore(
+      useShallow((s) => ({
+        canvasPattern: s.settings.canvasPattern,
+        showNodeLabels: s.settings.showNodeLabels,
+        darkMode: s.settings.darkMode,
+        showMinimap: s.settings.showMinimap,
+        mouseWheelBehavior: s.settings.mouseWheelBehavior,
+      }))
+    );
   /** Avoid CSS pattern + WebGL grid double-draw in hybrid mode */
-  const shellCanvasClass = hybridBackground ? 'canvas-plain' : canvasClass(settings.canvasPattern);
+  const shellCanvasClass = hybridBackground ? 'canvas-plain' : canvasClass(canvasPattern);
   const addComment = useWorkflowStore((s) => s.addComment);
   const addNodeAction = useWorkflowStore((s) => s.addNode);
   const setNodesSilently = useWorkflowStore((s) => s.setNodesSilently);
@@ -571,14 +582,16 @@ const CanvasInnerReactFlow = ({
 
   const onApplyExternalDraft = useCallback(
     (draft: StoredSpaceDraft) => {
-      hydrateFromSpace({
-        id: space.id,
-        nodes: draft.payload.nodes,
-        edges: draft.payload.edges,
-        comments: draft.payload.comments,
-        settings: draft.payload.settings,
-        node_grid_layouts: draft.payload.node_grid_layouts,
-        viewport: draft.payload.viewport,
+      startTransition(() => {
+        hydrateFromSpace({
+          id: space.id,
+          nodes: draft.payload.nodes,
+          edges: draft.payload.edges,
+          comments: draft.payload.comments,
+          settings: draft.payload.settings,
+          node_grid_layouts: draft.payload.node_grid_layouts,
+          viewport: draft.payload.viewport,
+        });
       });
       const v = draft.payload.viewport;
       requestAnimationFrame(() => {
@@ -611,19 +624,21 @@ const CanvasInnerReactFlow = ({
     bumpHandleFlowPositionRevision();
     if (hydratedSpaceId.current === space.id) return;
     hydratedSpaceId.current = space.id;
-    if (resolvedDraft) {
-      hydrateFromSpace({
-        id: space.id,
-        nodes: resolvedDraft.payload.nodes,
-        edges: resolvedDraft.payload.edges,
-        comments: resolvedDraft.payload.comments,
-        settings: resolvedDraft.payload.settings,
-        node_grid_layouts: resolvedDraft.payload.node_grid_layouts,
-        viewport: resolvedDraft.payload.viewport,
-      });
-    } else {
-      hydrateFromSpace(space);
-    }
+    startTransition(() => {
+      if (resolvedDraft) {
+        hydrateFromSpace({
+          id: space.id,
+          nodes: resolvedDraft.payload.nodes,
+          edges: resolvedDraft.payload.edges,
+          comments: resolvedDraft.payload.comments,
+          settings: resolvedDraft.payload.settings,
+          node_grid_layouts: resolvedDraft.payload.node_grid_layouts,
+          viewport: resolvedDraft.payload.viewport,
+        });
+      } else {
+        hydrateFromSpace(space);
+      }
+    });
     const v = resolvedDraft?.payload.viewport ?? space.viewport;
     requestAnimationFrame(() => {
       if (
@@ -978,7 +993,7 @@ const CanvasInnerReactFlow = ({
       }
       if (e.key.toLowerCase() === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
-        updateSettings({ canvasPattern: nextCanvasPattern(settings.canvasPattern) });
+        updateSettings({ canvasPattern: nextCanvasPattern(canvasPattern) });
         return;
       }
       if (e.key.toLowerCase() === 'n' && !e.ctrlKey && !e.metaKey) {
@@ -1004,7 +1019,7 @@ const CanvasInnerReactFlow = ({
     zoomIn,
     zoomOut,
     updateSettings,
-    settings.canvasPattern,
+    canvasPattern,
   ]);
 
   const cursorClass =
@@ -1030,8 +1045,8 @@ const CanvasInnerReactFlow = ({
       ? [0, 1]
       : [1];
   /** Wheel: Zoom mode → change scale; Pan mode → move viewing area (mutually exclusive in settings). */
-  const canvasPanOnScroll = !nodeContentFocusActive && settings.mouseWheelBehavior === 'pan';
-  const canvasZoomOnScroll = !nodeContentFocusActive && settings.mouseWheelBehavior === 'zoom';
+  const canvasPanOnScroll = !nodeContentFocusActive && mouseWheelBehavior === 'pan';
+  const canvasZoomOnScroll = !nodeContentFocusActive && mouseWheelBehavior === 'zoom';
   const canvasPanOnScrollWhileMiddleUp = canvasPanOnScroll && !middleMouseButtonDown;
   const canvasZoomOnScrollWhileMiddleUp = canvasZoomOnScroll && !middleMouseButtonDown;
 
@@ -1066,7 +1081,7 @@ const CanvasInnerReactFlow = ({
     <CanvasViewportGestureContext.Provider value={isViewportInteracting}>
     <CanvasViewportImagePolicyBridge>
     <div
-      className={`w-screen h-screen ${hybridBackground ? 'flex min-h-0 flex-col' : ''} ${shellCanvasClass} ${cursorClass} ${settings.showNodeLabels ? '' : 'workflow-hide-labels'} ${isConnectingFromHandle ? 'vf-connecting-edge' : ''} ${selectedTool === 'cut' ? 'vf-snip-tool' : ''} ${hybridEdgeCutoverActive ? 'vf-hybrid-edge-cutover' : ''}`}
+      className={`w-screen h-screen ${hybridBackground ? 'flex min-h-0 flex-col' : ''} ${shellCanvasClass} ${cursorClass} ${showNodeLabels ? '' : 'workflow-hide-labels'} ${isConnectingFromHandle ? 'vf-connecting-edge' : ''} ${selectedTool === 'cut' ? 'vf-snip-tool' : ''} ${hybridEdgeCutoverActive ? 'vf-hybrid-edge-cutover' : ''}`}
       onClick={handleCanvasClick}
       onContextMenu={handleContextMenu}
       ref={reactFlowWrapper}
@@ -1369,17 +1384,17 @@ const CanvasInnerReactFlow = ({
           color={
             hybridBackground
               ? 'transparent'
-              : settings.canvasPattern === 'none'
+              : canvasPattern === 'none'
                 ? 'transparent'
-                : settings.darkMode
+                : darkMode
                   ? 'rgba(255,255,255,0.03)'
                   : 'rgba(0,0,0,0.08)'
           }
         />
-        {settings.showMinimap && (!canvasPerfFlags.deferNonCriticalCanvasUi || deferredUiReady) && (
+        {showMinimap && (!canvasPerfFlags.deferNonCriticalCanvasUi || deferredUiReady) && (
           <MiniMap
             className="minimap-light !border rounded-lg overflow-hidden !bg-[#1a1a1e]/95 dark:!bg-[#1a1a1e]/95 !border-white/10 dark:!border-white/10"
-            maskColor={settings.darkMode ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.12)'}
+            maskColor={darkMode ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.12)'}
             nodeColor={() => 'var(--accent-color)'}
             style={{ position: 'absolute', bottom: 72, right: 16, width: 160, height: 100, zIndex: 40 }}
           />

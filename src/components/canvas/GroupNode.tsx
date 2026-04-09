@@ -1,4 +1,5 @@
 import { memo, useState, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { Position, type Node, type NodeProps, useUpdateNodeInternals } from 'reactflow';
 import { NodeResizer } from '@reactflow/node-resizer';
 import { motion } from 'framer-motion';
@@ -31,6 +32,63 @@ function formatCanvasNodeLabel(n: Node): string {
   return getNodeTypeDisplayLabel(n.type as NodeType);
 }
 
+/**
+ * Subscribes to full `nodes` only while mounted — mount when the Add popover is open on the Canvas tab
+ * so we do not filter/sort the whole graph for every group on every graph churn.
+ */
+function GroupNodeCanvasPicker({
+  groupId,
+  onReparent,
+}: {
+  groupId: string;
+  onReparent: (targetGroupId: string, nodeId: string) => void;
+}) {
+  const nodes = useWorkflowStore((s) => s.nodes);
+  const canvasEligibleNodes = useMemo(() => {
+    return nodes
+      .filter(
+        (n) =>
+          n.id !== groupId &&
+          n.type !== 'group' &&
+          n.parentId !== groupId &&
+          n.draggable !== false
+      )
+      .map((n) => ({ n, label: formatCanvasNodeLabel(n) }))
+      .sort(
+        (a, b) =>
+          String(a.label).localeCompare(String(b.label)) || String(a.n.type).localeCompare(String(b.n.type))
+      );
+  }, [nodes, groupId]);
+
+  if (canvasEligibleNodes.length === 0) {
+    return (
+      <p className="px-2 py-3 text-center text-[10px] leading-snug text-[var(--node-control-muted)]">
+        No other nodes to add. Create nodes on the canvas first, or use the New tab.
+      </p>
+    );
+  }
+  return (
+    <>
+      {canvasEligibleNodes.map(({ n, label }) => {
+        const idStr = String(n.id);
+        return (
+          <button
+            key={idStr}
+            type="button"
+            onClick={() => onReparent(groupId, n.id)}
+            className="flex w-full flex-col items-start gap-0 rounded-md px-2.5 py-1.5 text-left hover:bg-[var(--node-action-bar-hover-bg)]"
+          >
+            <span className="w-full truncate text-[11px] text-[var(--node-popover-text)]">{label}</span>
+            <span className="w-full truncate font-mono-display text-[9px] text-[var(--node-control-muted)]">
+              {idStr.length > 14 ? `${idStr.slice(0, 12)}…` : idStr}
+            </span>
+          </button>
+        );
+      })}
+    </>
+  );
+}
+
 type GroupNodeProps = NodeProps & { style?: { width?: number; height?: number } };
 
 /**
@@ -49,37 +107,24 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
   const addNodeToGroup = useWorkflowStore((s) => s.addNodeToGroup);
   const reparentNodeToGroup = useWorkflowStore((s) => s.reparentNodeToGroup);
-  const nodes = useWorkflowStore((s) => s.nodes);
+  /** Shallow compare — skip re-renders when unrelated nodes update but this group's children are unchanged. */
+  const groupChildNodes = useWorkflowStore(
+    useShallow((s) => s.nodes.filter((n) => n.parentId === id && n.type !== 'group'))
+  );
   const reduceMotion = useCanvasReduceMotion();
 
   const portTypes = useMemo(() => {
-    const children = nodes.filter((n) => n.parentId === id && n.type !== 'group');
-    const merged = aggregatePortTypesForChildTypes(children.map((c) => String(c.type)));
+    const merged = aggregatePortTypesForChildTypes(groupChildNodes.map((c) => String(c.type)));
     return merged.length > 0 ? merged : DEFAULT_GROUP_PORT_TYPES;
-  }, [nodes, id]);
+  }, [groupChildNodes]);
   const portTypesKey = portTypes.join('|');
   const dimKey = `${String(style?.width ?? '')}×${String(style?.height ?? '')}`;
 
-  const canvasEligibleNodes = useMemo(() => {
-    return nodes
-      .filter(
-        (n) =>
-          n.id !== id &&
-          n.type !== 'group' &&
-          n.parentId !== id &&
-          n.draggable !== false
-      )
-      .map((n) => ({ n, label: formatCanvasNodeLabel(n) }))
-      .sort(
-        (a, b) =>
-          String(a.label).localeCompare(String(b.label)) || String(a.n.type).localeCompare(String(b.n.type))
-      );
-  }, [nodes, id]);
+  const [addPopoverOpen, setAddPopoverOpen] = useState(false);
+  const [addPopoverTab, setAddPopoverTab] = useState('new');
 
   useLayoutEffect(() => {
     updateNodeInternals(id);
-    const raf = requestAnimationFrame(() => updateNodeInternals(id));
-    return () => cancelAnimationFrame(raf);
   }, [id, portTypesKey, dimKey, updateNodeInternals]);
 
   const scheduleResizeInternalsUpdate = useCallback(() => {
@@ -260,7 +305,12 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
         className="nodrag nopan flex h-[38px] shrink-0 items-center gap-1.5 overflow-hidden border-t border-[var(--node-panel-border)] bg-[var(--node-control-bg)] px-3 py-2 text-[10px]"
         style={{ pointerEvents: 'auto' }}
       >
-        <Popover>
+        <Popover
+          onOpenChange={(open) => {
+            setAddPopoverOpen(open);
+            if (!open) setAddPopoverTab('new');
+          }}
+        >
           <TooltipWrap label="Add node to group" side="top" contentClassName="z-[100]">
             <PopoverTrigger asChild>
               <button
@@ -272,7 +322,7 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
             </PopoverTrigger>
           </TooltipWrap>
           <PopoverContent side="top" className="node-canvas-popover w-64 p-0 backdrop-blur-xl" align="start">
-            <Tabs defaultValue="new" className="w-full">
+            <Tabs value={addPopoverTab} onValueChange={setAddPopoverTab} className="w-full">
               <TabsList className="grid h-8 w-full grid-cols-2 gap-0 rounded-none border-b border-[var(--node-panel-border)] bg-[var(--node-control-bg)] p-0.5 text-[var(--node-control-muted)]">
                 <TabsTrigger
                   value="new"
@@ -316,28 +366,9 @@ const GroupNode = memo(({ id, selected, style, data, draggable }: GroupNodeProps
               >
                 <ScrollArea className="nowheel h-[min(280px,45vh)] w-full min-h-0 overscroll-contain">
                   <div className="flex flex-col gap-0.5 p-1.5 pr-2">
-                    {canvasEligibleNodes.length === 0 ? (
-                      <p className="px-2 py-3 text-center text-[10px] leading-snug text-[var(--node-control-muted)]">
-                        No other nodes to add. Create nodes on the canvas first, or use the New tab.
-                      </p>
-                    ) : (
-                      canvasEligibleNodes.map(({ n, label }) => {
-                        const idStr = String(n.id);
-                        return (
-                          <button
-                            key={idStr}
-                            type="button"
-                            onClick={() => reparentNodeToGroup(id, n.id)}
-                            className="flex w-full flex-col items-start gap-0 rounded-md px-2.5 py-1.5 text-left hover:bg-[var(--node-action-bar-hover-bg)]"
-                          >
-                            <span className="w-full truncate text-[11px] text-[var(--node-popover-text)]">{label}</span>
-                            <span className="w-full truncate font-mono-display text-[9px] text-[var(--node-control-muted)]">
-                              {idStr.length > 14 ? `${idStr.slice(0, 12)}…` : idStr}
-                            </span>
-                          </button>
-                        );
-                      })
-                    )}
+                    {addPopoverOpen && addPopoverTab === 'canvas' ? (
+                      <GroupNodeCanvasPicker groupId={id} onReparent={reparentNodeToGroup} />
+                    ) : null}
                   </div>
                 </ScrollArea>
               </TabsContent>

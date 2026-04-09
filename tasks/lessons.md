@@ -1,5 +1,14 @@
 # Lessons (session corrections)
 
+## Automated Lighthouse + Puppeteer (shell perf harness)
+
+- **Use:** regression signal on **lab** performance (main-thread / load) for the **app shell** — not a substitute for field INP; dense canvas scenarios need auth/fixtures before this harness covers them.
+- **Flow:** set **`PERF_AUTH_EMAIL` / `PERF_AUTH_PASSWORD`** in `.env` to measure **canvas** (`/`) vs **`/signin`**; **`BASE_URL`** default `http://localhost:4173/` (keep origin consistent — if preview prints **4174** because **4173** is in use, export **`BASE_URL=http://127.0.0.1:4174/`** for all perf scripts). Then `pnpm build && pnpm perf:preview` → **`perf:lighthouse`** / **`perf:lighthouse:timespan`** → **`perf:analyze`** or **`perf:agent-brief`** → **`perf:check`**. Optional **`perf:lighthouse -- --warmup`**.
+- **Limits:** LHR has **no JS call stacks**; use DevTools Performance trace for hot functions. **Coverage** and **script treemap** remain manual in Chrome.
+- **Node:** Lighthouse 13 expects Node ≥ 22.19.
+
+_Date: 2026-04-09; timespan + analyze 2026-04-09._
+
 ## Canvas: aesthetics and heavy work must respect the frame budget
 
 > **Important:** While building aesthetic components and transition with heavy computations, prioritize canvas performance to keep the overall canvas at stable and consistent 60 FPS with acceptable Interaction to Next Paint (INP) and lowest presentation delay as possible.

@@ -1,5 +1,6 @@
 import { ZoomIn, ZoomOut, Maximize2, Map, Zap } from 'lucide-react';
 import { useReactFlow, useStore } from 'reactflow';
+import { useShallow } from 'zustand/react/shallow';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { DEFAULT_FIT_VIEW_OPTIONS } from '@/lib/canvasViewport';
 import {
@@ -14,23 +15,28 @@ const BottomBar = () => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   /** Zoom only — `useViewport()` subscribes to x/y and re-renders the whole bar every pan frame. */
   const zoom = useStore((s) => s.transform[2]);
-  const settings = useWorkflowStore((s) => s.settings);
+  const { performanceMode, showMinimap } = useWorkflowStore(
+    useShallow((s) => ({
+      performanceMode: s.settings.performanceMode,
+      showMinimap: s.settings.showMinimap,
+    }))
+  );
   const updateSettings = useWorkflowStore((s) => s.updateSettings);
   const pct = Math.round(zoom * 100);
 
   return (
     <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl glass-toolbar px-2 py-1.5">
       <span className="text-[11px] text-muted-foreground font-mono-display px-2 hidden sm:inline">
-        {settings.performanceMode ? 'Perf' : 'Std'}
+        {performanceMode ? 'Perf' : 'Std'}
       </span>
-      {settings.performanceMode && <Zap size={12} className="text-amber-400/80" aria-hidden />}
+      {performanceMode && <Zap size={12} className="text-amber-400/80" aria-hidden />}
 
       <TooltipWrap label="Toggle minimap" side="top" contentClassName="z-[200]">
         <button
           type="button"
-          onClick={() => updateSettings({ showMinimap: !settings.showMinimap })}
+          onClick={() => updateSettings({ showMinimap: !showMinimap })}
           className={`p-2 rounded-lg transition-colors ${
-            settings.showMinimap ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/80'
+            showMinimap ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/80'
           }`}
         >
           <Map size={16} />

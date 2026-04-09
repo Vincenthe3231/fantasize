@@ -1,0 +1,10 @@
+{
+  "minPerformanceScore": 0.15,
+  "audits": {
+    "total-blocking-time": { "numericValueMax": 8000 },
+    "speed-index": { "numericValueMax": 20000 },
+    "interactive": { "numericValueMax": 25000 },
+    "max-potential-fid": { "numericValueMax": 600 },
+    "largest-contentful-paint": { "numericValueMax": 15000 }
+  }
+}

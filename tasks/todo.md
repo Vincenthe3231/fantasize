@@ -23,6 +23,7 @@ In practice: **prioritize canvas performance** so the board stays at a **stable,
 - [x] **WebGL-first conservative FPS plan (2026-04):** `edgeDomZoomDecimalPlaces` (default `0`; opt-in `?canvasEdgeZoomDecimals=3`) quantizes RF zoom in `CustomEdge` only. **`PixiHybridBackground`** — `hybridGridCullToView` / `hybridEdgeCullToView` (defaults on) + `ResizeObserver` to stroke grid/edges in visible flow bounds only. **`PixiBoardViewport`** — `pagehide` + `visibilitychange` flush `lastViewport` from `vpRef`. **`canvasImageUnmountDuringGesture`** (default off) optional `<img>` unmount during gestures in `CanvasNodeImage`. **Verify:** `pnpm vite build`; Chrome Performance + `[VF:react-profiler]` on dense pan/zoom/wheel (record baseline vs optional flags locally).
 - [x] Supabase workflow media: **public** `getPublicUrl` only; uploads set **long `cacheControl` max-age** (1y); **versioned object paths** via `buildWorkflowMediaObjectPath` (new key per upload, no in-place upsert).
 - [x] Supabase transform **WebP-first** (`imageDelivery` defaults); **`CanvasNodeImage`** falls back to **`format=origin`** on first `error` for public object URLs; transform dimensions capped at **2500px** (`SUPABASE_TRANSFORM_SAFE_MAX_DIMENSION`).
+- [x] **Timespan optimization plan (2026-04-09):** [`spaceApi.ts`](src/lib/spaceApi.ts) — explicit `SPACE_SELECT_FULL`, metadata `id`-only head query + full fetch by id; **`Index.tsx`** — `startTransition` around `hydrateFromSpace`, `useShallow` for hot `settings` fields; **`GroupNode.tsx`** — `useShallow` for group children, `GroupNodeCanvasPicker` mounts only on Canvas tab (no full-graph sort when idle), single `updateNodeInternals` per layout pass; **`BottomBar.tsx`** — `useShallow` for minimap/perf flags. **Verify:** `pnpm vite build`; `BASE_URL=… pnpm perf:lighthouse --no-warmup` + `perf:lighthouse:timespan` + `perf:check`.
 
 ## INP / presentation delay
 
@@ -57,6 +58,10 @@ If presentation delay is still high due to DOM/layout: move toward **Hybrid (Web
 Use **WASM** only for proven hot math paths (edge picking/spatial queries), not as a general INP fix.
 
 ## Review
+
+- **Timespan plan gate (2026-04-09):** After implementation, local run with `BASE_URL` matching `pnpm perf:preview` (if port 4173 is busy, use `4174`): navigation report `artifacts/lighthouse-2026-04-09T05-07-11-757Z.json` — perf **84**, `perf:check` **OK**; timespan `lighthouse-timespan-2026-04-09T05-07-32-115Z.json` — perf **98**. Total transfer ~3.0MB still dominated by space JSON payload (expected until graph slimming / pagination).
+
+- **Automated perf draft (2026-04-09):** Puppeteer + Lighthouse under `scripts/perf/` — optional **`PERF_AUTH_EMAIL` / `PERF_AUTH_PASSWORD`** in `.env` so runs target authenticated **`/`** (canvas) instead of `/signin`; Lighthouse uses `disableStorageReset` when auth is set. **Navigation** `perf:lighthouse`, **Timespan** `perf:lighthouse:timespan`, **analysis** `perf:analyze`, **AI brief** `perf:agent-brief`, then `perf:check`. Default `BASE_URL` `http://localhost:4173/`. Reports under `artifacts/` (gitignored). See `scripts/perf/README.md`.
 
 - **WebGL-first plan implementation (2026-04):** See new flags in `src/lib/canvasPerf.ts` (`edgeDomZoomDecimalPlaces`, `hybridGridCullToView`, `hybridEdgeCullToView`, `canvasImageUnmountDuringGesture`) and code in `CustomEdge.tsx`, `PixiHybridBackground.tsx`, `PixiBoardViewport.tsx`, `CanvasNodeImage.tsx`. **Manual perf:** Chrome Performance (Main + Raster) on dense graph pan; React Profiler on `vf-canvas-inner`; compare `canvasEdgeZoomDecimals=0` vs `3`, and hybrid cull flags `=0` if diagnosing regressions.
 

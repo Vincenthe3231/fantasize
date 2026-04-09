@@ -37,3 +37,9 @@ scripts/supabase-migrate/out/
 .supabase/
 z-notation.pdf
 z-notation.md
+
+# Lighthouse perf harness (keep directory via .gitkeep)
+artifacts/*.json
+artifacts/*.html
+artifacts/agent-*.md
+!artifacts/.gitkeep

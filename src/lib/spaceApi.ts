@@ -24,6 +24,10 @@ export interface SpaceRow {
   updated_at: string;
 }
 
+/** Explicit columns for reads — avoids `select('*')` shipping unused DB columns / huge accidental payloads. */
+const SPACE_SELECT_FULL =
+  'id,owner_id,name,nodes,edges,comments,settings,node_grid_layouts,viewport,updated_at';
+
 /** Accepts any canonical 8-4-4-4-12 hex id (matches Postgres `uuid` text form). */
 export function isUuidParam(value: string | undefined): value is string {
   if (!value || typeof value !== 'string') return false;
@@ -36,7 +40,11 @@ export function isUuidParam(value: string | undefined): value is string {
  * of truth (avoids edge cases where client `userId` lags the Supabase session).
  */
 export async function fetchSpaceById(_ownerId: string, spaceId: string): Promise<SpaceRow | null> {
-  const { data, error } = await supabase.from('spaces').select('*').eq('id', spaceId).maybeSingle();
+  const { data, error } = await supabase
+    .from('spaces')
+    .select(SPACE_SELECT_FULL)
+    .eq('id', spaceId)
+    .maybeSingle();
 
   if (error) throw error;
   if (!data) return null;
@@ -44,18 +52,20 @@ export async function fetchSpaceById(_ownerId: string, spaceId: string): Promise
 }
 
 export async function fetchOrCreateSpace(ownerId: string): Promise<SpaceRow> {
-  const { data: rows, error: selErr } = await supabase
+  /** Tiny first round-trip: only `id` to pick latest space without pulling multi‑MB JSON twice. */
+  const { data: head, error: headErr } = await supabase
     .from('spaces')
-    .select('*')
+    .select('id')
     .eq('owner_id', ownerId)
     .order('updated_at', { ascending: false })
-    .limit(1);
+    .limit(1)
+    .maybeSingle();
 
-  if (selErr) throw selErr;
+  if (headErr) throw headErr;
 
-  if (rows?.length) {
-    const r = rows[0] as Record<string, unknown>;
-    return normalizeSpaceRow(r);
+  if (head?.id) {
+    const full = await fetchSpaceById(ownerId, head.id);
+    if (full) return full;
   }
 
   const { nodes, edges } = scoutTemplate();
@@ -73,7 +83,7 @@ export async function fetchOrCreateSpace(ownerId: string): Promise<SpaceRow> {
       node_grid_layouts: {},
       viewport: defaultViewport,
     })
-    .select()
+    .select(SPACE_SELECT_FULL)
     .single();
 
   if (insErr) throw insErr;
@@ -117,7 +127,7 @@ export async function saveSpace(
       viewport: payload.viewport,
     })
     .eq('id', spaceId)
-    .select()
+    .select(SPACE_SELECT_FULL)
     .single();
 
   if (error) throw error;
