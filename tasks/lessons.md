@@ -10,6 +10,15 @@
 
 _Date: 2026-04-09 — pan/zoom FPS optimization pass._
 
+## WebGL-first / hybrid flags (dense pan FPS)
+
+- **`edgeDomZoomDecimalPlaces`:** `CustomEdge` only; `0` = full precision (default). Set `3`–`4` via `?canvasEdgeZoomDecimals=` or `vf.perf.canvasEdgeZoomDecimals` to reduce edge re-renders on tiny zoom deltas during wheel/pinch — validate bezier near LOD thresholds (`CustomEdge` vs `ConnectionLineDomSource` unchanged).
+- **`hybridGridCullToView` / `hybridEdgeCullToView`:** Pixi hybrid draws grid/edge mirror only in the visible flow rect (`ResizeObserver` on host). Disable with `?canvasHybridGridCull=0` / `?canvasHybridEdgeCull=0` if a driver shows missing lines at extreme zoom.
+- **Pixi board `pagehide` / `visibilitychange`:** `PixiBoardViewport` writes `lastViewport` from `vpRef` so IndexedDB/remote parity sees the latest view if the user leaves mid-gesture.
+- **`canvasImageUnmountDuringGesture`:** default **off**; enable for max savings during gestures at the cost of brief blank thumbs (`?canvasImageGestureUnmount=1`).
+
+_Date: 2026-04 — WebGL-first conservative FPS plan._
+
 ## React Flow node `id` in JSX and string APIs
 
 - **`Node.id`** is typed as `string` but persisted or merged state can still surface **non-strings**. Never render **`{n.id}`** directly when the value might not be coercible to a safe text child; use **`String(n.id)`** for display and list **`key`s**, and use **`String(a.id).localeCompare(String(b.id))`** (same for labels from node data) before **`localeCompare`** / **`.length` / `.slice`**.

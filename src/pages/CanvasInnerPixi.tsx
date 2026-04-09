@@ -30,6 +30,8 @@ function canvasClass(pattern: string) {
 
 /**
  * Pixi/WebGL canvas path: same persistence + chrome as React Flow, GPU board + inspector (plan Phases 1–3).
+ * Viewport authority lives in `PixiBoardViewport` (`lastViewport` + `pagehide` / visibility flush
+ * so drafts persist after mid-gesture navigation).
  */
 export function CanvasInnerPixi({
   space,

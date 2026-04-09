@@ -60,15 +60,20 @@ const CanvasNodeImage = memo(function CanvasNodeImage({
   ...rest
 }: BaseProps) {
   const lowZoomHidden = useCanvasViewportLowZoomVisualHide();
-  const mountImage = !lowZoomHidden || !canvasPerfFlags.canvasImageUnmountLowZoom;
   const gestureActive =
     useCanvasViewportGestureActive() && canvasPerfFlags.deferCanvasImageUrlDuringViewport;
+  const gestureUnmount =
+    canvasPerfFlags.canvasImageUnmountDuringGesture && gestureActive;
+  const mountImage =
+    (!lowZoomHidden || !canvasPerfFlags.canvasImageUnmountLowZoom) && !gestureUnmount;
   const resolvedLoading =
     loading !== undefined
       ? loading
       : canvasPerfFlags.canvasImageEagerInFlow
         ? 'eager'
         : 'lazy';
+
+  const imageStableMaxWidth = canvasPerfFlags.canvasImageStableMaxWidth;
 
   const transformEligible = useMemo(
     () => isSupabasePublicTransformUrl(mediaUrl),
@@ -89,7 +94,7 @@ const CanvasNodeImage = memo(function CanvasNodeImage({
       };
     }
     const base = {
-      maxWidth: canvasPerfFlags.canvasImageStableMaxWidth,
+      maxWidth: imageStableMaxWidth,
       quality: quality ?? 70,
       resize,
     };
@@ -103,7 +108,7 @@ const CanvasNodeImage = memo(function CanvasNodeImage({
     fixedCssHeight,
     quality,
     resize,
-    canvasPerfFlags.canvasImageStableMaxWidth,
+    imageStableMaxWidth,
   ]);
 
   const [useOriginFallback, setUseOriginFallback] = useState(false);

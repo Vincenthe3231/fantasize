@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useEffect, useCallback } from 'react';
+import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { getBezierPath, useStore, type EdgeProps } from 'reactflow';
 import { Scissors } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
@@ -8,6 +8,12 @@ import { effectiveEdgeAnimation } from '@/lib/canvasEffectiveSettings';
 import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 import { useCanvasEdgeLodLevel } from '@/contexts/CanvasEdgeLodContext';
 import { canvasPerfFlags } from '@/lib/canvasPerf';
+
+/**
+ * Zoom via `useStore((s) => s.transform[2])` is intentional: React Flow renders `EdgeRenderer`
+ * as a sibling to user `<ReactFlow>` children (Background, etc.), so a Context provider around
+ * those children cannot wrap custom edges — a single shared zoom Context would require RF internals.
+ */
 
 const HOVER_LEAVE_MS = 140;
 const EDGE_LOD_FAR_ZOOM = 0.35;
@@ -39,7 +45,17 @@ const CustomEdge = memo(({
 }: EdgeProps) => {
   const edgeLodLevel = useCanvasEdgeLodLevel();
   const reducedEdge = edgeLodLevel === 'reduced';
-  const zoom = useStore((s) => s.transform[2]);
+  const domZoomDecimals = canvasPerfFlags.edgeDomZoomDecimalPlaces;
+  const zoomSelector = useMemo(
+    () => (s: { transform: readonly [number, number, number] }) => {
+      const z = s.transform[2];
+      if (domZoomDecimals <= 0) return z;
+      const f = 10 ** domZoomDecimals;
+      return Math.round(z * f) / f;
+    },
+    [domZoomDecimals]
+  );
+  const zoom = useStore(zoomSelector);
   const isRunning = useWorkflowStore((s) => s.runningEdges.has(id));
   const settings = useWorkflowStore((s) => s.settings);
   const isDragging = useWorkflowStore((s) => s.isDragging);

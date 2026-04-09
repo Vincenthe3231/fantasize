@@ -68,6 +68,12 @@ export const canvasPerfFlags = {
   edgeLodInDenseGraph: readBoolFlag('canvasEdgeLodDense', false),
   /** Edge count at/above which dense-graph LOD applies (see `edgeLodInDenseGraph`). */
   denseEdgeLodThreshold: 350,
+  /**
+   * `CustomEdge` only: round RF zoom to this many decimal places before path/stroke math so wheel/pinch
+   * does not re-render every edge on microscopic zoom deltas. `0` = full precision (legacy).
+   * Query `?canvasEdgeZoomDecimals=3` or `vf.perf.canvasEdgeZoomDecimals`.
+   */
+  edgeDomZoomDecimalPlaces: readNumberFlag('canvasEdgeZoomDecimals', 0, 0, 5),
   /** Draw read-only edge mirror in Pixi when hybrid board is active. */
   hybridEdgeLayer: readBoolFlag('canvasHybridEdges', true),
   /** Reduce edge detail in Pixi during viewport/node drag gestures. */
@@ -76,6 +82,10 @@ export const canvasPerfFlags = {
   hybridEdgeDomCutover: readBoolFlag('canvasHybridDomEdgeCutover', false),
   /** Skip Pixi edge mirror if the graph is too small; avoid overhead on tiny boards. */
   hybridEdgeMinCount: 80,
+  /** Hybrid Pixi grid: only stroke lines intersecting the visible flow-space rect (ResizeObserver host). */
+  hybridGridCullToView: readBoolFlag('canvasHybridGridCull', true),
+  /** Hybrid Pixi edge mirror: skip segments whose bbox is outside the visible flow rect. */
+  hybridEdgeCullToView: readBoolFlag('canvasHybridEdgeCull', true),
   /** Quantize pan deltas for selection overlay positioning to fewer React commits during gesture */
   selectionOverlayQuantizeDuringViewport: readBoolFlag('canvasOverlayQuantize', true),
   /** Flow-space pixels to quantize viewport x/y when overlay quantize is active */
@@ -123,6 +133,12 @@ export const canvasPerfFlags = {
    * to keep the legacy invisible-but-mounted `<img>`.
    */
   canvasImageUnmountLowZoom: readBoolFlag('canvasImageUnmountLowZoom', true),
+  /**
+   * When true with `deferCanvasImageUrlDuringViewport`, unmount the in-flow `<img>` for the duration of
+   * viewport/node-drag gestures (max decode/composite savings; brief blank thumbs). Default off.
+   * Query `?canvasImageGestureUnmount=1` or `vf.perf.canvasImageGestureUnmount`.
+   */
+  canvasImageUnmountDuringGesture: readBoolFlag('canvasImageGestureUnmount', false),
   spatialIndexThreshold: 250,
 } as const;
 

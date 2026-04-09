@@ -57,6 +57,10 @@ type PixiBoardViewportProps = {
 
 /**
  * WebGL (Pixi) board: grid, edges, node shells + pan/zoom + picking (plan Phases 1–2).
+ *
+ * Pointer pan (middle mouse / hand tool) updates `vpRef` + rAF draw only; Zustand `lastViewport` and
+ * React `vp` state flush once on pointer up (or on teardown if a pan was in progress) so move events
+ * do not trigger store subscribers every frame. Wheel zoom still commits each discrete step.
  */
 export function PixiBoardViewport({ spaceId }: PixiBoardViewportProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -77,11 +81,29 @@ export function PixiBoardViewport({ spaceId }: PixiBoardViewportProps) {
   const vpRef = useRef(vp);
   vpRef.current = vp;
   const pickSeqRef = useRef(0);
+  /** True while middle-button or hand-tool pointer pan is active — viewport is in `vpRef` only (no Zustand/React state per frame). */
+  const pointerPanActiveRef = useRef(false);
 
   useEffect(() => {
     const s = useWorkflowStore.getState().lastViewport;
     setVp({ x: s.x, y: s.y, zoom: s.zoom });
   }, [spaceId]);
+
+  /** Persist latest flow viewport when leaving the page or hiding the tab (pointer-pan may not have flushed yet). */
+  useEffect(() => {
+    const flushVpToStore = () => {
+      useWorkflowStore.getState().setLastViewport(vpRef.current);
+    };
+    window.addEventListener('pagehide', flushVpToStore);
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') flushVpToStore();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('pagehide', flushVpToStore);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
 
   const drawWorld = useCallback(() => {
     const world = worldRef.current;
@@ -203,17 +225,31 @@ export function PixiBoardViewport({ spaceId }: PixiBoardViewportProps) {
         const canvas = app.canvas as HTMLCanvasElement;
         let dragPan: { lx: number; ly: number } | null = null;
 
-        const commitVp = (next: Viewport2D) => {
+        /** Wheel / discrete zoom: commit to React + Zustand (low frequency). */
+        const commitVpFull = (next: Viewport2D) => {
           vpRef.current = next;
           setVp(next);
           setLastViewport(next);
           requestAnimationFrame(drawWorld);
         };
 
+        /** Pointer pan: update ref + WebGL only — avoids Zustand + React updates every move event. */
+        const commitVpPanVisual = (next: Viewport2D) => {
+          vpRef.current = next;
+          requestAnimationFrame(drawWorld);
+        };
+
+        const flushPanVpToStore = () => {
+          const next = vpRef.current;
+          setVp(next);
+          setLastViewport(next);
+        };
+
         const onPointerDown = (ev: PointerEvent) => {
           const tool = selectedToolRef.current;
           if (ev.button === 1 || (tool === 'hand' && ev.button === 0)) {
             dragPan = { lx: ev.clientX, ly: ev.clientY };
+            pointerPanActiveRef.current = true;
             canvas.setPointerCapture(ev.pointerId);
             ev.preventDefault();
             return;
@@ -288,12 +324,14 @@ export function PixiBoardViewport({ spaceId }: PixiBoardViewportProps) {
           const dy = ev.clientY - dragPan.ly;
           dragPan = { lx: ev.clientX, ly: ev.clientY };
           const cur = vpRef.current;
-          commitVp({ x: cur.x + dx, y: cur.y + dy, zoom: cur.zoom });
+          commitVpPanVisual({ x: cur.x + dx, y: cur.y + dy, zoom: cur.zoom });
         };
 
         const onPointerUp = (ev: PointerEvent) => {
           if (dragPan) {
             dragPan = null;
+            pointerPanActiveRef.current = false;
+            flushPanVpToStore();
             try {
               canvas.releasePointerCapture(ev.pointerId);
             } catch {
@@ -308,7 +346,7 @@ export function PixiBoardViewport({ spaceId }: PixiBoardViewportProps) {
           const cur = vpRef.current;
           const factor = ev.deltaY > 0 ? 0.92 : 1.08;
           const next = zoomViewportAtScreenPoint(cur, rect, ev.clientX, ev.clientY, cur.zoom * factor);
-          commitVp(next);
+          commitVpFull(next);
         };
 
         canvas.addEventListener('pointerdown', onPointerDown);
@@ -333,6 +371,10 @@ export function PixiBoardViewport({ spaceId }: PixiBoardViewportProps) {
 
     return () => {
       disposed = true;
+      if (pointerPanActiveRef.current) {
+        pointerPanActiveRef.current = false;
+        useWorkflowStore.getState().setLastViewport(vpRef.current);
+      }
       detachRef.current?.();
       detachRef.current = null;
       worldRef.current = null;

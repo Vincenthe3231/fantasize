@@ -14,9 +14,30 @@ import { useCanvasViewportGestureActive } from '@/contexts/CanvasViewportGesture
  * / coarse updates — to prevent heavy store subscribers during pan).
  *
  * Manual QA: slow trackpad zoom on Safari vs Chrome; if WebGL lags behind DOM, try useLayoutEffect.
+ *
+ * Grid/edge mirror can cull to the visible flow-space rect when `hybridGridCullToView` /
+ * `hybridEdgeCullToView` are enabled (see `canvasPerf.ts`).
  */
+
+/** Visible region in flow/world space from RF transform + host pixel size (hybrid grid/edge culling). */
+function visibleFlowBounds(
+  hostW: number,
+  hostH: number,
+  v: Viewport2D,
+  padFlow: number
+): { minX: number; maxX: number; minY: number; maxY: number } {
+  const z = Math.max(v.zoom, 1e-6);
+  return {
+    minX: (0 - v.x) / z - padFlow,
+    maxX: (hostW - v.x) / z + padFlow,
+    minY: (0 - v.y) / z - padFlow,
+    maxY: (hostH - v.y) / z + padFlow,
+  };
+}
+
 export function PixiHybridBackground() {
   const hostRef = useRef<HTMLDivElement>(null);
+  const hostSizeRef = useRef({ width: 0, height: 0 });
   const worldRef = useRef<Container | null>(null);
   const gridRef = useRef<Graphics | null>(null);
   const edgeRef = useRef<Graphics | null>(null);
@@ -51,13 +72,31 @@ export function PixiHybridBackground() {
     /** Fewer line segments when zoomed out (step widens). */
     const z = Math.max(0.2, Math.min(v.zoom, 6));
     const step = Math.max(24, Math.min(80, 28 / z));
-    for (let x = -span; x <= span; x += step) {
-      gGrid.moveTo(x, -span);
-      gGrid.lineTo(x, span);
+    const { width: hostW, height: hostH } = hostSizeRef.current;
+    let gxMin = -span;
+    let gxMax = span;
+    let gyMin = -span;
+    let gyMax = span;
+    if (canvasPerfFlags.hybridGridCullToView && hostW > 1 && hostH > 1) {
+      const b = visibleFlowBounds(hostW, hostH, v, step * 2);
+      gxMin = Math.max(-span, b.minX);
+      gxMax = Math.min(span, b.maxX);
+      gyMin = Math.max(-span, b.minY);
+      gyMax = Math.min(span, b.maxY);
+      if (gxMin > gxMax || gyMin > gyMax) {
+        gxMin = -span;
+        gxMax = span;
+        gyMin = -span;
+        gyMax = span;
+      }
     }
-    for (let y = -span; y <= span; y += step) {
-      gGrid.moveTo(-span, y);
-      gGrid.lineTo(span, y);
+    for (let x = Math.floor(gxMin / step) * step; x <= gxMax; x += step) {
+      gGrid.moveTo(x, gyMin);
+      gGrid.lineTo(x, gyMax);
+    }
+    for (let y = Math.floor(gyMin / step) * step; y <= gyMax; y += step) {
+      gGrid.moveTo(gxMin, y);
+      gGrid.lineTo(gxMax, y);
     }
     gGrid.stroke({ width: 1, color: 0xffffff, alpha: 0.055 });
 
@@ -73,10 +112,28 @@ export function PixiHybridBackground() {
     const reduced = canvasPerfFlags.hybridEdgeInteractionLod && gestureActive;
     const edgeAlpha = reduced ? 0.32 : 0.48;
     const edgeWidth = reduced ? 1 : 1.25;
+    let edgeBounds: ReturnType<typeof visibleFlowBounds> | null = null;
+    if (canvasPerfFlags.hybridEdgeCullToView && hostW > 1 && hostH > 1) {
+      edgeBounds = visibleFlowBounds(hostW, hostH, v, 48);
+    }
     for (const eid of edgeIds) {
       const s = centerByNode.get(sourceByEdge.get(eid) ?? '');
       const t = centerByNode.get(targetByEdge.get(eid) ?? '');
       if (!s || !t) continue;
+      if (edgeBounds) {
+        const minX = Math.min(s.x, t.x);
+        const maxX = Math.max(s.x, t.x);
+        const minY = Math.min(s.y, t.y);
+        const maxY = Math.max(s.y, t.y);
+        if (
+          maxX < edgeBounds.minX ||
+          minX > edgeBounds.maxX ||
+          maxY < edgeBounds.minY ||
+          minY > edgeBounds.maxY
+        ) {
+          continue;
+        }
+      }
       gEdge.moveTo(s.x, s.y);
       gEdge.lineTo(t.x, t.y);
     }
@@ -151,6 +208,21 @@ export function PixiHybridBackground() {
       }
     };
   }, [store, scheduleDraw]);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const cr = entry.contentRect;
+        hostSizeRef.current = { width: cr.width, height: cr.height };
+      }
+      scheduleDraw();
+    });
+    ro.observe(host);
+    hostSizeRef.current = { width: host.clientWidth, height: host.clientHeight };
+    return () => ro.disconnect();
+  }, [scheduleDraw]);
 
   useEffect(() => {
     const host = hostRef.current;
