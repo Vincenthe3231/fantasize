@@ -219,4 +219,59 @@ describe('scoutRunCoordinator', () => {
     expect(uploadGeneratedImagesWithMetadata).toHaveBeenCalledTimes(2);
     expect(notifyWarning).toHaveBeenCalledWith('Prompt generation failed', expect.stringContaining('Retrying prompt 2/2'));
   });
+
+  it('appends generated images to list nodes wired image-out → image-in', async () => {
+    const nodes: Node[] = [
+      {
+        id: 'list-1',
+        type: 'listNode',
+        position: { x: 0, y: 0 },
+        data: { items: [{ id: 't1', type: 'text', text: 'keep' }] },
+      },
+      {
+        id: 'img-1',
+        type: 'imageGeneratorNode',
+        position: { x: 0, y: 0 },
+        data: { prompt: 'a cat', images: 1, mode: 'Auto', aspect: '1:1' },
+      },
+    ];
+    const edges: Edge[] = [
+      {
+        id: 'e-ig-list',
+        source: 'img-1',
+        target: 'list-1',
+        sourceHandle: 'image-out',
+        targetHandle: 'image-in',
+        type: 'custom' as const,
+      },
+    ];
+    vi.mocked(invokeScoutExecute).mockImplementationOnce(async () => ({
+      ok: true,
+      mock: true,
+      result: {
+        kind: 'stage2_image_generator',
+        generatedUrl: 'https://cdn.example/gen.jpg',
+        generatedUrls: ['https://cdn.example/gen.jpg'],
+        status: 'success' as const,
+      },
+    }));
+
+    const patches: Record<string, Record<string, unknown>> = {};
+    const r = await executeScoutNode({
+      nodeId: 'img-1',
+      nodes,
+      edges,
+      pipeline: DEFAULT_SCOUT_PIPELINE,
+      getGridLayout: () => '2x2',
+      updateNodeDataSilent: (id, data) => {
+        patches[id] = { ...(patches[id] ?? {}), ...data };
+      },
+    });
+
+    expect(r.ok).toBe(true);
+    const items = patches['list-1']?.items as Array<{ type?: string; mediaUrl?: string; text?: string }> | undefined;
+    expect(Array.isArray(items)).toBe(true);
+    expect(items?.some((x) => x.type === 'image' && x.mediaUrl === 'https://cdn.example/gen.jpg')).toBe(true);
+    expect(items?.some((x) => x.type === 'text' && x.text === 'keep')).toBe(true);
+  });
 });

@@ -1,5 +1,21 @@
 # Lessons (session corrections)
 
+## Supabase Edge: HTML 502 is not the same as “import broken” in repo
+
+- **Symptom:** Browser shows **CORS missing** + **502** with **`content-type: text/html`** on `…/functions/v1/scout-execute`.
+- **Repo check:** From `supabase/functions/scout-execute`, run **`deno check index.ts`** (install Deno if needed; set **`DENO_DIR`** to a writable folder if the default cache is not writable). If **`npm:@openrouter/sdk`** / **`npm:@toon-format/toon`** fetch and type-check proceeds past resolution, **dependencies are not “missing”** at the import level.
+- **Action:** **Edge Function logs** in the Supabase project + **redeploy** (needs org access). Without deploy rights, only a project **Owner/Developer** can fix a broken remote bundle or platform error.
+
+_Date: 2026-04-10._
+
+## OpenRouter `Response validation failed` on `scout-execute`
+
+- **Meaning:** `@openrouter/sdk` could not Zod-parse the HTTP body from OpenRouter (response shape drift vs SDK).
+- **Try without redeploy:** Supabase Edge **secrets** — `OPENROUTER_IMAGE_GEN_MODALITIES=image,text` (or `image`), or change `OPENROUTER_IMAGE_GEN_MODEL` to another image model.
+- **Then:** Redeploy `scout-execute` with **`supabase/functions/scout-execute/deno.json`** `@openrouter/sdk` pin aligned to current npm (see `docs/SCOUT_LIVE_ROLLOUT.md`).
+
+_Date: 2026-04-10._
+
 ## Automated Lighthouse + Puppeteer (shell perf harness)
 
 - **Use:** regression signal on **lab** performance (main-thread / load) for the **app shell** — not a substitute for field INP; dense canvas scenarios need auth/fixtures before this harness covers them.

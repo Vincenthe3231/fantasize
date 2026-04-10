@@ -90,6 +90,20 @@ The app calls `supabase.functions.invoke('scout-execute', …)` via `src/lib/sco
 - User messages include **text + `image_url` + `video_url`** parts built from [`stage2Multimodal.ts`](/supabase/functions/scout-execute/stage2Multimodal.ts) from resolver context (placement, location media, props, optional placement reference image).
 - **`blob:` URLs** are skipped with a warning in the edge logs — OpenRouter cannot fetch them. Use **HTTPS** URLs (e.g. Supabase Storage) for production.
 
+## Troubleshooting: `Response validation failed` (HTTP 500)
+
+The Edge Function returns `{"ok":false,"error":"…"}` with message **Response validation failed** when **`@openrouter/sdk`** cannot parse OpenRouter’s HTTP body against its built-in Zod schema (common after **streaming** completes or when a **model returns a non-standard** chat completion shape).
+
+**What to do:**
+
+1. **Secrets first (no redeploy):** In Dashboard → Edge Functions → **Secrets**, try:
+   - `OPENROUTER_IMAGE_GEN_MODALITIES=image,text` (or `image` only if the model emits image-only completions).
+   - If still failing, set `OPENROUTER_IMAGE_GEN_MODEL` to another image-capable slug (e.g. `black-forest-labs/flux-schnell` for a quick test).
+2. **Redeploy `scout-execute`** so Deno bundles the **`@openrouter/sdk` version in `supabase/functions/scout-execute/deno.json`** (keep this in sync with OpenRouter’s API; drift here is a frequent cause of validation errors).
+3. **Stage 2 text:** set secret `OPENROUTER_STAGE2_MODEL` to a stable chat model (default in code is `google/gemini-2.0-flash-001`).
+4. **Stage 2 / Stage 3 image:** ensure `OPENROUTER_IMAGE_GEN_MODEL` supports the modalities you use; Stage 3 reuses the same image path as Stage 2 (`generateStage2ImageViaOpenRouter`).
+5. Check **Edge Function logs** (Dashboard → Logs) for the expanded message — responses use **`formatOpenRouterSdkError`** (including `pretty()` when present) so logs / JSON may include Zod path detail after redeploy.
+
 ## Fallback
 
 If the edge function fails or returns an error, `scoutRunCoordinator` uses deterministic **mock** image URLs (`picsum.photos` seeds) so local development remains usable without a key.

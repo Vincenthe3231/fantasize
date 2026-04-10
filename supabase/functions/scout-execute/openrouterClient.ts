@@ -2,6 +2,7 @@
 /** OpenRouter via @openrouter/sdk — Stage 2 instructions, streaming aggregated server-side (Deno). */
 
 import { OpenRouter } from '@openrouter/sdk';
+import { formatOpenRouterSdkError } from './openRouterSdkError.ts';
 import type { Stage2MultimodalPart } from './stage2Multimodal.ts';
 
 /**
@@ -57,37 +58,45 @@ export async function streamOpenRouterAuto(params: {
     xTitle,
   });
 
-  const stream = await openrouter.chat.send({
-    httpReferer,
-    xTitle,
-    chatGenerationParams: {
-      model: stage2Model(),
-      messages: [
-        { role: 'system', content: params.systemPrompt ?? SYSTEM_DEFAULT },
-        { role: 'user', content: toUserContent(params.userContentParts) },
-      ],
-      stream: true,
-      temperature: 0.4,
-      maxTokens: stage2MaxTokens(),
-    },
-  });
+  try {
+    const stream = await openrouter.chat.send({
+      httpReferer,
+      xTitle,
+      chatGenerationParams: {
+        model: stage2Model(),
+        messages: [
+          { role: 'system', content: params.systemPrompt ?? SYSTEM_DEFAULT },
+          { role: 'user', content: toUserContent(params.userContentParts) },
+        ],
+        stream: true,
+        temperature: 0.4,
+        maxTokens: stage2MaxTokens(),
+      },
+    });
 
-  let out = '';
-  let chunkCount = 0;
-  let deltaChunks = 0;
-  for await (const chunk of stream) {
-    chunkCount += 1;
-    const delta = chunk.choices?.[0]?.delta?.content;
-    if (typeof delta === 'string' && delta.length > 0) {
-      deltaChunks += 1;
-      out += delta;
+    let out = '';
+    let chunkCount = 0;
+    let deltaChunks = 0;
+    for await (const chunk of stream) {
+      chunkCount += 1;
+      const delta = chunk.choices?.[0]?.delta?.content;
+      if (typeof delta === 'string' && delta.length > 0) {
+        deltaChunks += 1;
+        out += delta;
+      }
     }
-  }
 
-  const trimmed = out.trim();
-  console.log(
-    `[scout-execute] stage2 OpenRouter stream model=${stage2Model()} chunks=${chunkCount} deltaChunks=${deltaChunks} outLen=${trimmed.length}`
-  );
-  if (!trimmed) throw new Error('OpenRouter returned empty content');
-  return trimmed;
+    const trimmed = out.trim();
+    console.log(
+      `[scout-execute] stage2 OpenRouter stream model=${stage2Model()} chunks=${chunkCount} deltaChunks=${deltaChunks} outLen=${trimmed.length}`
+    );
+    if (!trimmed) throw new Error('OpenRouter returned empty content');
+    return trimmed;
+  } catch (e) {
+    const detail = formatOpenRouterSdkError(e);
+    console.error('[scout-execute] streamOpenRouterAuto failed', detail);
+    throw new Error(
+      `OpenRouter SDK rejected the model response (schema mismatch). Try another OPENROUTER_STAGE2_MODEL or upgrade @openrouter/sdk. ${detail}`
+    );
+  }
 }

@@ -1,5 +1,6 @@
 import type { Node, Edge } from 'reactflow';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import type { Comment, WorkflowSettings, GridLayout } from '@/stores/workflowStore';
 import { createVirtualProductionScoutTemplate } from '@/stores/workflowStore';
 
@@ -73,16 +74,18 @@ export async function fetchOrCreateSpace(ownerId: string): Promise<SpaceRow> {
 
   const { data: inserted, error: insErr } = await supabase
     .from('spaces')
-    .insert({
-      owner_id: ownerId,
-      name: 'My space',
-      nodes: nodes as unknown as Record<string, unknown>[],
-      edges: edges as unknown as Record<string, unknown>[],
-      comments: [],
-      settings: null,
-      node_grid_layouts: {},
-      viewport: defaultViewport,
-    })
+    .insert([
+      {
+        owner_id: ownerId,
+        name: 'My space',
+        nodes: nodes as unknown as Json,
+        edges: edges as unknown as Json,
+        comments: [] as unknown as Json,
+        settings: null,
+        node_grid_layouts: {} as unknown as Json,
+        viewport: defaultViewport as unknown as Json,
+      },
+    ])
     .select(SPACE_SELECT_FULL)
     .single();
 
@@ -119,12 +122,12 @@ export async function saveSpace(
   const { data, error } = await supabase
     .from('spaces')
     .update({
-      nodes: payload.nodes as unknown as Record<string, unknown>[],
-      edges: payload.edges as unknown as Record<string, unknown>[],
-      comments: payload.comments as unknown as Record<string, unknown>[],
-      settings: payload.settings as unknown as Record<string, unknown>,
-      node_grid_layouts: payload.node_grid_layouts as unknown as Record<string, unknown>,
-      viewport: payload.viewport,
+      nodes: payload.nodes as unknown as Json,
+      edges: payload.edges as unknown as Json,
+      comments: payload.comments as unknown as Json,
+      settings: payload.settings as unknown as Json,
+      node_grid_layouts: payload.node_grid_layouts as unknown as Json,
+      viewport: payload.viewport as unknown as Json,
     })
     .eq('id', spaceId)
     .select(SPACE_SELECT_FULL)

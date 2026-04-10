@@ -1,4 +1,5 @@
 import { handleScoutStage } from './stageHandlers.ts';
+import { formatOpenRouterSdkError } from './openRouterSdkError.ts';
 import type { ScoutExecutionKind } from './types.ts';
 
 const corsHeaders: Record<string, string> = {
@@ -37,7 +38,7 @@ Deno.serve(async (req) => {
       ...(meta ? { meta } : {}),
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = formatOpenRouterSdkError(e);
     return json({ ok: false, error: msg }, 500);
   }
 });

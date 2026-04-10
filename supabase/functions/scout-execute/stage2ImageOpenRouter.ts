@@ -8,6 +8,7 @@ import {
   type ImageGenUserContentPart,
 } from './stage2ImageGenBuild.ts';
 import { resolveImageGenModelForMode } from './imageGenModeModel.ts';
+import { formatOpenRouterSdkError } from './openRouterSdkError.ts';
 
 function openRouterMeta() {
   const httpReferer = Deno.env.get('OPENROUTER_HTTP_REFERER') ?? 'https://vision-forge.local';
@@ -88,19 +89,28 @@ export async function generateStage2ImageViaOpenRouter(
     xTitle,
   });
 
-  const result = await openrouter.chat.send({
-    httpReferer,
-    xTitle,
-    chatGenerationParams: {
-      model,
-      messages: [{ role: 'user', content: toSdkUserContent(userParts) as unknown }],
-      modalities,
-      stream: false,
-      temperature,
-      ...(seed != null ? { seed } : {}),
-      ...(aspect ? { imageConfig: aspect } : {}),
-    },
-  });
+  let result: unknown;
+  try {
+    result = await openrouter.chat.send({
+      httpReferer,
+      xTitle,
+      chatGenerationParams: {
+        model,
+        messages: [{ role: 'user', content: toSdkUserContent(userParts) as unknown }],
+        modalities,
+        stream: false,
+        temperature,
+        ...(seed != null ? { seed } : {}),
+        ...(aspect ? { imageConfig: aspect } : {}),
+      },
+    });
+  } catch (e) {
+    const detail = formatOpenRouterSdkError(e);
+    console.error('[scout-execute] stage2_image_generator chat.send failed', detail);
+    throw new Error(
+      `OpenRouter SDK rejected the image response (schema mismatch). Check OPENROUTER_IMAGE_GEN_MODEL / modalities. ${detail}`
+    );
+  }
 
   if (!result || typeof result !== 'object' || !('choices' in result)) {
     throw new Error('OpenRouter image generation returned an empty or invalid response');

@@ -45,6 +45,9 @@ type BaseProps = Omit<
  * Suppressed when viewport zoom ≤ `canvasImageLowZoomMax` (default 0.49); remounts when zoom is above it.
  * Default `loading` is `eager` in flow when `canvasImageEagerInFlow` — stable URL + eager reduces
  * transform fights; pass `loading="lazy"` to override (e.g. dialogs).
+ * Supabase transform URLs: default **`crossOrigin="anonymous"`** + **`referrerPolicy="no-referrer"`** so
+ * the image request omits credentials; reduces Firefox console spam from Cloudflare `__cf_bm` cookies
+ * rejected as third-party / invalid domain on dense `<img>` loads.
  */
 const CanvasNodeImage = memo(function CanvasNodeImage({
   mediaUrl,
@@ -57,6 +60,8 @@ const CanvasNodeImage = memo(function CanvasNodeImage({
   onError,
   loading,
   fetchPriority,
+  crossOrigin,
+  referrerPolicy,
   ...rest
 }: BaseProps) {
   const lowZoomHidden = useCanvasViewportLowZoomVisualHide();
@@ -184,6 +189,8 @@ const CanvasNodeImage = memo(function CanvasNodeImage({
       {mountImage ?
         <img
           {...rest}
+          crossOrigin={crossOrigin ?? (transformEligible ? 'anonymous' : undefined)}
+          referrerPolicy={referrerPolicy ?? (transformEligible ? 'no-referrer' : undefined)}
           src={displayed.src}
           decoding="async"
           loading={resolvedLoading}

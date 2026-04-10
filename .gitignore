@@ -43,3 +43,5 @@ artifacts/*.json
 artifacts/*.html
 artifacts/agent-*.md
 !artifacts/.gitkeep
+
+.pnpm-store

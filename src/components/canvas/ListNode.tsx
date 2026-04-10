@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useCallback, useMemo } from 'react';
+import { memo, useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { type NodeProps } from 'reactflow';
 import { List, Plus, X, Check, Type, ImageIcon, Copy, FolderOpen, SlidersHorizontal, Sparkles, LayoutList, LayoutGrid, Settings, ChevronDown, Download, ExternalLink } from 'lucide-react';
@@ -46,6 +46,96 @@ function splitListItems(items: ListItem[]) {
 function mergeListItems(text: ListItem[], image: ListItem[]) {
   return [...text, ...image];
 }
+
+/** Inline edit for list text rows (read-only spans were never wired to inputs). */
+const ListNodeTextRowBody = memo(function ListNodeTextRowBody({
+  item,
+  editing,
+  draft,
+  onDraftChange,
+  onBeginEdit,
+  onBlurRow,
+  onCancel,
+  onRemove,
+  onCommitShortcut,
+  reorderCursorClass,
+}: {
+  item: ListItem;
+  editing: boolean;
+  draft: string;
+  onDraftChange: (v: string) => void;
+  onBeginEdit: () => void;
+  onBlurRow: (e: React.FocusEvent<HTMLTextAreaElement>) => void;
+  onCancel: () => void;
+  onRemove: () => void;
+  onCommitShortcut: () => void;
+  reorderCursorClass: string;
+}) {
+  return (
+    <div
+      className={`group flex items-start gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--node-action-bar-hover-bg)] ${reorderCursorClass}`}
+    >
+      <Type size={11} className={`mt-0.5 shrink-0 text-[var(--node-control-muted)] ${editing ? '' : 'cursor-grab active:cursor-grabbing'}`} />
+      {editing ?
+        <ScrollArea className="nodrag nopan nowheel max-h-[min(10rem,32vh)] w-full min-w-0 flex-1 rounded-lg border border-[var(--node-control-border)] bg-[var(--node-control-bg)] transition-colors focus-within:border-[var(--accent-color)]">
+          <textarea
+            autoFocus
+            rows={Math.min(10, Math.max(2, draft.split('\n').length + 1))}
+            value={draft}
+            draggable={false}
+            onChange={(e) => onDraftChange(e.target.value)}
+            onBlur={onBlurRow}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                onCancel();
+              } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                onCommitShortcut();
+              }
+            }}
+            placeholder="Text…"
+            className="nodrag nopan min-h-[2.75rem] w-full resize-none bg-transparent px-2 py-1.5 text-[12px] text-[var(--node-control-text)] outline-none ring-0 placeholder:text-[var(--node-control-muted)] focus:outline-none"
+            style={{ fontFamily: 'Inter, sans-serif' }}
+          />
+        </ScrollArea>
+      : <TooltipWrap label="Double-click to edit" side="top" contentClassName="z-[100]">
+          <span
+            role="button"
+            tabIndex={0}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              onBeginEdit();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onBeginEdit();
+              }
+            }}
+            className="flex-1 cursor-text select-text break-words text-left text-[12px] text-[var(--node-control-text)]"
+            style={{ fontFamily: 'Inter, sans-serif' }}
+          >
+            {item.text}
+          </span>
+        </TooltipWrap>
+      }
+      <button
+        type="button"
+        data-list-text-remove
+        onClick={onRemove}
+        className="shrink-0 text-[var(--node-control-muted)] opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+      >
+        <X size={11} />
+      </button>
+    </div>
+  );
+});
+
+ListNodeTextRowBody.displayName = 'ListNodeTextRowBody';
 
 const ListNodeGridImageTile = memo(function ListNodeGridImageTile({
   item,
@@ -148,6 +238,8 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
   const textDraft = String(data.listTextDraft ?? '');
   const [hovered, setHovered] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [editTextDraft, setEditTextDraft] = useState('');
 
   const setItems = useCallback((newItems: ListItem[]) => {
     updateNodeData(id, { items: newItems });
@@ -157,8 +249,31 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
     updateNodeData(id, { listAddingText: false, listTextDraft: '' });
   }, [id, updateNodeData]);
 
+  const beginEditTextItem = useCallback(
+    (item: ListItem) => {
+      if (item.type !== 'text') return;
+      updateNodeDataSilent(id, { listAddingText: false });
+      setEditingTextId(item.id);
+      setEditTextDraft(item.text ?? '');
+    },
+    [id, updateNodeDataSilent]
+  );
+
+  const cancelEditTextItem = useCallback(() => {
+    setEditingTextId(null);
+    setEditTextDraft('');
+  }, []);
+
+  const openAddTextBar = useCallback(() => {
+    setEditingTextId(null);
+    setEditTextDraft('');
+    updateNodeData(id, { listAddingText: true });
+  }, [id, updateNodeData]);
+
   const addTextItem = () => {
     if (!textDraft.trim()) return;
+    setEditingTextId(null);
+    setEditTextDraft('');
     const { text, image } = splitListItems(items);
     updateNodeData(id, {
       items: mergeListItems(
@@ -215,7 +330,45 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
     }
   };
 
+  const commitEditTextItem = useCallback(() => {
+    if (!editingTextId) return;
+    const trimmed = editTextDraft.trim();
+    if (!trimmed) {
+      removeItem(editingTextId);
+    } else {
+      setItems(
+        items.map((i) =>
+          i.id === editingTextId && i.type === 'text' ? { ...i, text: trimmed } : i
+        )
+      );
+    }
+    setEditingTextId(null);
+    setEditTextDraft('');
+  }, [editingTextId, editTextDraft, items, removeItem, setItems]);
+
+  const handleTextRowBlur = useCallback(
+    (e: React.FocusEvent<HTMLTextAreaElement>, itemId: string) => {
+      const next = e.relatedTarget as HTMLElement | null;
+      if (next?.closest('[data-list-text-remove]')) {
+        cancelEditTextItem();
+        queueMicrotask(() => removeItem(itemId));
+        return;
+      }
+      commitEditTextItem();
+    },
+    [cancelEditTextItem, commitEditTextItem, removeItem]
+  );
+
+  useEffect(() => {
+    if (editingTextId && !items.some((i) => i.id === editingTextId)) {
+      setEditingTextId(null);
+      setEditTextDraft('');
+    }
+  }, [items, editingTextId]);
+
   const clearAllItems = useCallback(() => {
+    setEditingTextId(null);
+    setEditTextDraft('');
     for (const it of items) {
       removeListImageFromStorage(it);
     }
@@ -315,8 +468,9 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
           onDelete={() => deleteNode(id)}
         />
 
-        {/* Body */}
-        <div className="flex min-h-[80px] flex-col p-3">
+        <div className="flex min-h-0 flex-1 flex-col">
+        {/* Body — grows so the toolbar ribbon stays flush to the card bottom */}
+        <div className="flex min-h-0 flex-1 flex-col px-3 pt-3 pb-0">
           {items.length === 0 && !addingText ? (
             /* Empty state */
             <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6">
@@ -328,7 +482,7 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
               <div className="mt-1 flex gap-2">
                 <button
                   type="button"
-                  onClick={() => updateNodeData(id, { listAddingText: true })}
+                  onClick={openAddTextBar}
                   className="flex items-center gap-1.5 rounded-lg border border-[var(--node-control-border)] bg-[var(--node-control-bg)] px-3 py-1.5 text-[11px] text-[var(--node-control-text)] transition-colors hover:bg-[var(--node-action-bar-hover-bg)]"
                 >
                   <Type size={12} /> Add text
@@ -396,11 +550,18 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                     >
                       {textItems.map((item) => (
                         <Reorder.Item key={item.id} value={item} className="cursor-grab active:cursor-grabbing">
-                          <div className="group flex items-start gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--node-action-bar-hover-bg)]">
-                            <Type size={11} className="mt-0.5 shrink-0 text-[var(--node-control-muted)]" />
-                            <span className="flex-1 break-words text-[12px] text-[var(--node-control-text)]" style={{ fontFamily: 'Inter, sans-serif' }}>{item.text}</span>
-                            <button type="button" onClick={() => removeItem(item.id)} className="shrink-0 text-[var(--node-control-muted)] opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"><X size={11} /></button>
-                          </div>
+                          <ListNodeTextRowBody
+                            item={item}
+                            editing={editingTextId === item.id}
+                            draft={editTextDraft}
+                            onDraftChange={setEditTextDraft}
+                            onBeginEdit={() => beginEditTextItem(item)}
+                            onBlurRow={(e) => handleTextRowBlur(e, item.id)}
+                            onCancel={cancelEditTextItem}
+                            onRemove={() => removeItem(item.id)}
+                            onCommitShortcut={commitEditTextItem}
+                            reorderCursorClass=""
+                          />
                         </Reorder.Item>
                       ))}
                     </Reorder.Group>
@@ -408,10 +569,19 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                   {textItems.length > 0 && reduceMotion && (
                     <div className="mb-2 space-y-1">
                       {textItems.map((item) => (
-                        <div key={item.id} className="group flex items-start gap-2 rounded-lg px-2 py-1.5">
-                          <Type size={11} className="mt-0.5 shrink-0 text-[var(--node-control-muted)]" />
-                          <span className="flex-1 break-words text-[12px] text-[var(--node-control-text)]" style={{ fontFamily: 'Inter, sans-serif' }}>{item.text}</span>
-                          <button type="button" onClick={() => removeItem(item.id)} className="shrink-0 text-[var(--node-control-muted)] hover:text-destructive"><X size={11} /></button>
+                        <div key={item.id}>
+                          <ListNodeTextRowBody
+                            item={item}
+                            editing={editingTextId === item.id}
+                            draft={editTextDraft}
+                            onDraftChange={setEditTextDraft}
+                            onBeginEdit={() => beginEditTextItem(item)}
+                            onBlurRow={(e) => handleTextRowBlur(e, item.id)}
+                            onCancel={cancelEditTextItem}
+                            onRemove={() => removeItem(item.id)}
+                            onCommitShortcut={commitEditTextItem}
+                            reorderCursorClass=""
+                          />
                         </div>
                       ))}
                     </div>
@@ -556,8 +726,8 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="nodrag nopan flex h-[38px] shrink-0 items-center gap-1.5 overflow-x-auto overflow-y-hidden whitespace-nowrap border-t border-[var(--node-panel-border)] bg-[var(--node-control-bg)] px-3 py-2 text-[10px] [&>*]:shrink-0">
+        {/* Bottom ribbon toolbar */}
+        <div className="nodrag nopan flex min-h-[38px] shrink-0 items-center gap-1.5 overflow-x-auto overflow-y-hidden whitespace-nowrap rounded-b-[var(--radius-node)] border-t border-border/10 bg-[var(--node-control-bg)] px-3 py-2 text-[10px] [&>*]:shrink-0">
           <Popover>
             <PopoverTrigger asChild>
               <button type="button" className="rounded-md bg-[var(--node-control-bg)] p-1 text-[var(--node-control-text)] transition-colors hover:bg-[var(--node-action-bar-hover-bg)]"><Plus size={12} /></button>
@@ -565,7 +735,7 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
             <PopoverContent side="top" className="node-canvas-popover w-36 p-1.5 backdrop-blur-xl" align="start">
               <button
                 type="button"
-                onClick={() => updateNodeData(id, { listAddingText: true })}
+                onClick={openAddTextBar}
                 className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[11px] text-[var(--node-popover-text)] hover:bg-[var(--node-action-bar-hover-bg)]"
               >
                 <Type size={12} /> Add text
@@ -640,6 +810,7 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
           </TooltipWrap>
           <button type="button" className="rounded p-1 text-[var(--node-tab-inactive)] transition-colors hover:text-[var(--node-control-text)]"><Settings size={11} /></button>
         </div>
+        </div>
 
         {/* Side action buttons */}
         <AnimatePresence>
@@ -652,7 +823,7 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
               className="absolute -right-10 top-1/2 flex -translate-y-1/2 flex-col gap-1.5"
             >
               {[
-                { icon: Type, action: () => updateNodeData(id, { listAddingText: true }), tip: 'Add text' },
+                { icon: Type, action: openAddTextBar, tip: 'Add text' },
                 { icon: ImageIcon, action: () => fileRef.current?.click(), tip: 'Add media' },
                 { icon: FolderOpen, action: () => {}, tip: 'Group' },
                 { icon: SlidersHorizontal, action: () => {}, tip: 'Settings' },

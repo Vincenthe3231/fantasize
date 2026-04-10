@@ -26,6 +26,7 @@ import { scoutDebugLog, summarizeForScoutLog } from '@/lib/scoutDebugLog';
 import { normalizeImageReferenceUrl, normalizeImageReferenceUrls } from '@/lib/scoutMediaUrlNormalizer';
 import { notifySuccess, notifyWarning } from '@/lib/systemNotify';
 import { uploadGeneratedImagesWithMetadata } from '@/lib/batchImageUpload';
+import { appendGeneratedImagesToDownstreamListNodes } from '@/lib/scoutImageGeneratorListAppend';
 
 export interface ScoutRunOptions {
   /** Required for `atmosphereTestNode` — which branch to execute */
@@ -219,6 +220,7 @@ async function applyStage2ImageResult(
     generatedImageMetaByUrl,
     status: 'success',
   });
+  appendGeneratedImagesToDownstreamListNodes(deps, nodeId, urls, generatedImageMetaByUrl);
 }
 
 /**

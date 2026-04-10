@@ -24,12 +24,12 @@ import ImageCellOverlay from './ImageCellOverlay';
 import { TooltipWrap } from '@/components/ui/tooltip';
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   VARIATION_MODES,
@@ -305,8 +305,8 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <Popover open={perspectivesOpen} onOpenChange={setPerspectivesOpen}>
-                      <PopoverTrigger asChild>
+                    <DropdownMenu open={perspectivesOpen} onOpenChange={setPerspectivesOpen}>
+                      <DropdownMenuTrigger asChild>
                         <button
                           type="button"
                           onClick={(e) => e.stopPropagation()}
@@ -315,39 +315,36 @@ const ImageVariationsNode = memo(({ id, data, selected }: NodeProps) => {
                           {perspectiveIds.length} Selected
                           <span className="text-[var(--node-control-muted)]">▼</span>
                         </button>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        className="node-canvas-popover w-[240px] p-2"
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        className="node-canvas-dropdown flex max-h-[min(22rem,var(--radix-dropdown-menu-content-available-height,100dvh))] min-h-0 w-[240px] flex-col overflow-hidden p-0 text-xs"
                         align="start"
                         onPointerDown={(e) => e.stopPropagation()}
                       >
-                        <p className="text-[10px] font-mono-display text-[var(--node-popover-muted)] uppercase mb-2 px-1">
+                        <DropdownMenuLabel className="mb-0 shrink-0 px-2 pb-1 pt-2 text-[10px] font-mono-display font-normal uppercase tracking-wide text-[var(--node-popover-muted)]">
                           Perspectives
-                        </p>
-                        <ScrollArea className="max-h-52">
-                          <div className="flex flex-col gap-0.5 pr-2">
-                          {PERSPECTIVE_CHOICES.map(({ id: pid, label }) => {
-                            const checked = perspectiveIds.includes(pid);
-                            return (
-                              <label
-                                key={pid}
-                                className={`flex items-center gap-2 rounded-lg px-2 py-1.5 cursor-pointer text-left text-[12px] text-[var(--node-popover-text)] transition-colors ${
-                                  checked ? 'bg-[var(--muted)]/50' : 'hover:bg-[var(--muted)]/30'
-                                }`}
-                              >
-                                <Checkbox
+                        </DropdownMenuLabel>
+                        <ScrollArea className="nowheel min-h-0 min-w-0 flex-1 overscroll-contain">
+                          <div className="flex flex-col gap-0.5 px-1 pb-2">
+                            {PERSPECTIVE_CHOICES.map(({ id: pid, label }) => {
+                              const checked = perspectiveIds.includes(pid);
+                              return (
+                                <DropdownMenuCheckboxItem
+                                  key={pid}
                                   checked={checked}
+                                  onSelect={(e) => e.preventDefault()}
                                   onCheckedChange={() => togglePerspective(pid)}
                                   onClick={(e) => e.stopPropagation()}
-                                />
-                                <span className="font-medium">{label}</span>
-                              </label>
-                            );
-                          })}
+                                  className="rounded-lg py-1.5 pl-8 pr-2 text-[12px] text-[var(--node-popover-text)] focus:bg-[var(--muted)]/40 data-[state=checked]:bg-[var(--muted)]/50"
+                                >
+                                  <span className="font-medium">{label}</span>
+                                </DropdownMenuCheckboxItem>
+                              );
+                            })}
                           </div>
                         </ScrollArea>
-                      </PopoverContent>
-                    </Popover>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
 
                     <label className="flex items-center gap-1.5 cursor-pointer select-none shrink-0">
                       <span className="text-[10px] text-[var(--node-control-muted)]">Split images</span>
