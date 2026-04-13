@@ -59,6 +59,8 @@ Use **WASM** only for proven hot math paths (edge picking/spatial queries), not 
 
 ## Review
 
+- **Marquee selection (2026-04-13):** `getNodesMarqueeIntersectRect` in `Index.tsx` — select nodes whose measured bbox **intersects** the marquee (`overlap > 0`), not 100% containment; still skips unmeasured `width`/`height`. **`pnpm exec tsc --noEmit`** OK.
+
 - **Rich-text toolbar portal (2026-04-13):** `floating-above` toolbars render via `createPortal` to `document.body` with `useRichTextToolbarPortalPosition` (clamp, resize/scroll, React Flow `transform`). Anchor order: `toolbarAnchorRef` (TextNode glass shell) → `closest('.react-flow__node')` → field root. Blur handling includes the portaled toolbar and Radix surfaces (`.node-canvas-dropdown` / `.node-canvas-popover`). `CommentPin` stays `toolbarVariant="top"`. **Verify:** `pnpm exec tsc --noEmit`; manually confirm focus, pan/zoom tracking, block/color menus, and window resize on Text + Assistant (or another migrated node).
 
 - **Timespan plan gate (2026-04-09):** After implementation, local run with `BASE_URL` matching `pnpm perf:preview` (if port 4173 is busy, use `4174`): navigation report `artifacts/lighthouse-2026-04-09T05-07-11-757Z.json` — perf **84**, `perf:check` **OK**; timespan `lighthouse-timespan-2026-04-09T05-07-32-115Z.json` — perf **98**. Total transfer ~3.0MB still dominated by space JSON payload (expected until graph slimming / pagination).

@@ -202,9 +202,9 @@ _Date: 2026-04-07 — after connection preview drift with correct `canvasEdgeDeb
 ## React Flow marquee: clamp selection; don’t trust `getNodesInside` alone
 
 - During pane marquee, RF’s **`getNodesInside`** marks **`notInitialized`** (no `width`/`height`) and **`dragging`** nodes as selected regardless of overlap with the rectangle.
-- **Fix:** use the same strict test as gesture end — **`getNodesFullyInsideRect`** in flow space — and apply it in **`useLayoutEffect`** when `userSelectionActive` + `userSelectionRect` update (after the store commits the new rect), plus **`onSelectionChange`** while marquee is active so Zustand stays aligned. **`flowRectFromPaneSelection`** keeps conversion consistent with **`onSelectionEnd`**.
+- **Fix:** use the same hit-test as gesture end in flow space — **`getNodesMarqueeIntersectRect`** (bbox **intersects** marquee, `overlap > 0`; still requires measured `width`/`height` so unmeasured nodes are skipped) — and apply it in **`useLayoutEffect`** when `userSelectionActive` + `userSelectionRect` update, plus **`onSelectionChange`** while marquee is active. **`flowRectFromPaneSelection`** keeps conversion consistent with **`onSelectionEnd`**. (Earlier **`getNodesFullyInsideRect`** required 100% containment and felt glitchy for partial overlaps.)
 
-_Date: 2026-04-07 — marquee selecting out-of-bounds nodes._
+_Date: 2026-04-07 — marquee selecting out-of-bounds nodes; intersection update 2026-04-13._
 
 ## Store → RF merge: do not force `selected` from `live` when Zustand was just synced
 

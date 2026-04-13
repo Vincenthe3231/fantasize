@@ -101,8 +101,11 @@ function getOverlappingArea(
   return xOverlap * yOverlap;
 }
 
-/** Returns nodes that are fully inside the given flow-space rect and have measured dimensions. */
-function getNodesFullyInsideRect(
+/**
+ * Marquee hit-test: node bbox intersects `flowRect` (any overlap), with measured RF dimensions only.
+ * Skips unmeasured nodes so we do not mirror RF `getNodesInside` false positives on dragging/unmeasured nodes.
+ */
+function getNodesMarqueeIntersectRect(
   flowRect: { x: number; y: number; width: number; height: number },
   nodes: Node[]
 ): Node[] {
@@ -114,9 +117,7 @@ function getNodesFullyInsideRect(
     }
     const pos = node.positionAbsolute ?? node.position;
     const nodeRect = { x: pos.x, y: pos.y, width: w, height: h };
-    const area = w * h;
-    const overlap = getOverlappingArea(flowRect, nodeRect);
-    return overlap >= area;
+    return getOverlappingArea(flowRect, nodeRect) > 0;
   });
 }
 
@@ -732,11 +733,11 @@ const CanvasInnerReactFlow = ({
 
       if (flowRect) {
         // Marquee: RF’s `getNodesInside` selects unmeasured / dragging nodes incorrectly; mirror
-        // `onSelectionEnd` — only nodes fully inside the rect with measured bounds.
-        const strictNodes = getNodesFullyInsideRect(flowRect, getNodes());
-        selectedNodeIds = new Set(strictNodes.map((n) => n.id));
+        // `onSelectionEnd` — intersecting bboxes with measured bounds only.
+        const hitNodes = getNodesMarqueeIntersectRect(flowRect, getNodes());
+        selectedNodeIds = new Set(hitNodes.map((n) => n.id));
         selectedEdgeIds = new Set(
-          getConnectedEdges(strictNodes, getEdges()).map((e) => e.id)
+          getConnectedEdges(hitNodes, getEdges()).map((e) => e.id)
         );
       } else {
         // Prefer nodes with measured dimensions (avoids marquee phantom selections). For a
@@ -810,7 +811,7 @@ const CanvasInnerReactFlow = ({
             candidateNodes = allNodes;
           }
         }
-        const validNodes = getNodesFullyInsideRect(flowRect, candidateNodes);
+        const validNodes = getNodesMarqueeIntersectRect(flowRect, candidateNodes);
         selectedNodeIds = new Set(validNodes.map((n) => n.id));
         selectedEdgeIds = new Set(
           getConnectedEdges(validNodes, store.edges).map((e) => e.id)
@@ -830,7 +831,7 @@ const CanvasInnerReactFlow = ({
     marqueeSnapEqual
   );
 
-  /** RF updates `userSelectionRect` after `onNodesChange`; clamp node/edge `selected` before paint so marquee matches strict geometry (see `getNodesFullyInsideRect`). */
+  /** RF updates `userSelectionRect` after `onNodesChange`; clamp node/edge `selected` before paint so marquee matches intersect geometry (see `getNodesMarqueeIntersectRect`). */
   useLayoutEffect(() => {
     if (!marqueeSnap.active || marqueeSnap.w <= 0 || marqueeSnap.h <= 0) return;
     const paneRect = {
@@ -843,7 +844,7 @@ const CanvasInnerReactFlow = ({
     if (!fr) return;
 
     const live = getNodes();
-    const allowedNodes = getNodesFullyInsideRect(fr, live);
+    const allowedNodes = getNodesMarqueeIntersectRect(fr, live);
     const allowedIds = new Set(allowedNodes.map((n) => n.id));
     const allowedEdgeIds = new Set(getConnectedEdges(allowedNodes, getEdges()).map((e) => e.id));
 

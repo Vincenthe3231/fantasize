@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Square, Eye, EyeOff, Copy, Trash2, Download, Maximize2 } from 'lucide-react';
+import { Square, Eye, EyeOff, Copy, Trash2, Download, Maximize2, Lock, LockOpen } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { DEFAULT_NODE_H, DEFAULT_NODE_W } from '@/stores/workflowStore.constants';
 import { useStore, type Node, type Edge } from 'reactflow';
@@ -199,6 +199,7 @@ export default function SelectionOverlay({
   const viewport = useMemo(() => ({ x: vx, y: vy, zoom: vzoom }), [vx, vy, vzoom]);
   const deleteNode = useWorkflowStore((s) => s.deleteNode);
   const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
+  const setNodesDraggableLock = useWorkflowStore((s) => s.setNodesDraggableLock);
   const removeEdgeById = useWorkflowStore((s) => s.removeEdgeById);
   const groupSelectedNodes = useWorkflowStore((s) => s.groupSelectedNodes);
   const ungroupSelectedNodes = useWorkflowStore((s) => s.ungroupSelectedNodes);
@@ -226,6 +227,8 @@ export default function SelectionOverlay({
     [selectedNodes]
   );
   const hasSelection = selectedNodes.length > 0 || selectedEdges.length > 0;
+  const allSelectedNodesLocked =
+    selectedNodes.length > 0 && selectedNodes.every((n) => n.draggable === false);
   const canUngroup = selectedGroupNodes.length > 0;
   const canGroup = selectedTopLevelNodes.length > 0 && !canUngroup;
   const singleGroupSelected = selectedGroupNodes.length === 1 ? selectedGroupNodes[0]! : null;
@@ -278,6 +281,12 @@ export default function SelectionOverlay({
 
   const handleDuplicateSelection = () => {
     selectedNodes.forEach((n) => duplicateNode(n.id));
+  };
+
+  const handleToggleLockSelection = () => {
+    if (selectedNodes.length === 0) return;
+    const ids = selectedNodes.map((n) => n.id);
+    setNodesDraggableLock(ids, !allSelectedNodesLocked);
   };
 
   const downloadImageUrl = useMemo(
@@ -387,6 +396,32 @@ export default function SelectionOverlay({
                   }}
                 >
                   {allSelectedNodesHidden ? <Eye size={16} /> : <EyeOff size={16} />}
+                </button>
+              </span>
+            </BarTooltip>
+            <BarTooltip
+              label={
+                selectedNodes.length === 0 ?
+                  'Select nodes to lock'
+                : allSelectedNodesLocked ?
+                  'Unlock — allow move and edit'
+                : 'Lock — prevent move and edit'
+              }
+            >
+              <span className="inline-flex">
+                <button
+                  type="button"
+                  className={cn(
+                    SELECTION_BAR_ICON_CLASS,
+                    selectedNodes.length === 0 ?
+                      'cursor-not-allowed opacity-40'
+                    : 'hover:bg-muted/80 hover:text-foreground'
+                  )}
+                  onClick={handleToggleLockSelection}
+                  disabled={selectedNodes.length === 0}
+                  aria-label={allSelectedNodesLocked ? 'Unlock selection' : 'Lock selection'}
+                >
+                  {allSelectedNodesLocked ? <LockOpen size={16} /> : <Lock size={16} />}
                 </button>
               </span>
             </BarTooltip>

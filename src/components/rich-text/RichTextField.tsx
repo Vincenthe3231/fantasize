@@ -211,12 +211,12 @@ export function RichTextField({
             <AnimatePresence>
               {showToolbar && editor && (
                 <NodeInlineRichToolbar
-                  ref={toolbarPortalRef}
                   key="vf-portal-toolbar"
                   editor={editor}
                   variant="floating-above"
                   portalPlacement={portalPlacement}
                   reduceMotion={reduceMotion}
+                  toolbarMeasureRef={toolbarPortalRef}
                 />
               )}
             </AnimatePresence>,

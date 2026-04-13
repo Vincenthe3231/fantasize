@@ -1,4 +1,11 @@
-import { forwardRef, useCallback, type CSSProperties } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  type CSSProperties,
+  type MutableRefObject,
+  type Ref,
+  type RefObject,
+} from 'react';
 import type { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
 import {
@@ -69,11 +76,33 @@ export type NodeInlineRichToolbarProps = {
   portalPlacement?: RichTextToolbarPortalPlacement | null;
   /** Skip motion when canvas performance / reduced motion is active. */
   reduceMotion?: boolean;
+  /**
+   * Extra ref on the root `motion.div` (e.g. portal placement measurement).
+   * Prefer this over `ref` when the toolbar is wrapped by Framer `AnimatePresence`, which can
+   * forward `ref` in a way that triggers React’s “ref is not a prop” warning on custom components.
+   */
+  toolbarMeasureRef?: RefObject<HTMLDivElement | null>;
 };
+
+function assignToolbarRootRef(
+  el: HTMLDivElement | null,
+  ref: Ref<HTMLDivElement> | undefined,
+  measureRef: RefObject<HTMLDivElement | null> | undefined
+) {
+  if (typeof ref === 'function') ref(el);
+  else if (ref) (ref as MutableRefObject<HTMLDivElement | null>).current = el;
+  if (measureRef) measureRef.current = el;
+}
 
 export const NodeInlineRichToolbar = forwardRef<HTMLDivElement, NodeInlineRichToolbarProps>(
   function NodeInlineRichToolbar(
-    { editor, variant = 'floating-above', portalPlacement = null, reduceMotion = false },
+    {
+      editor,
+      variant = 'floating-above',
+      portalPlacement = null,
+      reduceMotion = false,
+      toolbarMeasureRef,
+    },
     ref
   ) {
   const t = useEditorState({
@@ -197,7 +226,7 @@ export const NodeInlineRichToolbar = forwardRef<HTMLDivElement, NodeInlineRichTo
 
   return (
     <motion.div
-      ref={ref}
+      ref={(el) => assignToolbarRootRef(el, ref, toolbarMeasureRef)}
       className={motionClass}
       style={motionStyle}
       initial={motionInitial}

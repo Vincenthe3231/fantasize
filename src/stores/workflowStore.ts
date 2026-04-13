@@ -268,6 +268,8 @@ export interface WorkflowState {
   deleteNode: (id: string) => void;
   duplicateNode: (id: string) => void;
   lockNode: (id: string) => void;
+  /** Set lock (no drag / content inert via `NodeContentFocus`) for many nodes in one undo step. */
+  setNodesDraggableLock: (nodeIds: readonly string[], locked: boolean) => void;
   /** User-driven `node.data` updates: coalesced into undo (debounced + flush on blur/undo/redo). */
   updateNodeData: (id: string, data: Partial<Record<string, unknown>>) => void;
   /** Same as `updateNodeData` but does not record undo (programmatic / derived updates). */
@@ -1235,6 +1237,36 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
           set((st) => ({
             nodes: st.nodes.map((x) =>
               x.id === id ? { ...x, draggable: nextLocked ? false : undefined } : x
+            ),
+          })),
+      });
+    },
+
+    setNodesDraggableLock: (nodeIds, locked) => {
+      const s = get();
+      const idSet = new Set(nodeIds);
+      if (idSet.size === 0) return;
+      const before = new Map(
+        s.nodes.filter((n) => idSet.has(n.id)).map((n) => [n.id, n.draggable] as const)
+      );
+      set({
+        nodes: s.nodes.map((n) =>
+          idSet.has(n.id) ? { ...n, draggable: locked ? false : undefined } : n
+        ),
+      });
+      pushCmd({
+        undo: () =>
+          set((st) => ({
+            nodes: st.nodes.map((n) => {
+              if (!idSet.has(n.id)) return n;
+              const prev = before.get(n.id);
+              return { ...n, draggable: prev };
+            }),
+          })),
+        execute: () =>
+          set((st) => ({
+            nodes: st.nodes.map((n) =>
+              idSet.has(n.id) ? { ...n, draggable: locked ? false : undefined } : n
             ),
           })),
       });
