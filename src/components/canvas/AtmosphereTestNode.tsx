@@ -172,7 +172,7 @@ const AtmosphereTestNode = memo(({ id, selected, data }: NodeProps) => {
                   onChange={setMood}
                   placeholder="Mood & colour tone (batched across lighting variants)…"
                   excludeNodeId={id}
-                  toolbarVariant="top"
+                  toolbarVariant="floating-above"
                   className="max-h-[140px]"
                   editorContentClassName="w-full min-h-[56px] max-h-[120px] text-[11px] text-[var(--text-primary)] outline-none prose prose-invert prose-sm max-w-none"
                   editorProps={{

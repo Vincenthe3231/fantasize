@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { forwardRef, useCallback, type CSSProperties } from 'react';
 import type { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
 import {
@@ -27,7 +27,9 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipWrap } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import { getRichTextBlockLabel } from './blockLabel';
+import type { RichTextToolbarPortalPlacement } from './useRichTextToolbarPortalPosition';
 
 const PRESET_COLORS = [
   '#e5e5e5',
@@ -63,9 +65,17 @@ export type NodeInlineRichToolbarProps = {
   editor: Editor | null;
   /** Canvas: float above; top: bar above content inside container */
   variant?: 'floating-above' | 'top';
+  /** When set, toolbar is `position:fixed` at these viewport coordinates (portal host). */
+  portalPlacement?: RichTextToolbarPortalPlacement | null;
+  /** Skip motion when canvas performance / reduced motion is active. */
+  reduceMotion?: boolean;
 };
 
-export function NodeInlineRichToolbar({ editor, variant = 'floating-above' }: NodeInlineRichToolbarProps) {
+export const NodeInlineRichToolbar = forwardRef<HTMLDivElement, NodeInlineRichToolbarProps>(
+  function NodeInlineRichToolbar(
+    { editor, variant = 'floating-above', portalPlacement = null, reduceMotion = false },
+    ref
+  ) {
   const t = useEditorState({
     editor,
     selector: ({ editor: ed }) => {
@@ -155,24 +165,45 @@ export function NodeInlineRichToolbar({ editor, variant = 'floating-above' }: No
 
   if (!editor || !t) return null;
 
-  const motionStyle =
-    variant === 'floating-above'
-      ? { transform: 'translate(-50%, calc(-100% - 48px))' }
-      : { transform: 'none' };
+  const isPortaled = portalPlacement != null;
 
-  const motionClass =
-    variant === 'floating-above'
+  const motionClass = isPortaled
+    ? `${NODE_INTERACTIVE_CLASS} node-inline-toolbar fixed z-[6100] flex max-w-[min(100vw-2rem,calc(100vw-1rem))] flex-wrap items-center gap-0.5 rounded-lg border border-[var(--node-control-border)] bg-[var(--node-inner-mid)]/95 px-2 py-1 shadow-lg backdrop-blur-md`
+    : variant === 'floating-above'
       ? `${NODE_INTERACTIVE_CLASS} node-inline-toolbar absolute left-1/2 -translate-x-1/2 flex max-w-[min(100%,calc(100vw-2rem))] flex-wrap items-center gap-0.5 px-2 py-1 rounded-lg z-50`
       : `${NODE_INTERACTIVE_CLASS} node-inline-toolbar flex w-full flex-wrap items-center gap-0.5 px-2 py-1 rounded-lg z-50 border-b border-[var(--node-control-border)] bg-[var(--node-inner-mid)]`;
 
+  const motionStyle: CSSProperties =
+    isPortaled && portalPlacement
+      ? {
+          top: portalPlacement.top,
+          left: portalPlacement.left,
+          transform: 'translateX(-50%)',
+          visibility: portalPlacement.visible ? 'visible' : 'hidden',
+          pointerEvents: portalPlacement.visible ? 'auto' : 'none',
+        }
+      : variant === 'floating-above'
+        ? { transform: 'translate(-50%, calc(-100% - 48px))' }
+        : { transform: 'none' };
+
+  const motionTransition = reduceMotion
+    ? { duration: 0 }
+    : isPortaled
+      ? { duration: 0.18, ease: [0.22, 1, 0.36, 1] as const }
+      : { duration: 0.12 };
+
+  const motionInitial = reduceMotion ? false : isPortaled ? { opacity: 0, y: 10 } : { opacity: 0, y: 4 };
+  const motionExit = reduceMotion ? { opacity: 1, y: 0 } : isPortaled ? { opacity: 0, y: 8 } : { opacity: 0, y: 4 };
+
   return (
     <motion.div
+      ref={ref}
       className={motionClass}
       style={motionStyle}
-      initial={{ opacity: 0, y: 4 }}
+      initial={motionInitial}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 4 }}
-      transition={{ duration: 0.12 }}
+      exit={motionExit}
+      transition={motionTransition}
     >
       <DropdownMenu>
         <Tooltip>
@@ -182,8 +213,8 @@ export function NodeInlineRichToolbar({ editor, variant = 'floating-above' }: No
                 type="button"
                 className="node-inline-toolbar-btn px-2 py-1 rounded text-[11px] transition-colors max-w-[9rem] truncate"
                 onPointerDown={(e) => {
-                  // Keep editor focus while opening the menu so toolbar doesn't unmount.
-                  e.preventDefault();
+                  // Do not call preventDefault — Radix composes this before its toggle; defaultPrevented skips opening.
+                  e.stopPropagation();
                 }}
               >
                 {t.blockLabel} ▾
@@ -194,7 +225,9 @@ export function NodeInlineRichToolbar({ editor, variant = 'floating-above' }: No
             Block type
           </TooltipContent>
         </Tooltip>
-        <DropdownMenuContent className="node-canvas-dropdown p-0 text-xs">
+        <DropdownMenuContent
+          className={cn('node-canvas-dropdown p-0 text-xs', isPortaled && 'z-[6200]')}
+        >
           <ScrollArea className="max-h-[min(70vh,20rem)]">
             <div className="py-1">
               <DropdownMenuItem onClick={() => setBlockType('paragraph')}>Paragraph</DropdownMenuItem>
@@ -270,7 +303,11 @@ export function NodeInlineRichToolbar({ editor, variant = 'floating-above' }: No
             </button>
           </PopoverTrigger>
         </TooltipWrap>
-        <PopoverContent className="node-canvas-dropdown w-auto p-2" align="start" onClick={(e) => e.stopPropagation()}>
+        <PopoverContent
+          className={cn('node-canvas-dropdown w-auto p-2', isPortaled && 'z-[6200]')}
+          align="start"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="mb-2 grid grid-cols-5 gap-1">
             {PRESET_COLORS.map((c) => (
               <TooltipWrap key={c} label={c} side="top" contentClassName="z-[200]">
@@ -384,4 +421,6 @@ export function NodeInlineRichToolbar({ editor, variant = 'floating-above' }: No
       </TooltipWrap>
     </motion.div>
   );
-}
+});
+
+NodeInlineRichToolbar.displayName = 'NodeInlineRichToolbar';

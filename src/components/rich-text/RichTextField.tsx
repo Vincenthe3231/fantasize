@@ -1,11 +1,30 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FocusEvent,
+  type RefObject,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
 import { AnimatePresence } from 'framer-motion';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { getRichTextExtensions, type RichTextExtensionOptions } from './getRichTextExtensions';
 import { NodeInlineRichToolbar } from './NodeInlineRichToolbar';
 import { mentionLabelForNode } from './nodeMentionUtils';
+import { useRichTextToolbarPortalPosition } from './useRichTextToolbarPortalPosition';
+
+function isRichTextChromeTarget(node: EventTarget | null): boolean {
+  return (
+    node instanceof Element &&
+    Boolean(node.closest('.node-canvas-dropdown') || node.closest('.node-canvas-popover'))
+  );
+}
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -36,6 +55,10 @@ export type RichTextFieldProps = {
   extensionDeps?: unknown[];
   /** When focus leaves the field (and toolbar inside), e.g. flush coalesced undo history. */
   onFlushHistory?: () => void;
+  /** Optional shell to align the portaled floating toolbar (e.g. glass card). Otherwise uses `.react-flow__node` or this field root. */
+  toolbarAnchorRef?: RefObject<HTMLElement | null>;
+  /** Portal host for the floating toolbar (default `document.body`). */
+  toolbarMountEl?: HTMLElement | null;
 };
 
 export function RichTextField({
@@ -50,11 +73,16 @@ export function RichTextField({
   editorProps: extraEditorProps,
   extensionDeps = [],
   onFlushHistory,
+  toolbarAnchorRef,
+  toolbarMountEl,
 }: RichTextFieldProps) {
   const getWorkflowNodes = useCallback(() => useWorkflowStore.getState().nodes, []);
   const workflowNodes = useWorkflowStore((s) => s.nodes);
   const rootRef = useRef<HTMLDivElement>(null);
+  const toolbarPortalRef = useRef<HTMLDivElement>(null);
   const [focusWithin, setFocusWithin] = useState(false);
+  const [portalAnchorEl, setPortalAnchorEl] = useState<HTMLElement | null>(null);
+  const reduceMotion = useCanvasReduceMotion();
 
   const extensions = useMemo(
     () =>
@@ -119,6 +147,54 @@ export function RichTextField({
     selector: ({ editor: ed }) => ({ isFocused: ed?.isFocused ?? false }),
   });
 
+  const showToolbar = Boolean(editor && (isFocused || focusWithin));
+  const usePortalToolbar = toolbarVariant === 'floating-above';
+
+  useLayoutEffect(() => {
+    if (!usePortalToolbar || !showToolbar) {
+      setPortalAnchorEl(null);
+      return;
+    }
+    const el =
+      toolbarAnchorRef?.current ??
+      rootRef.current?.closest('.react-flow__node') ??
+      rootRef.current;
+    setPortalAnchorEl(el);
+  }, [usePortalToolbar, showToolbar, toolbarAnchorRef]);
+
+  const portalPlacement = useRichTextToolbarPortalPosition(
+    usePortalToolbar ? portalAnchorEl : null,
+    usePortalToolbar && showToolbar,
+    toolbarPortalRef
+  );
+
+  const portalHost = toolbarMountEl ?? (typeof document !== 'undefined' ? document.body : null);
+
+  const handleBlurCapture = useCallback(
+    (e: FocusEvent<HTMLDivElement>) => {
+      const next = e.relatedTarget as Node | null;
+      if (next && rootRef.current?.contains(next)) return;
+      if (next && toolbarPortalRef.current?.contains(next)) return;
+      if (next && isRichTextChromeTarget(next)) return;
+      if (next === null && showToolbar) {
+        requestAnimationFrame(() => {
+          const ae = document.activeElement;
+          if (ae instanceof Element) {
+            if (rootRef.current?.contains(ae)) return;
+            if (toolbarPortalRef.current?.contains(ae)) return;
+            if (isRichTextChromeTarget(ae)) return;
+          }
+          setFocusWithin(false);
+          onFlushHistory?.();
+        });
+        return;
+      }
+      setFocusWithin(false);
+      onFlushHistory?.();
+    },
+    [onFlushHistory, showToolbar]
+  );
+
   return (
     <div
       ref={rootRef}
@@ -128,18 +204,32 @@ export function RichTextField({
           : `flex min-h-0 flex-1 flex-col ${className}`
       }
       onFocusCapture={() => setFocusWithin(true)}
-      onBlurCapture={(e) => {
-        const next = e.relatedTarget as Node | null;
-        if (next && rootRef.current?.contains(next)) return;
-        setFocusWithin(false);
-        onFlushHistory?.();
-      }}
+      onBlurCapture={handleBlurCapture}
     >
-      <AnimatePresence>
-        {editor && (isFocused || focusWithin) && (
-          <NodeInlineRichToolbar key="vf-toolbar" editor={editor} variant={toolbarVariant} />
-        )}
-      </AnimatePresence>
+      {usePortalToolbar && portalHost
+        ? createPortal(
+            <AnimatePresence>
+              {showToolbar && editor && (
+                <NodeInlineRichToolbar
+                  ref={toolbarPortalRef}
+                  key="vf-portal-toolbar"
+                  editor={editor}
+                  variant="floating-above"
+                  portalPlacement={portalPlacement}
+                  reduceMotion={reduceMotion}
+                />
+              )}
+            </AnimatePresence>,
+            portalHost
+          )
+        : null}
+      {!usePortalToolbar ? (
+        <AnimatePresence>
+          {showToolbar && editor && (
+            <NodeInlineRichToolbar key="vf-toolbar" editor={editor} variant={toolbarVariant} />
+          )}
+        </AnimatePresence>
+      ) : null}
       <ScrollArea className="nowheel min-h-0 flex-1 overscroll-contain">
         <EditorContent editor={editor} />
       </ScrollArea>

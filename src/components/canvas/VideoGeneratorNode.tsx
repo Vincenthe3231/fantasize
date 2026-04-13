@@ -94,7 +94,7 @@ const VideoGeneratorNode = memo(({ id, data }: NodeProps) => {
             onChange={(html) => updateNodeData(id, { prompt: html })}
             placeholder="Describe the scene motion…"
             excludeNodeId={id}
-            toolbarVariant="top"
+            toolbarVariant="floating-above"
             className="min-h-[40px]"
             editorContentClassName="w-full min-h-[40px] text-[12px] text-[var(--text-primary)] outline-none prose prose-invert prose-sm max-w-none"
             editorProps={{

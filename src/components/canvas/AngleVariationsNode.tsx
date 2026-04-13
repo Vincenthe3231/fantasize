@@ -202,7 +202,7 @@ const AngleVariationsNode = memo(({ id, data, selected }: NodeProps) => {
                 onChange={(html) => updateNodeData(id, { prompt: html })}
                 placeholder="Optional notes for this node (also merges with wired text from edges)…"
                 excludeNodeId={id}
-                toolbarVariant="top"
+                toolbarVariant="floating-above"
                 className="max-h-[100px]"
                 editorContentClassName="w-full min-h-[36px] max-h-[80px] text-[11px] text-[var(--text-primary)] outline-none prose prose-invert prose-sm max-w-none"
               />

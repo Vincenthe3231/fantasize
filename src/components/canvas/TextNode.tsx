@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import { type NodeProps } from 'reactflow';
 import { Type } from 'lucide-react';
 import FlowNodeResizeRoot from './FlowNodeResizeRoot';
@@ -21,6 +21,7 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
   const nodes = useWorkflowStore((s) => s.nodes);
   const selfPos = useMemo(() => nodes.find((n) => n.id === id)?.position ?? { x: 0, y: 0 }, [nodes, id]);
   const { connectMenuItems } = useQuickConnect(id, selfPos);
+  const glassShellRef = useRef<HTMLDivElement>(null);
 
   const content = (data.content as string) || '';
 
@@ -32,6 +33,7 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
     >
       <NodeLabelRow nodeId={id} nodeType="textNode" labelPrefix="Text" icon={<Type size={12} />} />
       <div
+        ref={glassShellRef}
         className={`glass-node glass-node-input relative flex w-full flex-1 flex-col min-h-0 ${selected ? 'node-selected' : ''} ${isRunning ? 'ring-1 ring-amber-500/40' : ''}`}
         data-content-focused={contentFocused || undefined}
       >
@@ -56,6 +58,7 @@ const TextNode = memo(({ id, data, selected }: NodeProps) => {
               onFlushHistory={() => flushNodeDataHistory(id)}
               placeholder="Write your prompt, notes, or comments…"
               excludeNodeId={id}
+              toolbarAnchorRef={glassShellRef}
               toolbarVariant="floating-above"
               editorProps={{
                 handleDOMEvents: {

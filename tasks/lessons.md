@@ -1,5 +1,13 @@
 # Lessons (session corrections)
 
+## Radix `composeEventHandlers` and `preventDefault` on triggers
+
+- **Symptom:** **`DropdownMenu`** / **`Popover`** trigger appears to ignore clicks — menu never opens.
+- **Cause:** Radix composes **`props.onPointerDown` first**, then its internal handler. **`@radix-ui/primitive` `composeEventHandlers`** skips the second handler when **`event.defaultPrevented`** is true.
+- **Fix:** Do not call **`preventDefault()`** on the trigger’s **`onPointerDown`** unless you replicate open/close yourself. Use **`stopPropagation()`** if you only need to keep events off the canvas. For portaled chrome above **`z-[6000]`**, raise portaled **`Content`** above the bar (e.g. **`z-[6200]`**) so the menu is not painted under it.
+
+_Date: 2026-04-13._
+
 ## Supabase Edge: HTML 502 is not the same as “import broken” in repo
 
 - **Symptom:** Browser shows **CORS missing** + **502** with **`content-type: text/html`** on `…/functions/v1/scout-execute`.

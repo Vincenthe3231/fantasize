@@ -412,7 +412,7 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
                       onChange={(html) => updateNodeData(id, { negativePrompt: html })}
                       placeholder="Elements to exclude…"
                       excludeNodeId={id}
-                      toolbarVariant="top"
+                      toolbarVariant="floating-above"
                       editorContentClassName="w-full min-h-[56px] text-[12px] text-[var(--node-popover-text)] outline-none prose prose-invert prose-sm max-w-none"
                       editorProps={{
                         handleDOMEvents: {

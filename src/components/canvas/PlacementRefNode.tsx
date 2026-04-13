@@ -78,7 +78,7 @@ const PlacementRefNode = memo(({ id, selected, data }: NodeProps) => {
                 onChange={(html) => updateNodeData(id, { placementText: html })}
                 placeholder="Furniture positions, architecture, lighting notes…"
                 excludeNodeId={id}
-                toolbarVariant="top"
+                toolbarVariant="floating-above"
                 editorContentClassName="w-full min-h-[88px] text-[12px] text-[var(--text-primary)] outline-none leading-relaxed prose prose-invert prose-sm max-w-none px-2 py-1"
                 editorProps={{
                   handleDOMEvents: {

@@ -239,7 +239,7 @@ const AssistantNode = memo(({ id, data }: NodeProps) => {
                   onFlushHistory={() => flushNodeDataHistory(id)}
                   placeholder={PLACEHOLDER}
                   excludeNodeId={id}
-                  toolbarVariant="top"
+                  toolbarVariant="floating-above"
                   className="min-h-0 flex-1"
                   editorContentClassName="w-full min-h-[100px] max-h-full flex-1 text-[12px] text-[var(--text-primary)] outline-none leading-relaxed break-words [overflow-wrap:anywhere] prose prose-invert prose-sm max-w-none [&_p]:my-1 [&_*]:break-words"
                   editorProps={{
