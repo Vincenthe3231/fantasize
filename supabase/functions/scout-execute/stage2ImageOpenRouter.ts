@@ -12,8 +12,8 @@ import { formatOpenRouterSdkError } from './openRouterSdkError.ts';
 
 function openRouterMeta() {
   const httpReferer = Deno.env.get('OPENROUTER_HTTP_REFERER') ?? 'https://vision-forge.local';
-  const xTitle = Deno.env.get('OPENROUTER_APP_TITLE') ?? 'Vision Forge Scout';
-  return { httpReferer, xTitle };
+  const appTitle = Deno.env.get('OPENROUTER_APP_TITLE') ?? 'Vision Forge Scout';
+  return { httpReferer, appTitle };
 }
 
 export function getOpenRouterImageGenModel(): string {
@@ -75,7 +75,7 @@ export async function generateStage2ImageViaOpenRouter(
   context: Record<string, unknown>,
   apiKey: string
 ): Promise<{ generatedUrl: string; meta: Record<string, unknown> }> {
-  const { httpReferer, xTitle } = openRouterMeta();
+  const { httpReferer, appTitle } = openRouterMeta();
   const { model, modeLabel } = resolveImageGenModelForMode(String(context.mode ?? ''), (k) => Deno.env.get(k));
   const modalities = parseModalities();
   const userParts = buildStage2ImageGenUserContentParts(context);
@@ -86,15 +86,15 @@ export async function generateStage2ImageViaOpenRouter(
   const openrouter = new OpenRouter({
     apiKey: apiKey.trim(),
     httpReferer,
-    xTitle,
+    appTitle,
   });
 
   let result: unknown;
   try {
     result = await openrouter.chat.send({
       httpReferer,
-      xTitle,
-      chatGenerationParams: {
+      appTitle,
+      chatRequest: {
         model,
         messages: [{ role: 'user', content: toSdkUserContent(userParts) as unknown }],
         modalities,

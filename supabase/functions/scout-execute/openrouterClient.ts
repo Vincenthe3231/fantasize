@@ -39,8 +39,8 @@ function toUserContent(parts: Stage2MultimodalPart[]) {
 
 function openRouterMeta() {
   const httpReferer = Deno.env.get('OPENROUTER_HTTP_REFERER') ?? 'https://vision-forge.local';
-  const xTitle = Deno.env.get('OPENROUTER_APP_TITLE') ?? 'Vision Forge Scout';
-  return { httpReferer, xTitle };
+  const appTitle = Deno.env.get('OPENROUTER_APP_TITLE') ?? 'Vision Forge Scout';
+  return { httpReferer, appTitle };
 }
 
 /**
@@ -51,18 +51,18 @@ export async function streamOpenRouterAuto(params: {
   systemPrompt?: string;
   userContentParts: Stage2MultimodalPart[];
 }): Promise<string> {
-  const { httpReferer, xTitle } = openRouterMeta();
+  const { httpReferer, appTitle } = openRouterMeta();
   const openrouter = new OpenRouter({
     apiKey: params.apiKey,
     httpReferer,
-    xTitle,
+    appTitle,
   });
 
   try {
     const stream = await openrouter.chat.send({
       httpReferer,
-      xTitle,
-      chatGenerationParams: {
+      appTitle,
+      chatRequest: {
         model: stage2Model(),
         messages: [
           { role: 'system', content: params.systemPrompt ?? SYSTEM_DEFAULT },

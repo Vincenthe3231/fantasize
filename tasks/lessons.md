@@ -16,6 +16,14 @@ _Date: 2026-04-10._
 
 _Date: 2026-04-10._
 
+## OpenRouter SDK 0.11.x: `chat.send` expects `chatRequest`, not `chatGenerationParams`
+
+- **Symptom:** JSON error like **`Invalid input: expected object, received undefined` → at `chatRequest`** (often surfaced as “schema mismatch” on the image path).
+- **Cause:** **`@openrouter/sdk` ≥ 0.11** validates **`openrouter.chat.send({ chatRequest: { … }, httpReferer?, appTitle? })`**. Passing **`chatGenerationParams`** leaves **`chatRequest`** undefined; **`xTitle`** is not a valid field (use **`appTitle`** on the client options and on the per-request object).
+- **Fix:** Map env **`OPENROUTER_APP_TITLE`** to **`appTitle`**; nest model/messages/stream/modalities under **`chatRequest`**.
+
+_Date: 2026-04-13._
+
 ## Automated Lighthouse + Puppeteer (shell perf harness)
 
 - **Use:** regression signal on **lab** performance (main-thread / load) for the **app shell** — not a substitute for field INP; dense canvas scenarios need auth/fixtures before this harness covers them.
