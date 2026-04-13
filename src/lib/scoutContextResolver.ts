@@ -281,7 +281,7 @@ export function resolveStage2ImageGeneratorContext(
   const negativePrompt = richTextToPlainForScout(String((n.data as { negativePrompt?: string })?.negativePrompt ?? ''));
   const mode = String((n.data as { mode?: string })?.mode ?? '');
   const aspect = String((n.data as { aspect?: string })?.aspect ?? '');
-  const images = Math.min(8, Math.max(1, Number((n.data as { images?: number })?.images ?? 1)));
+  const nodeImages = Math.min(8, Math.max(1, Number((n.data as { images?: number })?.images ?? 1)));
 
   const incoming = incomingSources(edges, imageGeneratorNodeId).sort((a, b) => a.id.localeCompare(b.id));
   const wiredParts: string[] = [];
@@ -371,6 +371,9 @@ export function resolveStage2ImageGeneratorContext(
 
   const wiredTextFromEdges = mergeTextPartsDedupe(wiredParts);
   const queueMode = promptItems.length > 0 ? 'perPromptSequential' : 'single';
+
+  /** Each wired anchor image can drive its own completion; never run fewer outputs than anchors (capped at 8). Still respects a higher ×N on the node. */
+  const images = Math.min(8, Math.max(1, nodeImages, anchorImageUrls.length));
 
   const raw = {
     kind: 'stage2_image_generator' as const,

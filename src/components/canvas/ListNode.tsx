@@ -1,7 +1,25 @@
 import { memo, useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { type NodeProps } from 'reactflow';
-import { List, Plus, X, Check, Type, ImageIcon, Copy, FolderOpen, SlidersHorizontal, Sparkles, LayoutList, LayoutGrid, Settings, ChevronDown, Download, ExternalLink } from 'lucide-react';
+import {
+  List,
+  Plus,
+  X,
+  Check,
+  Type,
+  ImageIcon,
+  Images,
+  Copy,
+  FolderOpen,
+  SlidersHorizontal,
+  Sparkles,
+  LayoutList,
+  LayoutGrid,
+  Settings,
+  ChevronDown,
+  Download,
+  ExternalLink,
+} from 'lucide-react';
 import { Reorder, AnimatePresence, motion } from 'framer-motion';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -441,8 +459,21 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
     () => [textCount && `${textCount} text`, imageCount && `${imageCount} image`].filter(Boolean).join(', '),
     [textCount, imageCount]
   );
-  const imageSelectionLabel =
-    imageCount > 0 && multiSelectMode ? `${selectedImageCount}/${imageCount} selected` : `${imageCount} images`;
+  const imageSubsetToolbarTooltip = useMemo(() => {
+    if (imageCount <= 0) return '';
+    if (multiSelectMode) {
+      return `Selecting images for downstream nodes — ${selectedImageCount} of ${imageCount} selected. Tap thumbnails to toggle; click here again when done.`;
+    }
+    return `Choose which images feed connected nodes. Right now all ${imageCount} ${imageCount === 1 ? 'image is' : 'images are'} included. Click to pick a subset.`;
+  }, [imageCount, multiSelectMode, selectedImageCount]);
+
+  const imageSubsetAriaLabel = useMemo(() => {
+    if (imageCount <= 0) return '';
+    if (multiSelectMode) {
+      return `Image subset selection on, ${selectedImageCount} of ${imageCount} images selected. Press to exit selection mode.`;
+    }
+    return `Select which of ${imageCount} images to use for wired outputs. Press to choose a subset.`;
+  }, [imageCount, multiSelectMode, selectedImageCount]);
 
   const legacyLabel = (data.label as string) || '';
 
@@ -767,21 +798,39 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
 
           {items.length > 0 && imageCount > 0 ? (
             <TooltipWrap
-              label={multiSelectMode ? 'Disable image multi-selection' : 'Enable image multi-selection'}
+              label={imageSubsetToolbarTooltip}
               side="top"
-              contentClassName="z-[100] max-w-[min(260px,calc(100vw-24px))]"
+              contentClassName="z-[100] max-w-[min(280px,calc(100vw-24px))] whitespace-normal text-left leading-snug"
             >
               <motion.button
                 type="button"
+                role="switch"
+                aria-checked={multiSelectMode}
+                aria-label={imageSubsetAriaLabel}
                 onClick={toggleImageSelectionMode}
                 whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-                className={`flex items-center gap-1 rounded-md px-2 py-1 transition-colors ${
+                className={`flex min-h-[26px] max-w-[min(100%,11rem)] items-center gap-1 rounded-md border px-2 py-1 transition-colors ${
                   multiSelectMode
-                    ? 'bg-emerald-500/15 text-emerald-300'
-                    : 'text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)]'
+                    ? 'border-emerald-500/35 bg-emerald-500/15 text-emerald-200'
+                    : 'border-[var(--node-control-border)]/60 bg-[var(--node-control-bg)]/80 text-[var(--node-control-text)] hover:border-[var(--node-control-border)] hover:bg-[var(--node-action-bar-hover-bg)]'
                 }`}
               >
-                {imageSelectionLabel} <Check size={9} />
+                {multiSelectMode ? (
+                  <>
+                    <Check size={10} className="shrink-0 text-emerald-300" aria-hidden />
+                    <span className="tabular-nums font-medium tracking-tight">
+                      {selectedImageCount}
+                      <span className="font-normal text-emerald-200/70"> / </span>
+                      {imageCount}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Images size={10} className="shrink-0 text-[var(--node-control-muted)]" aria-hidden />
+                    <span className="font-medium text-[var(--node-control-text)]">Select</span>
+                    <span className="tabular-nums text-[var(--node-control-muted)]">· {imageCount}</span>
+                  </>
+                )}
               </motion.button>
             </TooltipWrap>
           ) : items.length > 0 ? (

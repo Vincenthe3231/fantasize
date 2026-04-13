@@ -308,31 +308,37 @@ const ImageGeneratorNode = memo(({ id, data }: NodeProps) => {
             <div
               className={`${NODE_INTERACTIVE_CLASS} flex shrink-0 flex-wrap items-center gap-1.5 px-2.5 py-2 border-t border-[var(--node-panel-border)] bg-[var(--node-control-bg)]`}
             >
-              <div className="flex items-center gap-0.5 rounded-lg bg-[var(--node-inner-mid)] border border-[var(--node-control-border)] p-0.5">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    updateNodeData(id, { images: Math.max(1, images - 1) });
-                  }}
-                  className="p-1 rounded text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)]"
-                >
-                  <Minus size={12} />
-                </button>
-                <span className="text-[11px] font-mono-display text-[var(--node-control-text)] min-w-[2rem] text-center">
-                  x{images}
-                </span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    updateNodeData(id, { images: Math.min(8, images + 1) });
-                  }}
-                  className="p-1 rounded text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)]"
-                >
-                  <Plus size={12} />
-                </button>
-              </div>
+              <TooltipWrap
+                label="Batch size per run (max 8). Scout uses the larger of this value and the number of wired reference images from lists or uploads, so every anchor can get its own generation."
+                side="top"
+                contentClassName="z-[100] max-w-[min(280px,calc(100vw-24px))] whitespace-normal text-left leading-snug"
+              >
+                <div className="flex items-center gap-0.5 rounded-lg border border-[var(--node-control-border)] bg-[var(--node-inner-mid)] p-0.5">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateNodeData(id, { images: Math.max(1, images - 1) });
+                    }}
+                    className="rounded p-1 text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)]"
+                  >
+                    <Minus size={12} />
+                  </button>
+                  <span className="min-w-[2rem] text-center font-mono-display text-[11px] text-[var(--node-control-text)]">
+                    x{images}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateNodeData(id, { images: Math.min(8, images + 1) });
+                    }}
+                    className="rounded p-1 text-[var(--node-control-muted)] hover:bg-[var(--node-action-bar-hover-bg)]"
+                  >
+                    <Plus size={12} />
+                  </button>
+                </div>
+              </TooltipWrap>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

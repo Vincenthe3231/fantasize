@@ -185,6 +185,23 @@ describe('nodeDataflow', () => {
     expect(upstreamImageItemsFromNode(list, nodes)).toEqual([]);
   });
 
+  it('keeps list subset for upstream wiring after multi-select mode is turned off', () => {
+    const list = node('list-1', 'listNode', {
+      listMultiSelectMode: false,
+      listSelectedImageIds: ['m2', 'm3'],
+      items: [
+        { id: 'm1', type: 'image', mediaUrl: 'https://example.com/a.png', mediaName: 'A' },
+        { id: 'm2', type: 'image', mediaUrl: 'https://example.com/b.png', mediaName: 'B' },
+        { id: 'm3', type: 'image', mediaUrl: 'https://example.com/c.png', mediaName: 'C' },
+      ],
+    });
+    const nodes: Node[] = [list];
+    expect(upstreamImageItemsFromNode(list, nodes)).toEqual([
+      { url: 'https://example.com/b.png', label: 'B' },
+      { url: 'https://example.com/c.png', label: 'C' },
+    ]);
+  });
+
   it('exposes listNode items via upstreamTextFromNode and upstreamImageItemsFromNode', () => {
     const list = node('list-1', 'listNode', {
       items: [

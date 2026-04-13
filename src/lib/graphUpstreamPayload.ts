@@ -194,12 +194,19 @@ export function listNodeImageItemsFromNode(n: Node): UpstreamMediaItem[] {
   const items = (nodeData.items ?? []) as ListNodeItem[];
   const multiSelectMode = Boolean(nodeData.listMultiSelectMode);
   const selectedIdSet = new Set(
-    Array.isArray(nodeData.listSelectedImageIds) ? nodeData.listSelectedImageIds.filter(Boolean) : []
+    Array.isArray(nodeData.listSelectedImageIds) ? nodeData.listSelectedImageIds.filter(Boolean).map(String) : []
   );
   const out: UpstreamMediaItem[] = [];
   for (const it of items) {
     if (it.type !== 'image') continue;
-    if (multiSelectMode && !selectedIdSet.has(String(it.id ?? ''))) continue;
+    // Subset wiring: when IDs are stored, use only those images even after `listMultiSelectMode` is turned off
+    // (the UI exits "selection mode" but the chosen subset must still drive downstream nodes).
+    if (selectedIdSet.size > 0) {
+      if (!selectedIdSet.has(String(it.id ?? ''))) continue;
+    } else if (multiSelectMode) {
+      // Selection UI on and nothing checked yet — do not expose images upstream until user picks at least one.
+      continue;
+    }
     const url = String(it.mediaUrl ?? '').trim();
     if (!url || isVideoUrl(url)) continue;
     const label = String(it.mediaName ?? '').trim() || undefined;

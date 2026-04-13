@@ -125,6 +125,71 @@ describe('scoutContextResolver', () => {
     expect(r.value.anchorImageUrls).toContain('https://example.com/x.jpg');
   });
 
+  it('raises images count to match wired anchor images (floor with node ×N)', () => {
+    const nodes: Node[] = [
+      {
+        id: 'list-1',
+        type: 'listNode',
+        data: {
+          items: [
+            { id: 'm1', type: 'image', mediaUrl: 'https://example.com/a.png', mediaName: 'A' },
+            { id: 'm2', type: 'image', mediaUrl: 'https://example.com/b.png', mediaName: 'B' },
+          ],
+        },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: 'ig',
+        type: 'imageGeneratorNode',
+        data: { prompt: '<p>Scene</p>', images: 1 },
+        position: { x: 0, y: 0 },
+      },
+    ];
+    const edges = [
+      {
+        id: 'e-list-ig',
+        source: 'list-1',
+        target: 'ig',
+        sourceHandle: 'image-out',
+        targetHandle: 'image-in',
+        type: 'custom' as const,
+      },
+    ];
+    const r = resolveStage2ImageGeneratorContext(nodes, edges, 'ig');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.anchorImageUrls).toHaveLength(2);
+    expect(r.value.images).toBe(2);
+  });
+
+  it('keeps higher node images when more than anchor count', () => {
+    const nodes: Node[] = [
+      {
+        id: 'list-1',
+        type: 'listNode',
+        data: {
+          items: [{ id: 'm1', type: 'image', mediaUrl: 'https://example.com/a.png', mediaName: 'A' }],
+        },
+        position: { x: 0, y: 0 },
+      },
+      { id: 'ig', type: 'imageGeneratorNode', data: { prompt: 'x', images: 4 }, position: { x: 0, y: 0 } },
+    ];
+    const edges = [
+      {
+        id: 'e1',
+        source: 'list-1',
+        target: 'ig',
+        sourceHandle: 'image-out',
+        targetHandle: 'image-in',
+        type: 'custom' as const,
+      },
+    ];
+    const r = resolveStage2ImageGeneratorContext(nodes, edges, 'ig');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.images).toBe(4);
+  });
+
   it('extracts ordered promptItems from listNode text cells for queue mode', () => {
     const nodes: Node[] = [
       {
