@@ -1,0 +1,78 @@
+# Opens (or updates) a PR that merges origin/main into long-lived branches when main changes.
+# Does not push directly to develop / feat — branch protections and review stay intact.
+
+name: Sync main into long-lived branches
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: sync-main-${{ matrix.sync_slug }}
+  cancel-in-progress: false
+
+jobs:
+  open-sync-pr:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: develop
+            sync_slug: develop
+          - target: feat/canvas-templating
+            sync_slug: feat-canvas-templating
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge main into sync branch and open PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          TARGET_BRANCH: ${{ matrix.target }}
+          SYNC_REF: sync/from-main/${{ matrix.sync_slug }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin "main" "${TARGET_BRANCH}" || true
+          git fetch origin "${SYNC_REF}" 2>/dev/null || true
+
+          if git merge-base --is-ancestor "origin/main" "origin/${TARGET_BRANCH}"; then
+            echo "origin/${TARGET_BRANCH} already contains origin/main — nothing to do."
+            exit 0
+          fi
+
+          git checkout -B "${SYNC_REF}" "origin/${TARGET_BRANCH}"
+
+          if ! git merge "origin/main" --no-rebase -m "chore(ci): merge origin/main into ${TARGET_BRANCH} [automated]"; then
+            echo "::error::Merge conflict while merging origin/main into ${TARGET_BRANCH}. Resolve manually on a local branch and open a PR."
+            exit 1
+          fi
+
+          git push origin "HEAD:refs/heads/${SYNC_REF}" --force
+
+          open_count="$(gh pr list --repo "${REPO}" --base "${TARGET_BRANCH}" --head "${OWNER}:${SYNC_REF}" --state open --json number | jq 'length')"
+          if [ "${open_count}" -eq 0 ]; then
+            body="$(printf '%s\n' \
+              "Automated sync after a push to **main**." \
+              "" \
+              "- This PR merges **origin/main** into **${TARGET_BRANCH}** via branch \`${SYNC_REF}\`." \
+              "- Merge when ready; CI on this PR validates the combined tree." \
+              "- If this workflow reported a merge conflict, resolve locally, push to \`${SYNC_REF}\`, then merge this PR.")"
+            gh pr create --repo "${REPO}" --base "${TARGET_BRANCH}" --head "${SYNC_REF}" \
+              --title "chore(ci): sync main into ${TARGET_BRANCH}" \
+              --body "${body}"
+          else
+            echo "Open PR already exists for head ${SYNC_REF} → base ${TARGET_BRANCH}; push updated the branch."
+          fi

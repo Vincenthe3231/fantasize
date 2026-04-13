@@ -15,10 +15,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const body = (await req.json()) as {
-      executionKind?: string;
-      context?: Record<string, unknown>;
-    };
+    let body: { executionKind?: string; context?: Record<string, unknown> };
+    try {
+      body = (await req.json()) as { executionKind?: string; context?: Record<string, unknown> };
+    } catch (parseErr) {
+      const msg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+      return json({ ok: false, error: `Invalid JSON body: ${msg}` }, 400);
+    }
 
     const executionKind = body.executionKind as ScoutExecutionKind | undefined;
     const context = body.context ?? {};

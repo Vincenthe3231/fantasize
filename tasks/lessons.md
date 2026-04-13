@@ -24,6 +24,13 @@ _Date: 2026-04-10._
 
 _Date: 2026-04-13._
 
+## OpenRouter image responses: strict SDK parse vs broken JSON / odd error bodies
+
+- **Symptoms:** `Bad control character in string literal in JSON` (often **unescaped newlines inside a long `data:` URL** in the HTTP body), or **`Response validation failed` → `at error`** when the HTTP **error JSON** does not match **`@openrouter/sdk`** Zod shapes (e.g. missing nested `error` object).
+- **Pattern:** Stage 2 / Stage 3 **image** path uses **`postOpenRouterChatCompletions`** (`openrouterChatCompletionFetch.ts`): **`fetch`** + **`parseOpenRouterChatResponseJson`** (strips raw **ASCII controls inside JSON strings** then **`JSON.parse`**). **`OPENROUTER_API_BASE`** overrides the default **`https://openrouter.ai/api/v1`**.
+
+_Date: 2026-04-13._
+
 ## Automated Lighthouse + Puppeteer (shell perf harness)
 
 - **Use:** regression signal on **lab** performance (main-thread / load) for the **app shell** — not a substitute for field INP; dense canvas scenarios need auth/fixtures before this harness covers them.

@@ -1,14 +1,16 @@
 /// <reference path="./env.d.ts" />
 /** OpenRouter image generation for Stage 2 Image Generator (non-streaming chat + modalities). */
 
-import { OpenRouter } from '@openrouter/sdk';
 import {
   aspectToOpenRouterImageConfig,
   buildStage2ImageGenUserContentParts,
   type ImageGenUserContentPart,
 } from './stage2ImageGenBuild.ts';
 import { resolveImageGenModelForMode } from './imageGenModeModel.ts';
-import { formatOpenRouterSdkError } from './openRouterSdkError.ts';
+import {
+  postOpenRouterChatCompletions,
+  summarizeOpenRouterErrorBody,
+} from './openrouterChatCompletionFetch.ts';
 
 function openRouterMeta() {
   const httpReferer = Deno.env.get('OPENROUTER_HTTP_REFERER') ?? 'https://vision-forge.local';
@@ -29,16 +31,18 @@ function parseModalities(): Array<'text' | 'image'> {
   return ['image', 'text'];
 }
 
-/** Map our lightweight parts to SDK user message content (OpenAI-compatible multimodal). */
-function toSdkUserContent(parts: ImageGenUserContentPart[]): unknown[] {
+/** OpenAI/OpenRouter wire shape for POST /chat/completions (snake_case image_url). */
+function toWireUserContent(parts: ImageGenUserContentPart[]): Array<Record<string, unknown>> {
   return parts.map((p) => {
     if (p.type === 'text') {
       return { type: 'text', text: p.text };
     }
-    return {
+    const out: Record<string, unknown> = {
       type: 'image_url',
-      imageUrl: p.imageUrl,
+      image_url: { url: p.imageUrl.url },
     };
+    if (p.imageUrl.detail) (out.image_url as Record<string, unknown>).detail = p.imageUrl.detail;
+    return out;
   });
 }
 
@@ -83,34 +87,35 @@ export async function generateStage2ImageViaOpenRouter(
   const temperature = resolveTemperature(context, 0.4);
   const seed = resolveSeed(context);
 
-  const openrouter = new OpenRouter({
+  const wireBody: Record<string, unknown> = {
+    model,
+    messages: [{ role: 'user', content: toWireUserContent(userParts) }],
+    modalities,
+    stream: false,
+    temperature,
+    ...(seed != null ? { seed } : {}),
+    ...(aspect ? { image_config: aspect } : {}),
+  };
+
+  const fetched = await postOpenRouterChatCompletions({
     apiKey: apiKey.trim(),
     httpReferer,
     appTitle,
+    body: wireBody,
   });
 
   let result: unknown;
-  try {
-    result = await openrouter.chat.send({
-      httpReferer,
-      appTitle,
-      chatRequest: {
-        model,
-        messages: [{ role: 'user', content: toSdkUserContent(userParts) as unknown }],
-        modalities,
-        stream: false,
-        temperature,
-        ...(seed != null ? { seed } : {}),
-        ...(aspect ? { imageConfig: aspect } : {}),
-      },
-    });
-  } catch (e) {
-    const detail = formatOpenRouterSdkError(e);
-    console.error('[scout-execute] stage2_image_generator chat.send failed', detail);
+  if (!fetched.ok) {
+    const detail = summarizeOpenRouterErrorBody(fetched.raw);
+    console.error(
+      `[scout-execute] stage2_image_generator OpenRouter HTTP ${fetched.status} model=${model}`,
+      detail
+    );
     throw new Error(
-      `OpenRouter SDK rejected the image response (schema mismatch). Check OPENROUTER_IMAGE_GEN_MODEL / modalities. ${detail}`
+      `OpenRouter image request failed (HTTP ${fetched.status}). Check OPENROUTER_IMAGE_GEN_MODEL / modalities / API key. ${detail}`
     );
   }
+  result = fetched.data;
 
   if (!result || typeof result !== 'object' || !('choices' in result)) {
     throw new Error('OpenRouter image generation returned an empty or invalid response');
