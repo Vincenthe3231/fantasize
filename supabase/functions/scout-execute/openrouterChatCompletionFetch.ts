@@ -6,6 +6,8 @@
  * omit the `{ error: { code, message } }` shape the SDK expects.
  */
 
+import { parseJsonLenient } from './jsonLenientParse.ts';
+
 const DEFAULT_BASE = 'https://openrouter.ai/api/v1';
 
 export function openRouterApiBase(): string {
@@ -14,60 +16,19 @@ export function openRouterApiBase(): string {
   return raw.replace(/\/$/, '');
 }
 
-/**
- * Remove raw ASCII control characters (U+0000–U+001F) when they appear *inside*
- * JSON string values without a backslash escape. Valid JSON never contains these
- * unescaped; some APIs still emit them inside base64 data URLs.
- */
-export function stripUnescapedAsciiControlsInJsonStrings(input: string): string {
-  let out = '';
-  let inString = false;
-  let escaped = false;
-  for (let i = 0; i < input.length; i++) {
-    const c = input[i]!;
-    if (!inString) {
-      if (c === '"') inString = true;
-      out += c;
-      continue;
-    }
-    if (escaped) {
-      out += c;
-      escaped = false;
-      continue;
-    }
-    if (c === '\\') {
-      out += c;
-      escaped = true;
-      continue;
-    }
-    if (c === '"') {
-      inString = false;
-      out += c;
-      continue;
-    }
-    const code = c.charCodeAt(0);
-    if (code < 0x20) {
-      continue;
-    }
-    out += c;
-  }
-  return out;
-}
-
+/** @deprecated use parseJsonLenient from jsonLenientParse.ts */
 export function parseOpenRouterChatResponseJson(raw: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch (first) {
-    if (!(first instanceof SyntaxError)) throw first;
-    const repaired = stripUnescapedAsciiControlsInJsonStrings(raw);
-    return JSON.parse(repaired);
-  }
+  return parseJsonLenient(raw);
 }
 
 export function summarizeOpenRouterErrorBody(raw: string, maxLen = 800): string {
   const slice = raw.length > maxLen ? `${raw.slice(0, maxLen)}…` : raw;
   try {
     const o = JSON.parse(raw) as Record<string, unknown>;
+    if (typeof o.detail === 'string' && o.detail.length > 0) {
+      const title = typeof o.title === 'string' ? `${o.title}: ` : '';
+      return `${title}${o.detail}`;
+    }
     const err = o.error;
     if (typeof err === 'string') return err;
     if (err && typeof err === 'object' && typeof (err as { message?: unknown }).message === 'string') {
@@ -78,6 +39,33 @@ export function summarizeOpenRouterErrorBody(raw: string, maxLen = 800): string 
     /* fall through */
   }
   return slice.trim() || `HTTP error (body not JSON)`;
+}
+
+/** User-facing line for failed OpenRouter HTTP responses (incl. Cloudflare 1102 on openrouter.ai). */
+export function formatOpenRouterImageHttpError(status: number, raw: string): string {
+  const summary = summarizeOpenRouterErrorBody(raw);
+  try {
+    const o = JSON.parse(raw) as {
+      error_code?: number;
+      error_name?: string;
+      cloudflare_error?: boolean;
+      retryable?: boolean;
+    };
+    const cf =
+      o.cloudflare_error === true ||
+      o.error_code === 1102 ||
+      o.error_name === 'worker_exceeded_resources';
+    if (status === 503 && cf) {
+      return (
+        `OpenRouter returned HTTP ${status} (edge resource limit / Cloudflare 1102). ` +
+        `Send a smaller request: fewer reference images (see OPENROUTER_IMAGE_GEN_MAX_ANCHORS), ` +
+        `shorter prompt, or a lighter image model. ${summary}`
+      );
+    }
+  } catch {
+    /* use generic */
+  }
+  return `OpenRouter image request failed (HTTP ${status}). Check OPENROUTER_IMAGE_GEN_MODEL / modalities / API key. ${summary}`;
 }
 
 export async function postOpenRouterChatCompletions(params: {
@@ -106,7 +94,7 @@ export async function postOpenRouterChatCompletions(params: {
   }
 
   try {
-    const data = parseOpenRouterChatResponseJson(raw);
+    const data = parseJsonLenient(raw);
     return { ok: true, data };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

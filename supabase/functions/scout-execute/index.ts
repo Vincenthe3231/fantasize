@@ -1,4 +1,5 @@
 import { handleScoutStage } from './stageHandlers.ts';
+import { parseJsonLenient } from './jsonLenientParse.ts';
 import { formatOpenRouterSdkError } from './openRouterSdkError.ts';
 import type { ScoutExecutionKind } from './types.ts';
 
@@ -17,7 +18,8 @@ Deno.serve(async (req) => {
   try {
     let body: { executionKind?: string; context?: Record<string, unknown> };
     try {
-      body = (await req.json()) as { executionKind?: string; context?: Record<string, unknown> };
+      const raw = await req.text();
+      body = parseJsonLenient(raw) as { executionKind?: string; context?: Record<string, unknown> };
     } catch (parseErr) {
       const msg = parseErr instanceof Error ? parseErr.message : String(parseErr);
       return json({ ok: false, error: `Invalid JSON body: ${msg}` }, 400);

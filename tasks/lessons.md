@@ -27,7 +27,8 @@ _Date: 2026-04-13._
 ## OpenRouter image responses: strict SDK parse vs broken JSON / odd error bodies
 
 - **Symptoms:** `Bad control character in string literal in JSON` (often **unescaped newlines inside a long `data:` URL** in the HTTP body), or **`Response validation failed` → `at error`** when the HTTP **error JSON** does not match **`@openrouter/sdk`** Zod shapes (e.g. missing nested `error` object).
-- **Pattern:** Stage 2 / Stage 3 **image** path uses **`postOpenRouterChatCompletions`** (`openrouterChatCompletionFetch.ts`): **`fetch`** + **`parseOpenRouterChatResponseJson`** (strips raw **ASCII controls inside JSON strings** then **`JSON.parse`**). **`OPENROUTER_API_BASE`** overrides the default **`https://openrouter.ai/api/v1`**.
+- **Pattern:** Stage 2 / Stage 3 **image** path uses **`postOpenRouterChatCompletions`** (`openrouterChatCompletionFetch.ts`): **`fetch`** + **`parseJsonLenient`** (`jsonLenientParse.ts`). **`OPENROUTER_API_BASE`** overrides the default **`https://openrouter.ai/api/v1`**.
+- **Cloudflare 1102 / HTTP 503 on `openrouter.ai`:** OpenRouter’s edge may terminate oversized multimodal requests. Mitigations: default **`OPENROUTER_IMAGE_GEN_MAX_ANCHORS=3`**, **`MAX_IMAGE_GEN_COMBINED_TEXT_CHARS`**, and **`formatOpenRouterImageHttpError`** user-facing copy. **`scout-execute` POST body** uses **`parseJsonLenient`** after **`req.text()`** so slightly broken inbound JSON (raw controls in strings) still parses.
 
 _Date: 2026-04-13._
 

@@ -25,15 +25,18 @@ describe('stage2ImageGenBuild', () => {
   it('filters blob and dedupes anchor URLs (all distinct anchors kept)', () => {
     const u = 'https://example.com/a.jpg';
     const many = Array.from({ length: 8 }, (_, i) => `https://example.com/ref${i}.jpg`);
-    const urls = filterAnchorImageUrls([
-      ...many,
-      many[0],
-      u,
-      u,
-      'blob:http://local/x',
-      'not-a-url',
-      ...Array.from({ length: 10 }, () => `${u}?x`),
-    ]);
+    const urls = filterAnchorImageUrls(
+      [
+        ...many,
+        many[0],
+        u,
+        u,
+        'blob:http://local/x',
+        'not-a-url',
+        ...Array.from({ length: 10 }, () => `${u}?x`),
+      ],
+      99
+    );
     expect(urls).toEqual([...many, u, `${u}?x`]);
     expect(isUsableHttpImageUrl('blob:x')).toBe(false);
     expect(isUsableMultimodalImageUrl('blob:x')).toBe(false);

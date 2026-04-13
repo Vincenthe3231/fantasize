@@ -81,7 +81,25 @@ function normalizeConstraintText(input: string): string {
   return deduped.join('\n');
 }
 
-export function filterAnchorImageUrls(urls: unknown): string[] {
+/**
+ * Default cap on anchors sent to OpenRouter per request (Cloudflare 1102 / worker limits on large multimodal payloads).
+ * Override on the edge with `OPENROUTER_IMAGE_GEN_MAX_ANCHORS` (1–8). Vitest uses max 8 when Deno is absent.
+ */
+export const DEFAULT_MAX_ANCHOR_IMAGES_EDGE = 3;
+
+/** Combined text + TOON brief cap (characters) to keep requests within OpenRouter edge limits. */
+export const MAX_IMAGE_GEN_COMBINED_TEXT_CHARS = 14_000;
+
+function resolveMaxAnchorImagesForEdge(): number {
+  if (typeof Deno !== 'undefined' && typeof Deno.env?.get === 'function') {
+    const raw = Deno.env.get('OPENROUTER_IMAGE_GEN_MAX_ANCHORS')?.trim();
+    const n = raw ? parseInt(raw, 10) : DEFAULT_MAX_ANCHOR_IMAGES_EDGE;
+    return Number.isFinite(n) && n >= 1 && n <= 8 ? n : DEFAULT_MAX_ANCHOR_IMAGES_EDGE;
+  }
+  return 8;
+}
+
+export function filterAnchorImageUrls(urls: unknown, maxAnchors = 8): string[] {
   if (!Array.isArray(urls)) return [];
   const out: string[] = [];
   const seen = new Set<string>();
@@ -90,6 +108,7 @@ export function filterAnchorImageUrls(urls: unknown): string[] {
     if (!isUsableMultimodalImageUrl(s) || seen.has(s)) continue;
     seen.add(s);
     out.push(s);
+    if (out.length >= maxAnchors) break;
   }
   return out;
 }
@@ -98,12 +117,17 @@ export function filterAnchorImageUrls(urls: unknown): string[] {
  * Multimodal user message: text first, then reference images (detail low to reduce payload).
  */
 export function buildStage2ImageGenUserContentParts(context: Record<string, unknown>): ImageGenUserContentPart[] {
-  const anchors = filterAnchorImageUrls(context.anchorImageUrls);
+  const maxAnchors = resolveMaxAnchorImagesForEdge();
+  const anchors = filterAnchorImageUrls(context.anchorImageUrls, maxAnchors);
   let text = buildStage2ImageGenFinalPrompt(context);
   if (!text) text = 'Generate a single high-quality image matching the creative brief.';
   if (anchors.length > 0) {
     text =
       `Reference image(s) are provided below for layout, composition, or style. Follow the text brief and use references as appropriate.\n\n${text}`;
+  }
+  if (text.length > MAX_IMAGE_GEN_COMBINED_TEXT_CHARS) {
+    text =
+      `${text.slice(0, MAX_IMAGE_GEN_COMBINED_TEXT_CHARS)}\n\n[Prompt truncated for model request size]`;
   }
 
   const parts: ImageGenUserContentPart[] = [{ type: 'text', text }];

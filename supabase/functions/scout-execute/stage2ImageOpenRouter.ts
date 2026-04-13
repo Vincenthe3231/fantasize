@@ -7,10 +7,7 @@ import {
   type ImageGenUserContentPart,
 } from './stage2ImageGenBuild.ts';
 import { resolveImageGenModelForMode } from './imageGenModeModel.ts';
-import {
-  postOpenRouterChatCompletions,
-  summarizeOpenRouterErrorBody,
-} from './openrouterChatCompletionFetch.ts';
+import { formatOpenRouterImageHttpError, postOpenRouterChatCompletions } from './openrouterChatCompletionFetch.ts';
 
 function openRouterMeta() {
   const httpReferer = Deno.env.get('OPENROUTER_HTTP_REFERER') ?? 'https://vision-forge.local';
@@ -106,14 +103,12 @@ export async function generateStage2ImageViaOpenRouter(
 
   let result: unknown;
   if (!fetched.ok) {
-    const detail = summarizeOpenRouterErrorBody(fetched.raw);
+    const detail = formatOpenRouterImageHttpError(fetched.status, fetched.raw);
     console.error(
       `[scout-execute] stage2_image_generator OpenRouter HTTP ${fetched.status} model=${model}`,
       detail
     );
-    throw new Error(
-      `OpenRouter image request failed (HTTP ${fetched.status}). Check OPENROUTER_IMAGE_GEN_MODEL / modalities / API key. ${detail}`
-    );
+    throw new Error(detail);
   }
   result = fetched.data;
 
