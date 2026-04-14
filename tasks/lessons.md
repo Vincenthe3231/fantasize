@@ -8,6 +8,14 @@
 
 _Date: 2026-04-14._
 
+## Do not re-hydrate from IndexedDB on `visibilitychange` (visible)
+
+- **Symptom:** Switching browser tabs away and back clears or reverts the canvas.
+- **Cause:** `onVisible` read `readSpaceDraft` and called `hydrateFromFull` whenever `draft.clientUpdatedAt > lastLocalWriteAtRef`. A stale/thin draft with a newer timestamp overwrote live memory (same failure mode as boot-time restore).
+- **Fix:** Removed tab-focus IDB re-apply; boot still uses `shouldRestoreDraftFromLocal`. Hidden/pagehide draft **writes** kept for crash recovery.
+
+_Date: 2026-04-14._
+
 ## `/` vs `/w/:spaceId` — “latest space” is not your edited space
 
 - **Symptom:** Same account, “saved to Supabase,” but another browser or tab shows old/empty canvas; reopening one browser still looks correct.

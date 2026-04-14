@@ -8,6 +8,8 @@ export type SystemNotificationItem = {
   subtitle?: string;
   level: SystemNotificationLevel;
   createdAt: number;
+  /** Auto-dismiss after this many ms of wall time (pauses while hovered via pause/resume). */
+  autoDismissMs?: number;
 };
 
 type SystemNotificationState = {
@@ -57,8 +59,9 @@ export const useSystemNotificationStore = create<SystemNotificationState>((set, 
   push: (item) => {
     const id = `sys-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const createdAt = Date.now();
+    const autoDismissMs = item.autoDismissMs ?? AUTO_DISMISS_MS;
     set((state) => {
-      const next = [{ id, createdAt, ...item }, ...state.notifications].slice(0, MAX_NOTIFICATIONS);
+      const next = [{ id, createdAt, ...item, autoDismissMs }, ...state.notifications].slice(0, MAX_NOTIFICATIONS);
       const nextIds = new Set(next.map((n) => n.id));
       for (const n of state.notifications) {
         if (!nextIds.has(n.id)) {
@@ -69,7 +72,7 @@ export const useSystemNotificationStore = create<SystemNotificationState>((set, 
       }
       return { notifications: next };
     });
-    scheduleDismiss(id, AUTO_DISMISS_MS, get().dismiss);
+    scheduleDismiss(id, autoDismissMs, get().dismiss);
   },
   dismiss: (id) => {
     clearDismissTimer(id);

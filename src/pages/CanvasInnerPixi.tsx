@@ -59,25 +59,8 @@ export function CanvasInnerPixi({
   const pauseNotificationAutoDismiss = useSystemNotificationStore((s) => s.pauseAutoDismiss);
   const resumeNotificationAutoDismiss = useSystemNotificationStore((s) => s.resumeAutoDismiss);
 
-  const onApplyExternalDraft = useCallback(
-    (draft: StoredSpaceDraft) => {
-      hydrateFromSpace({
-        id: space.id,
-        nodes: draft.payload.nodes,
-        edges: draft.payload.edges,
-        comments: draft.payload.comments,
-        canvas_drawings: draft.payload.canvas_drawings ?? [],
-        settings: draft.payload.settings,
-        node_grid_layouts: draft.payload.node_grid_layouts,
-        viewport: draft.payload.viewport,
-      });
-    },
-    [space.id, hydrateFromSpace]
-  );
-
   const persistence = useSpaceLocalPersistence(space, {
     initialLastWriteAt,
-    onApplyExternalDraft,
   });
 
   useEffect(() => {
@@ -148,6 +131,8 @@ export function CanvasInnerPixi({
         isRemoteDirtyPending: persistence.isRemoteDirtyPending,
         saveToRemoteNow: persistence.saveToRemoteNow,
         isSavingToRemote: persistence.isSavingToRemote,
+        spaceUpdatedAtIso: persistence.spaceUpdatedAtIso,
+        lastRemoteSaveSucceededAtMs: persistence.lastRemoteSaveSucceededAtMs,
       }}
     >
       <div

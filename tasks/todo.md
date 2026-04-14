@@ -59,6 +59,8 @@ Use **WASM** only for proven hot math paths (edge picking/spatial queries), not 
 
 ## Review
 
+- **Tab switch wipes canvas (2026-04-14):** Removed `visibilitychange` → `onApplyExternalDraft` (IDB re-hydrate on focus). **Verify:** edit canvas → switch tab → return; graph unchanged. `pnpm exec tsc --noEmit`.
+
 - **IDB draft vs Supabase (2026-04-14):** A local draft with **newer** `clientUpdatedAt` could still be a **bad** snapshot (0 edges vs 24 on server) and was restored over the fetched row. **Fix:** `localDraftIsRegressiveVersusServer` + clear draft in `shouldRestoreDraftFromLocal`. **Verify:** `pnpm exec vitest run src/test/spaceDraftRestore.test.ts`.
 
 - **Cross-browser canvas “out of sync” (2026-04-14):** Root cause: opening `/` loads **the latest** `spaces` row by `updated_at`, not necessarily the space you edited; duplicate empty inserts came from a **two-step** head + `fetchSpaceById` when the second call returned null. **Fix:** `Index.tsx` — after resolving default space, `queryClient.setQueryData` + `replace` navigate to `/w/:id`; `spaceApi.fetchOrCreateSpace` — **single** `select` of latest row (no split query), then insert only if none. **Verify:** `pnpm exec tsc --noEmit`; open `/` → `/w/<uuid>`; other browser same URL matches.

@@ -112,6 +112,24 @@ function normalizeSpaceRow(r: Record<string, unknown>): SpaceRow {
   };
 }
 
+/** Thrown when `saveSpace` used optimistic locking and the row’s `updated_at` no longer matched. */
+export class SpaceSaveConflictError extends Error {
+  readonly code = 'SPACE_SAVE_CONFLICT' as const;
+  constructor() {
+    super('Workspace was updated elsewhere; save did not apply.');
+    this.name = 'SpaceSaveConflictError';
+  }
+}
+
+export function isSpaceSaveConflictError(e: unknown): e is SpaceSaveConflictError {
+  return e instanceof SpaceSaveConflictError;
+}
+
+export type SaveSpaceOptions = {
+  /** If set, update only when `spaces.updated_at` still equals this (optimistic concurrency). */
+  expectedUpdatedAt?: string;
+};
+
 export async function saveSpace(
   spaceId: string,
   payload: {
@@ -122,9 +140,10 @@ export async function saveSpace(
     settings: WorkflowSettings;
     node_grid_layouts: Record<string, GridLayout>;
     viewport: ViewportState;
-  }
+  },
+  opts?: SaveSpaceOptions
 ): Promise<SpaceRow> {
-  const { data, error } = await supabase
+  let q = supabase
     .from('spaces')
     .update({
       nodes: payload.nodes as unknown as Json,
@@ -135,10 +154,20 @@ export async function saveSpace(
       node_grid_layouts: payload.node_grid_layouts as unknown as Json,
       viewport: payload.viewport as unknown as Json,
     })
-    .eq('id', spaceId)
-    .select(SPACE_SELECT_FULL)
-    .single();
+    .eq('id', spaceId);
+
+  if (opts?.expectedUpdatedAt) {
+    q = q.eq('updated_at', opts.expectedUpdatedAt);
+  }
+
+  const { data, error } = await q.select(SPACE_SELECT_FULL).maybeSingle();
 
   if (error) throw error;
+  if (opts?.expectedUpdatedAt && !data) {
+    throw new SpaceSaveConflictError();
+  }
+  if (!data) {
+    throw new Error('saveSpace returned no row');
+  }
   return normalizeSpaceRow(data as Record<string, unknown>);
 }

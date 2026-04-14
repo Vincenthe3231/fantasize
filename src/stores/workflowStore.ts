@@ -8,7 +8,7 @@ import {
 } from '@/lib/scoutPipeline';
 import { executeScoutNode, type ScoutRunOptions } from '@/lib/scoutRunCoordinator';
 import { richTextToPlainForScout } from '@/lib/richTextForScout';
-import { notifyError, notifyInfo, notifySuccess } from '@/lib/systemNotify';
+import { notifyError, notifyInfo, notifyProcessComplete, notifySuccess } from '@/lib/systemNotify';
 import { computeReactivePatchesFromSources } from '@/lib/nodeDataflow';
 import {
   DEFAULT_GROUP_H,
@@ -484,7 +484,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
   const runScoutRemoteOnce = async (
     nodeId: string,
     options?: ScoutRunOptions,
-    batchOpts?: { suppressFailureToast?: boolean }
+    batchOpts?: { suppressFailureToast?: boolean; suppressSuccessToast?: boolean }
   ): Promise<{ ok: boolean; reason?: string }> => {
     const s = get();
     const guard = canRunScoutNode(s.nodes, s.scoutPipeline, nodeId);
@@ -536,6 +536,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
           'Scout run failed',
           sub.length > 800 ? `${sub.slice(0, 800)}…` : sub
         );
+      }
+      if (r.ok && !batchOpts?.suppressSuccessToast) {
+        const d = (node.data ?? {}) as { title?: string; labelText?: string };
+        const label =
+          [d.title, d.labelText].filter((x) => typeof x === 'string' && x.trim().length > 0).join(' · ') ||
+          node.type;
+        notifyProcessComplete('Scout step complete', label.length > 120 ? `${label.slice(0, 120)}…` : label);
       }
       return r;
     } catch (e: unknown) {
@@ -1529,7 +1536,11 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
                 if (!g.ok) {
                   skipped++;
                 } else {
-                  const r = await runScoutRemoteOnce(id, { atmosphereBranch: 'text' }, { suppressFailureToast: true });
+                  const r = await runScoutRemoteOnce(
+                    id,
+                    { atmosphereBranch: 'text' },
+                    { suppressFailureToast: true, suppressSuccessToast: true }
+                  );
                   if (r.ok) succeeded++;
                   else failed++;
                 }
@@ -1542,7 +1553,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
                   const r = await runScoutRemoteOnce(
                     id,
                     { atmosphereBranch: 'reference' },
-                    { suppressFailureToast: true }
+                    { suppressFailureToast: true, suppressSuccessToast: true }
                   );
                   if (r.ok) succeeded++;
                   else failed++;
@@ -1558,7 +1569,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
               continue;
             }
             console.debug('[RunAll] executing', id, node.type);
-            const r = await runScoutRemoteOnce(id, undefined, { suppressFailureToast: true });
+            const r = await runScoutRemoteOnce(id, undefined, {
+              suppressFailureToast: true,
+              suppressSuccessToast: true,
+            });
             console.debug('[RunAll] result', id, r.ok, r.reason);
             if (r.ok) succeeded++;
             else failed++;

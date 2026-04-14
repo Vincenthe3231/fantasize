@@ -587,45 +587,8 @@ const CanvasInnerReactFlow = ({
     userSelectionRectRef.current = userSelectionRect ?? null;
   }, [userSelectionRect]);
 
-  const onApplyExternalDraft = useCallback(
-    (draft: StoredSpaceDraft) => {
-      startTransition(() => {
-        hydrateFromSpace({
-          id: space.id,
-          nodes: draft.payload.nodes,
-          edges: draft.payload.edges,
-          comments: draft.payload.comments,
-          canvas_drawings: draft.payload.canvas_drawings ?? [],
-          settings: draft.payload.settings,
-          node_grid_layouts: draft.payload.node_grid_layouts,
-          viewport: draft.payload.viewport,
-        });
-      });
-      const v = draft.payload.viewport;
-      requestAnimationFrame(() => {
-        if (
-          v &&
-          typeof v.x === 'number' &&
-          typeof v.y === 'number' &&
-          typeof v.zoom === 'number'
-        ) {
-          setViewport({ x: v.x, y: v.y, zoom: v.zoom }, { duration: 0 });
-        } else {
-          fitView({ padding: 0.2, duration: 0 });
-        }
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            refreshAllHandleBounds();
-          });
-        });
-      });
-    },
-    [space.id, hydrateFromSpace, setViewport, fitView, refreshAllHandleBounds]
-  );
-
   const persistence = useSpaceLocalPersistence(space, {
     initialLastWriteAt,
-    onApplyExternalDraft,
   });
 
   useEffect(() => {
@@ -1048,6 +1011,10 @@ const CanvasInnerReactFlow = ({
               : 'cursor-pencil'
             : '';
 
+  /** React Flow’s pane sets `cursor: grab` on the hit target; these classes override it for draw mode. */
+  const drawPaneCursorClass =
+    selectedTool === 'draw' ? (drawSubTool === 'eraser' ? 'vf-draw-cursor-eraser' : 'vf-draw-cursor-pencil') : '';
+
   /** While a node body is content-focused, wheel should scroll inside the node (not zoom/pan the canvas). */
   const nodeContentFocusActive = focusedNodeContentId != null;
   /**
@@ -1092,6 +1059,8 @@ const CanvasInnerReactFlow = ({
         isRemoteDirtyPending: persistence.isRemoteDirtyPending,
         saveToRemoteNow: persistence.saveToRemoteNow,
         isSavingToRemote: persistence.isSavingToRemote,
+        spaceUpdatedAtIso: persistence.spaceUpdatedAtIso,
+        lastRemoteSaveSucceededAtMs: persistence.lastRemoteSaveSucceededAtMs,
       }}
     >
     <CanvasStrokeRenderProvider>
@@ -1099,7 +1068,7 @@ const CanvasInnerReactFlow = ({
     <CanvasViewportGestureContext.Provider value={isViewportInteracting}>
     <CanvasViewportImagePolicyBridge>
     <div
-      className={`w-screen h-screen ${hybridBackground ? 'flex min-h-0 flex-col' : ''} ${shellCanvasClass} ${cursorClass} ${showNodeLabels ? '' : 'workflow-hide-labels'} ${isConnectingFromHandle ? 'vf-connecting-edge' : ''} ${selectedTool === 'cut' ? 'vf-snip-tool' : ''} ${hybridEdgeCutoverActive ? 'vf-hybrid-edge-cutover' : ''}`}
+      className={`w-screen h-screen ${hybridBackground ? 'flex min-h-0 flex-col' : ''} ${shellCanvasClass} ${cursorClass} ${drawPaneCursorClass} ${showNodeLabels ? '' : 'workflow-hide-labels'} ${isConnectingFromHandle ? 'vf-connecting-edge' : ''} ${selectedTool === 'cut' ? 'vf-snip-tool' : ''} ${hybridEdgeCutoverActive ? 'vf-hybrid-edge-cutover' : ''}`}
       onClick={handleCanvasClick}
       onContextMenu={handleContextMenu}
       ref={reactFlowWrapper}

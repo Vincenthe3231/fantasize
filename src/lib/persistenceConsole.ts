@@ -40,7 +40,7 @@ export function logLocalDraftCleared(spaceId: string) {
   });
 }
 
-export type RemoteFlushReason = 'explicit';
+export type RemoteFlushReason = 'explicit' | 'autosave' | 'visibility';
 
 export function logRemoteFlush(
   phase: 'start' | 'ok' | 'fail' | 'skip',
@@ -49,7 +49,7 @@ export function logRemoteFlush(
     reason?: RemoteFlushReason;
     durationMs?: number;
     error?: unknown;
-    skipReason?: 'not_dirty' | 'wrong_space';
+    skipReason?: 'not_dirty' | 'wrong_space' | 'flush_in_flight';
     payloadBytesBefore?: number;
     payloadBytesAfter?: number;
     attempt?: number;
@@ -88,6 +88,8 @@ export function logRemoteFlush(
     case 'skip':
       if (detail.skipReason === 'not_dirty') {
         console.debug(PREFIX, 'remoteFlush', 'skipped', { reason: 'not_dirty' });
+      } else if (detail.skipReason === 'flush_in_flight') {
+        console.debug(PREFIX, 'remoteFlush', 'skipped', { skipReason: 'flush_in_flight' });
       } else {
         console.info(PREFIX, 'remoteFlush', 'skipped', {
           spaceId: sid,
