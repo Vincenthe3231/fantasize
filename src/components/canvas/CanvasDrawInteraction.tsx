@@ -1,5 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react';
-import { useReactFlow } from 'reactflow';
+import { useReactFlow, useStoreApi } from 'reactflow';
 import { useCanvasStrokeRender } from '@/contexts/CanvasStrokeRenderContext';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { isCanvasDrawUiBlocklisted } from '@/components/canvas/canvasDrawUiBlocklist';
@@ -10,13 +10,13 @@ type Props = {
 };
 
 /**
- * Freehand draw: pointer path in flow space, preview via `CanvasStrokeRenderContext`, commit on up.
+ * Freehand draw / eraser: pointer path in flow space, preview via `CanvasStrokeRenderContext`, commit on up.
  */
 export function CanvasDrawInteraction({ shellRef }: Props) {
   const selectedTool = useWorkflowStore((s) => s.selectedTool);
-  const commitCanvasStroke = useWorkflowStore((s) => s.commitCanvasStroke);
   const { screenToFlowPosition } = useReactFlow();
-  const { previewPointsRef, requestRedraw } = useCanvasStrokeRender();
+  const storeApi = useStoreApi();
+  const { previewPointsRef, previewMetaRef, requestRedraw } = useCanvasStrokeRender();
 
   const screenToFlowRef = useRef(screenToFlowPosition);
   screenToFlowRef.current = screenToFlowPosition;
@@ -39,11 +39,21 @@ export function CanvasDrawInteraction({ shellRef }: Props) {
       window.removeEventListener('pointercancel', onPointerUp, true);
     };
 
+    const syncPreviewMeta = () => {
+      const st = useWorkflowStore.getState();
+      const sub = st.drawSubTool;
+      previewMetaRef.current =
+        sub === 'eraser'
+          ? { mode: 'eraser', color: st.drawColor, widthPx: st.drawWidthPx }
+          : { mode: 'pencil', color: st.drawColor, widthPx: st.drawWidthPx };
+    };
+
     const onPointerMove = (e: PointerEvent) => {
       if (!capturing || e.pointerId !== activePointerId) return;
       const p = screenToFlowRef.current({ x: e.clientX, y: e.clientY });
       pointsBuf.push([p.x, p.y]);
       previewPointsRef.current = pointsBuf;
+      syncPreviewMeta();
       requestRedraw();
     };
 
@@ -53,8 +63,23 @@ export function CanvasDrawInteraction({ shellRef }: Props) {
       activePointerId = null;
       clearWindowListeners();
       previewPointsRef.current = null;
+      previewMetaRef.current = null;
       requestRedraw();
-      commitCanvasStroke(pointsBuf);
+
+      const st = useWorkflowStore.getState();
+      const zoom = storeApi.getState().transform[2] ?? 1;
+
+      if (st.drawSubTool === 'eraser') {
+        st.commitCanvasEraserGesture(pointsBuf, {
+          zoom,
+          eraserWidthPx: st.drawWidthPx,
+        });
+      } else {
+        st.commitCanvasStroke(pointsBuf, {
+          color: st.drawColor,
+          widthPx: st.drawWidthPx,
+        });
+      }
       pointsBuf.length = 0;
     };
 
@@ -75,6 +100,7 @@ export function CanvasDrawInteraction({ shellRef }: Props) {
         /* ignore */
       }
       previewPointsRef.current = [...pointsBuf];
+      syncPreviewMeta();
       requestRedraw();
 
       window.addEventListener('pointermove', onPointerMove, true);
@@ -90,11 +116,12 @@ export function CanvasDrawInteraction({ shellRef }: Props) {
         capturing = false;
         activePointerId = null;
         previewPointsRef.current = null;
+        previewMetaRef.current = null;
         pointsBuf.length = 0;
         requestRedraw();
       }
     };
-  }, [selectedTool, shellRef, commitCanvasStroke, previewPointsRef, requestRedraw]);
+  }, [selectedTool, shellRef, previewPointsRef, previewMetaRef, requestRedraw, storeApi]);
 
   return null;
 }

@@ -124,8 +124,13 @@ export function PixiHybridBackground() {
         drawPolyline(s.points, s.color, s.widthPx);
       }
       const preview = strokeRenderCtx?.previewPointsRef.current;
+      const pMeta = strokeRenderCtx?.previewMetaRef.current;
       if (preview && preview.length >= 2) {
-        drawPolyline(preview, '#22d3ee', 2.25);
+        if (pMeta?.mode === 'eraser') {
+          drawPolyline(preview, 'rgba(148,163,184,0.85)', pMeta.widthPx);
+        } else {
+          drawPolyline(preview, pMeta?.color ?? '#22d3ee', pMeta?.widthPx ?? 2.25);
+        }
       }
     }
 

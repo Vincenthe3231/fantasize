@@ -55,21 +55,21 @@ export async function fetchSpaceById(_ownerId: string, spaceId: string): Promise
 }
 
 export async function fetchOrCreateSpace(ownerId: string): Promise<SpaceRow> {
-  /** Tiny first round-trip: only `id` to pick latest space without pulling multi‑MB JSON twice. */
-  const { data: head, error: headErr } = await supabase
+  /**
+   * One round-trip for the latest row. A prior two-step (`id` head + `fetchSpaceById`) could return
+   * null on the second call while the head existed (session/RLS timing), which then either inserted
+   * a duplicate empty space (old behavior) or threw (breaking the canvas load). Single query avoids that.
+   */
+  const { data: latest, error: latestErr } = await supabase
     .from('spaces')
-    .select('id')
+    .select(SPACE_SELECT_FULL)
     .eq('owner_id', ownerId)
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (headErr) throw headErr;
-
-  if (head?.id) {
-    const full = await fetchSpaceById(ownerId, head.id);
-    if (full) return full;
-  }
+  if (latestErr) throw latestErr;
+  if (latest) return normalizeSpaceRow(latest as Record<string, unknown>);
 
   const { nodes, edges } = scoutTemplate();
   const defaultViewport: ViewportState = { x: 0, y: 0, zoom: 1 };

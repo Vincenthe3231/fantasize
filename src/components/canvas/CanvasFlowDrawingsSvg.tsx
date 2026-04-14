@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useStore, useStoreApi } from 'reactflow';
-import { useCanvasStrokeRender } from '@/contexts/CanvasStrokeRenderContext';
+import { useCanvasStrokeRender, type DrawPreviewMeta } from '@/contexts/CanvasStrokeRenderContext';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import type { CanvasStroke } from '@/lib/canvasStrokeUtils';
 
@@ -9,11 +9,17 @@ function rebuildSvg(
   svg: SVGSVGElement,
   strokes: CanvasStroke[],
   preview: [number, number][] | null,
+  previewMeta: DrawPreviewMeta | null,
   zoom: number
 ): void {
   while (svg.firstChild) svg.removeChild(svg.firstChild);
   const z = Math.max(zoom, 1e-6);
-  const addPoly = (pts: [number, number][], stroke: string, widthPx: number) => {
+  const addPoly = (
+    pts: [number, number][],
+    stroke: string,
+    widthPx: number,
+    extra?: { dash?: string }
+  ) => {
     if (pts.length < 2) return;
     const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
     poly.setAttribute('fill', 'none');
@@ -21,6 +27,7 @@ function rebuildSvg(
     poly.setAttribute('stroke-width', String(widthPx / z));
     poly.setAttribute('stroke-linecap', 'round');
     poly.setAttribute('stroke-linejoin', 'round');
+    if (extra?.dash) poly.setAttribute('stroke-dasharray', extra.dash);
     poly.setAttribute('points', pts.map((p) => `${p[0]},${p[1]}`).join(' '));
     svg.appendChild(poly);
   };
@@ -28,7 +35,11 @@ function rebuildSvg(
     addPoly(s.points, s.color, s.widthPx);
   }
   if (preview && preview.length >= 2) {
-    addPoly(preview, '#22d3ee', 2.25);
+    if (previewMeta?.mode === 'eraser') {
+      addPoly(preview, 'rgba(148,163,184,0.9)', previewMeta.widthPx, { dash: '4 3' });
+    } else {
+      addPoly(preview, previewMeta?.color ?? '#22d3ee', previewMeta?.widthPx ?? 2.25);
+    }
   }
 }
 
@@ -42,7 +53,7 @@ export function CanvasFlowDrawingsSvg() {
   const [viewportEl, setViewportEl] = useState<HTMLElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const strokesRef = useRef<CanvasStroke[]>([]);
-  const { previewPointsRef, registerRedraw } = useCanvasStrokeRender();
+  const { previewPointsRef, previewMetaRef, registerRedraw } = useCanvasStrokeRender();
 
   useLayoutEffect(() => {
     const vp = domNode?.querySelector('.react-flow__viewport') ?? null;
@@ -53,8 +64,8 @@ export function CanvasFlowDrawingsSvg() {
     const svg = svgRef.current;
     if (!svg) return;
     const [, , zoom] = store.getState().transform;
-    rebuildSvg(svg, strokesRef.current, previewPointsRef.current, zoom);
-  }, [previewPointsRef, store]);
+    rebuildSvg(svg, strokesRef.current, previewPointsRef.current, previewMetaRef.current, zoom);
+  }, [previewPointsRef, previewMetaRef, store]);
 
   useEffect(() => {
     strokesRef.current = useWorkflowStore.getState().canvasDrawings;

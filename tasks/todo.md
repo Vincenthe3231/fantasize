@@ -59,7 +59,13 @@ Use **WASM** only for proven hot math paths (edge picking/spatial queries), not 
 
 ## Review
 
+- **IDB draft vs Supabase (2026-04-14):** A local draft with **newer** `clientUpdatedAt` could still be a **bad** snapshot (0 edges vs 24 on server) and was restored over the fetched row. **Fix:** `localDraftIsRegressiveVersusServer` + clear draft in `shouldRestoreDraftFromLocal`. **Verify:** `pnpm exec vitest run src/test/spaceDraftRestore.test.ts`.
+
+- **Cross-browser canvas “out of sync” (2026-04-14):** Root cause: opening `/` loads **the latest** `spaces` row by `updated_at`, not necessarily the space you edited; duplicate empty inserts came from a **two-step** head + `fetchSpaceById` when the second call returned null. **Fix:** `Index.tsx` — after resolving default space, `queryClient.setQueryData` + `replace` navigate to `/w/:id`; `spaceApi.fetchOrCreateSpace` — **single** `select` of latest row (no split query), then insert only if none. **Verify:** `pnpm exec tsc --noEmit`; open `/` → `/w/<uuid>`; other browser same URL matches.
+
 - **Canvas draw tool + `canvas_drawings` (2026-04-14):** Supabase migration `20260414120000_spaces_canvas_drawings.sql`; `SpaceRow` / drafts / `sanitizeSnapshotForRemoteSave` carry `canvas_drawings`; `workflowStore` `commitCanvasStroke` + undo/redo; hybrid **Pixi** stroke layer + non-hybrid **SVG** portal into `.react-flow__viewport`; `CanvasDrawInteraction` (pane, flow coords, UI blocklist); `cursor-crosshair` + cursor trails off while drawing. **Verify:** `pnpm exec tsc --noEmit`; `pnpm test` (Vitest may still report unrelated Supabase auth unhandled rejections in some files).
+
+- **Draw UX bar (2026-04-14):** Bottom-center `CanvasDrawControls` (pencil/eraser, swatches + color input, width slider; `data-vf-no-draw`). Store: `drawColor` / `drawWidthPx` / `drawSubTool`, `commitCanvasEraserGesture`; `previewMetaRef` for pencil vs eraser preview; segment eraser in `canvasStrokeEraser.ts`; `.cursor-pencil` for pencil mode. **Verify:** `pnpm exec vitest run src/test/canvasStrokeEraser.test.ts`; manual draw/erase/undo on canvas.
 
 - **Marquee selection (2026-04-13):** `getNodesMarqueeIntersectRect` in `Index.tsx` — select nodes whose measured bbox **intersects** the marquee (`overlap > 0`), not 100% containment; still skips unmeasured `width`/`height`. **`pnpm exec tsc --noEmit`** OK.
 

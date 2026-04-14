@@ -1,5 +1,44 @@
 # Lessons (session corrections)
 
+## “Newer” IndexedDB draft must not wipe a full Supabase graph
+
+- **Symptom:** Preview build shows full canvas; another port / browser has empty or stale graph even after remote save. IDB shows `draft:<spaceId>` with a **newer** `clientUpdatedAt` than the server but a **bad** payload (no edges, etc.).
+- **Cause:** `shouldRestoreDraftFromLocal` trusted **only** `clientUpdatedAt > space.updated_at`. A stray `writeSpaceDraft` (race, clock skew, bad snapshot) could win over the row fetched from Postgres.
+- **Fix:** `localDraftIsRegressiveVersusServer` — if the draft would clearly **lose** work vs the server row (e.g. empty graph, or ≥8 server edges and **0** draft edges), **clear** the draft and hydrate from Supabase.
+
+_Date: 2026-04-14._
+
+## `/` vs `/w/:spaceId` — “latest space” is not your edited space
+
+- **Symptom:** Same account, “saved to Supabase,” but another browser or tab shows old/empty canvas; reopening one browser still looks correct.
+- **Cause:** `/` uses `fetchOrCreateSpace` → **latest row** by `updated_at`. Multiple `spaces` rows per user mean you can edit space **A** while **B** stays “latest,” or a duplicate empty insert becomes latest. Same-browser reopen can still show **local draft** or the row you last loaded under `/w/:id` in session.
+- **Fix:** Pin the workspace in the URL (`/w/<uuid>`); after default resolve, replace-state navigate and seed React Query cache for that id.
+
+_Date: 2026-04-14._
+
+## `fetchOrCreateSpace`: avoid head + full split query
+
+- **Symptom:** Canvas empty or load error after a `spaceApi` change; “progress gone” in browser.
+- **Cause:** `id`-only head then `fetchSpaceById` could yield **no row** on the second request while the first succeeded (session/RLS timing). Follow-up either **inserted a duplicate empty space** or **threw**, breaking hydration. IndexedDB drafts are keyed by `spaceId` — a new id means drafts no longer apply.
+- **Fix:** Load latest space with **one** `select(SPACE_SELECT_FULL)…eq(owner_id)…order(updated_at)…limit(1)`; insert only when zero rows.
+
+_Date: 2026-04-14._
+
+## `normalizeSnapshotPayload` must tolerate missing `payload`
+
+- **Symptom:** `TypeError: Cannot read properties of undefined (reading 'canvas_drawings')` in `spaceDraftStorage.ts` when restoring a draft from IndexedDB/localStorage.
+- **Cause:** Legacy or corrupted stored rows can omit `payload` or store a non-object; `withNormalizedDraft` still called `normalizeSnapshotPayload(d.payload)`.
+- **Fix:** Treat `null` / non-object `p` as empty snapshot; for objects, default `nodes`/`edges`/etc. with `Array.isArray` / shape checks instead of only spreading `...p`.
+
+_Date: 2026-04-14._
+
+## Draw toolbar must be excluded from pane draw hit-testing
+
+- **Symptom:** Starting a stroke when clicking the bottom draw palette, or odd gesture behavior near controls.
+- **Fix:** Put the floating bar in a container with **`data-vf-no-draw`** (see `isCanvasDrawUiBlocklist`) so `CanvasDrawInteraction` does not treat it as the pane.
+
+_Date: 2026-04-14._
+
 ## PostgREST `42703` after adding a `spaces` column to `select`
 
 - **Symptom:** `GET …/rest/v1/spaces?select=…,canvas_drawings,…` returns **400** with **`"code":"42703"`** and **`column spaces.canvas_drawings does not exist`**.

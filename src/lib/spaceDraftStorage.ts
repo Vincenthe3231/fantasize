@@ -2,11 +2,16 @@ import type { Node, Edge } from 'reactflow';
 import { createStore, get, set, del } from 'idb-keyval';
 import { logLocalDraftWrite } from '@/lib/persistenceConsole';
 import { DEFAULT_WORKFLOW_SETTINGS, type Comment, type GridLayout, type WorkflowSettings } from '@/stores/workflowStore';
-import type { SpaceRow, ViewportState } from '@/lib/spaceApi';
+import { DEFAULT_VIEWPORT, type SpaceRow, type ViewportState } from '@/lib/spaceApi';
 import type { CanvasStroke } from '@/lib/canvasStrokeUtils';
 
 const LS_KEY_PREFIX = 'vf-space-draft:';
 
+/**
+ * IndexedDB (`vision-forge-drafts-v2` / `space-drafts`) keys:
+ * - `draft:<spaceUuid>` — full `StoredSpaceDraft` (graph + `clientUpdatedAt`, etc.). This is your canvas backup.
+ * - `__vf_store_open__` — **not** a draft: single timestamp written once to force the DB open in DevTools. Ignore it; it has no `payload`.
+ */
 /** Dedicated DB so drafts are isolated and easy to clear (bumped name so a fresh DB is created after full site-data wipe). */
 /** DB name `vision-forge-drafts-v2` (DevTools shows this, not legacy `vision-forge-drafts`). */
 const draftStore =
@@ -21,7 +26,8 @@ export async function ensureDraftIndexedDbOpened(): Promise<void> {
   if (!draftStore || draftStoreOpenAttempted) return;
   draftStoreOpenAttempted = true;
   try {
-    await set('__vf_store_open__', { t: Date.now() }, draftStore);
+    /** Plain number so DevTools does not look like a broken draft (`{ t }` was confused with real drafts). */
+    await set('__vf_store_open__', Date.now(), draftStore);
   } catch (e) {
     console.warn('[Vision Forge] IndexedDB draft store init failed:', e);
   }
@@ -68,10 +74,42 @@ export type CanvasSnapshotPayload = {
   viewport: ViewportState;
 };
 
-export function normalizeSnapshotPayload(p: CanvasSnapshotPayload): CanvasSnapshotPayload {
+/** Safe defaults when `payload` is missing, null, or a partial/corrupt object from IDB/localStorage. */
+function emptyCanvasSnapshotPayload(): CanvasSnapshotPayload {
   return {
-    ...p,
+    nodes: [],
+    edges: [],
+    comments: [],
+    canvas_drawings: [],
+    settings: { ...DEFAULT_WORKFLOW_SETTINGS },
+    node_grid_layouts: {},
+    viewport: { ...DEFAULT_VIEWPORT },
+  };
+}
+
+export function normalizeSnapshotPayload(
+  p: CanvasSnapshotPayload | null | undefined
+): CanvasSnapshotPayload {
+  if (p == null || typeof p !== 'object') {
+    return emptyCanvasSnapshotPayload();
+  }
+  return {
+    nodes: Array.isArray(p.nodes) ? p.nodes : [],
+    edges: Array.isArray(p.edges) ? p.edges : [],
+    comments: Array.isArray(p.comments) ? p.comments : [],
     canvas_drawings: p.canvas_drawings ?? [],
+    settings:
+      p.settings && typeof p.settings === 'object' && !Array.isArray(p.settings)
+        ? { ...DEFAULT_WORKFLOW_SETTINGS, ...p.settings }
+        : { ...DEFAULT_WORKFLOW_SETTINGS },
+    node_grid_layouts:
+      p.node_grid_layouts && typeof p.node_grid_layouts === 'object' && !Array.isArray(p.node_grid_layouts)
+        ? p.node_grid_layouts
+        : {},
+    viewport:
+      p.viewport && typeof p.viewport === 'object' && !Array.isArray(p.viewport)
+        ? p.viewport
+        : { ...DEFAULT_VIEWPORT },
   };
 }
 
@@ -321,6 +359,27 @@ export async function clearSpaceDraft(spaceId: string): Promise<void> {
 }
 
 /**
+ * A draft can have a *newer* `clientUpdatedAt` than `space.updated_at` (local clock skew, or a stray
+ * `writeSpaceDraft` after a race) yet contain an **empty or stripped** graph. Restoring it would
+ * hide Supabase data — especially painful on a fresh origin/port where IDB is new except one bad write.
+ */
+export function localDraftIsRegressiveVersusServer(
+  payload: CanvasSnapshotPayload,
+  space: SpaceRow
+): boolean {
+  const p = normalizeSnapshotPayload(payload);
+  const sn = space.nodes?.length ?? 0;
+  const se = space.edges?.length ?? 0;
+  const dn = p.nodes.length;
+  const de = p.edges.length;
+  if (sn === 0 && se === 0) return false;
+  if (dn === 0 && de === 0) return true;
+  /** Server has a real graph; local has no edges — typical bad snapshot / race (not “deleted all edges” on a tiny graph). */
+  if (se >= 8 && de === 0) return true;
+  return false;
+}
+
+/**
  * Returns a local draft to hydrate only when it may contain work newer than the server.
  * If IndexedDB was bumped by viewport-only saves but graph+settings match the server row,
  * the draft is cleared and we return null so the UI is not treated as unsaved (no auto-save countdown).
@@ -337,6 +396,11 @@ export async function shouldRestoreDraftFromLocal(
   if (draft.clientUpdatedAt <= serverMs) return null;
 
   if (draftPayloadMatchesServer(draft.payload, space)) {
+    await clearSpaceDraft(spaceId);
+    return null;
+  }
+
+  if (localDraftIsRegressiveVersusServer(draft.payload, space)) {
     await clearSpaceDraft(spaceId);
     return null;
   }

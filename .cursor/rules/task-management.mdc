@@ -9,7 +9,7 @@ alwaysApply: true
 1. **Plan**: Define checkable items in `tasks/todo.md`.
 2. **Verify**: Confirm the plan with the user before implementation.
 3. **Track**: Mark items as completed in real-time.
-4. **Explain**: Concisely provide high-level summaries of changes at each step without filler words.
+4. **Explain**: Concisely provide high-level summaries of changes at each step without filler words, make it as short as possible in compact sentences.
 5. **Document**: Add a summary of results to the `review` section of `tasks/todo.md`.
 6. **Capture**: Update `tasks/lessons.md` immediately following any corrections.
 

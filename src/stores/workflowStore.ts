@@ -38,6 +38,7 @@ import {
   decimateByMinDistance,
   type CanvasStroke,
 } from '@/lib/canvasStrokeUtils';
+import { eraseStrokesAlongPolyline } from '@/lib/canvasStrokeEraser';
 
 export type { CanvasStroke };
 export type { ScoutPipelineState } from '@/lib/scoutPipeline';
@@ -95,6 +96,14 @@ export type SelectedTool =
   | 'comment'
   | 'sticker'
   | 'stickyNote';
+
+/** Sub-mode while `selectedTool === 'draw'` (not persisted on space row). */
+export type DrawSubTool = 'pencil' | 'eraser';
+
+const DEFAULT_DRAW_COLOR = '#22d3ee';
+const DEFAULT_DRAW_WIDTH_PX = 2.25;
+const DRAW_WIDTH_MIN = 1;
+const DRAW_WIDTH_MAX = 24;
 
 export type GridLayout = '1x1' | '2x2' | '3x3';
 
@@ -229,6 +238,10 @@ export interface WorkflowState {
   /** Per `runFromNode` root id: edge ids for that run (unioned into `runningEdges`). */
   runningEdgeIdsByRunSource: Record<string, string[]>;
   selectedTool: SelectedTool;
+  /** Draw tool UI (session-only; strokes persist their own color/width). */
+  drawColor: string;
+  drawWidthPx: number;
+  drawSubTool: DrawSubTool;
   settings: WorkflowSettings;
   pastStack: CanvasCommand[];
   futureStack: CanvasCommand[];
@@ -306,6 +319,9 @@ export interface WorkflowState {
   clearScoutFinalDeliverable: () => void;
 
   setSelectedTool: (tool: SelectedTool) => void;
+  setDrawColor: (color: string) => void;
+  setDrawWidthPx: (width: number) => void;
+  setDrawSubTool: (sub: DrawSubTool) => void;
   setIsDragging: (dragging: boolean) => void;
 
   setHoveredNode: (id: string | null) => void;
@@ -320,6 +336,11 @@ export interface WorkflowState {
 
   /** Append one polyline stroke (flow space); records undo. */
   commitCanvasStroke: (points: [number, number][], opts?: { color?: string; widthPx?: number }) => void;
+  /** Segment eraser: split/remove stroke portions near `eraserPath` (flow space); one undo step. */
+  commitCanvasEraserGesture: (
+    eraserPath: [number, number][],
+    opts: { zoom: number; eraserWidthPx: number }
+  ) => void;
 
   updateSettings: (s: Partial<WorkflowSettings>) => void;
 
@@ -537,6 +558,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     runningEdges: new Set(),
     runningEdgeIdsByRunSource: {},
     selectedTool: 'select',
+    drawColor: DEFAULT_DRAW_COLOR,
+    drawWidthPx: DEFAULT_DRAW_WIDTH_PX,
+    drawSubTool: 'pencil',
     isDragging: false,
     hoveredNodeId: null,
     hoveredImageCell: null,
@@ -1564,6 +1588,21 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
 
     setSelectedTool: (tool) => set({ selectedTool: tool }),
 
+    setDrawColor: (color) => {
+      const c = typeof color === 'string' && color.trim() ? color.trim().slice(0, 32) : DEFAULT_DRAW_COLOR;
+      set({ drawColor: c });
+    },
+
+    setDrawWidthPx: (width) => {
+      const w =
+        typeof width === 'number' && Number.isFinite(width)
+          ? Math.min(DRAW_WIDTH_MAX, Math.max(DRAW_WIDTH_MIN, width))
+          : DEFAULT_DRAW_WIDTH_PX;
+      set({ drawWidthPx: w });
+    },
+
+    setDrawSubTool: (sub) => set({ drawSubTool: sub === 'eraser' ? 'eraser' : 'pencil' }),
+
     addComment: (x, y, author = 'CD') => {
       const cid = `comment-${Date.now()}`;
       const comment: Comment = { id: cid, x, y, text: '', resolved: false, author };
@@ -1633,16 +1672,35 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       const stroke: CanvasStroke = {
         id: sid,
         points: pts,
-        color: (opts?.color?.trim() || '#22d3ee').slice(0, 32),
+        color: (opts?.color?.trim() || DEFAULT_DRAW_COLOR).slice(0, 32),
         widthPx:
           typeof opts?.widthPx === 'number' && Number.isFinite(opts.widthPx) && opts.widthPx > 0
             ? Math.min(48, opts.widthPx)
-            : 2.25,
+            : DEFAULT_DRAW_WIDTH_PX,
       };
       set((s) => ({ canvasDrawings: [...s.canvasDrawings, stroke] }));
       pushCmd({
         undo: () => set((st) => ({ canvasDrawings: st.canvasDrawings.filter((x) => x.id !== sid) })),
         execute: () => set((st) => ({ canvasDrawings: [...st.canvasDrawings, { ...stroke }] })),
+      });
+    },
+
+    commitCanvasEraserGesture: (eraserPath, opts) => {
+      const pts = decimateByMinDistance(eraserPath, 0.35);
+      if (pts.length < 2) return;
+      const zoom = Math.max(opts.zoom, 1e-6);
+      const ew =
+        typeof opts.eraserWidthPx === 'number' && Number.isFinite(opts.eraserWidthPx) && opts.eraserWidthPx > 0
+          ? Math.min(48, opts.eraserWidthPx)
+          : DEFAULT_DRAW_WIDTH_PX;
+      const radiusFlow = (ew * 0.5) / zoom;
+      const before = structuredClone(get().canvasDrawings);
+      const after = eraseStrokesAlongPolyline(before, pts, radiusFlow);
+      if (JSON.stringify(after) === JSON.stringify(before)) return;
+      set({ canvasDrawings: after });
+      pushCmd({
+        undo: () => set({ canvasDrawings: before }),
+        execute: () => set({ canvasDrawings: after }),
       });
     },
 

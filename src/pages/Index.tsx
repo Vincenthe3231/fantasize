@@ -9,6 +9,7 @@ import {
   Suspense,
 } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryClient';
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useViewportHandleBoundsSync } from '@/hooks/useViewportHandleBoundsSync';
 import { fetchOrCreateSpace, fetchSpaceById, isUuidParam, type SpaceRow } from '@/lib/spaceApi';
@@ -19,6 +20,7 @@ import { CanvasViewportGestureContext } from '@/contexts/CanvasViewportGestureCo
 import { CanvasViewportImagePolicyBridge } from '@/contexts/CanvasViewportImagePolicyContext';
 import { CanvasStrokeRenderProvider } from '@/contexts/CanvasStrokeRenderContext';
 import { CanvasDrawInteraction } from '@/components/canvas/CanvasDrawInteraction';
+import { CanvasDrawControls } from '@/components/canvas/CanvasDrawControls';
 import { CanvasFlowDrawingsSvg } from '@/components/canvas/CanvasFlowDrawingsSvg';
 import { useSpaceLocalPersistence } from '@/hooks/useSpaceLocalPersistence';
 import { useAuth } from '@/hooks/useAuth';
@@ -286,6 +288,7 @@ const CanvasInnerReactFlow = ({
   const storeEdges = useWorkflowStore((s) => s.edges);
   const comments = useWorkflowStore((s) => s.comments);
   const selectedTool = useWorkflowStore((s) => s.selectedTool);
+  const drawSubTool = useWorkflowStore((s) => s.drawSubTool);
   /** Narrow settings subscription — avoids rerenders when unrelated `settings` fields change. */
   const { canvasPattern, showNodeLabels, darkMode, showMinimap, mouseWheelBehavior } =
     useWorkflowStore(
@@ -1037,9 +1040,13 @@ const CanvasInnerReactFlow = ({
       ? 'cursor-scissors'
       : selectedTool === 'hand'
         ? 'cursor-grab'
-        : selectedTool === 'connection' || selectedTool === 'draw'
+        : selectedTool === 'connection'
           ? 'cursor-crosshair'
-          : '';
+          : selectedTool === 'draw'
+            ? drawSubTool === 'eraser'
+              ? 'cursor-crosshair'
+              : 'cursor-pencil'
+            : '';
 
   /** While a node body is content-focused, wheel should scroll inside the node (not zoom/pan the canvas). */
   const nodeContentFocusActive = focusedNodeContentId != null;
@@ -1110,6 +1117,7 @@ const CanvasInnerReactFlow = ({
         </Suspense>
       ) : null}
       <CanvasCursor />
+      <CanvasDrawControls />
 
       {(storeNodes.some((n) => n.selected) || storeEdges.some((e) => e.selected)) &&
       (!canvasPerfFlags.deferNonCriticalCanvasUi || deferredUiReady) ? (
@@ -1500,6 +1508,14 @@ function CanvasRoot() {
     enabled: queryEnabled,
     staleTime: Infinity,
   });
+
+  /** `/` uses "latest space by updated_at". Replace with `/w/:id` so bookmarks and other browsers resolve the same row you save to. */
+  useEffect(() => {
+    if (!space?.id || !userId) return;
+    if (loadExplicitSpace) return;
+    queryClient.setQueryData(['canvas-space', userId, space.id], space);
+    navigate(`/w/${space.id}`, { replace: true });
+  }, [space, loadExplicitSpace, navigate, userId]);
 
   const spaceMissing = Boolean(loadExplicitSpace && isSuccess && space === null);
   const spacePending =
