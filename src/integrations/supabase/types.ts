@@ -147,6 +147,7 @@ export type Database = {
       }
       spaces: {
         Row: {
+          canvas_drawings: Json
           comments: Json
           created_at: string
           edges: Json
@@ -160,6 +161,7 @@ export type Database = {
           viewport: Json | null
         }
         Insert: {
+          canvas_drawings?: Json
           comments?: Json
           created_at?: string
           edges?: Json
@@ -173,6 +175,7 @@ export type Database = {
           viewport?: Json | null
         }
         Update: {
+          canvas_drawings?: Json
           comments?: Json
           created_at?: string
           edges?: Json

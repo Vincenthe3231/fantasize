@@ -1,5 +1,13 @@
 # Lessons (session corrections)
 
+## PostgREST `42703` after adding a `spaces` column to `select`
+
+- **Symptom:** `GET …/rest/v1/spaces?select=…,canvas_drawings,…` returns **400** with **`"code":"42703"`** and **`column spaces.canvas_drawings does not exist`**.
+- **Cause:** The **remote** database was never migrated; the app and `SPACE_SELECT_FULL` in `spaceApi.ts` already expect the column.
+- **Fix:** Apply the repo migration to that project (e.g. **`pnpm db:push-sync`** / **`pnpx supabase db push`** with the project linked, or run the SQL from `supabase/migrations/20260414120000_spaces_canvas_drawings.sql` in the Supabase **SQL Editor**). Merging code does not run DDL on production.
+
+_Date: 2026-04-14._
+
 ## Radix `composeEventHandlers` and `preventDefault` on triggers
 
 - **Symptom:** **`DropdownMenu`** / **`Popover`** trigger appears to ignore clicks — menu never opens.

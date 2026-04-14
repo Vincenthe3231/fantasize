@@ -36,6 +36,7 @@ export function sanitizeSnapshotForRemoteSave(payload: CanvasSnapshotPayload): C
     nodes: payload.nodes.map(stripNodeForRemoteSave),
     edges: payload.edges.map(stripEdgeForRemoteSave),
     comments: structuredClone(payload.comments),
+    canvas_drawings: structuredClone(payload.canvas_drawings ?? []),
     settings: structuredClone(payload.settings),
     node_grid_layouts: structuredClone(payload.node_grid_layouts),
     viewport: payload.viewport ? { ...payload.viewport } : payload.viewport,

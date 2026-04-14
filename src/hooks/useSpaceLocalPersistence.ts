@@ -64,6 +64,7 @@ function snapshotFromStore(): CanvasSnapshotPayload {
     nodes: s.nodes,
     edges: s.edges,
     comments: s.comments,
+    canvas_drawings: s.canvasDrawings,
     settings: s.settings,
     node_grid_layouts: s.nodeGridLayouts,
     viewport: s.lastViewport,
@@ -75,6 +76,7 @@ function graphDirty(state: WorkflowState, prev: WorkflowState) {
     state.nodes !== prev.nodes ||
     state.edges !== prev.edges ||
     state.comments !== prev.comments ||
+    state.canvasDrawings !== prev.canvasDrawings ||
     state.settings !== prev.settings ||
     state.nodeGridLayouts !== prev.nodeGridLayouts ||
     state.lastViewport !== prev.lastViewport
@@ -137,6 +139,7 @@ function normalizedGraphDiffers(
 /** Content changes that should bump IndexedDB draft. Excludes viewport-only and selection-only churn. */
 function meaningfulRemoteContentDirty(state: WorkflowState, prev: WorkflowState): boolean {
   if (state.comments !== prev.comments) return true;
+  if (state.canvasDrawings !== prev.canvasDrawings) return true;
   if (state.settings !== prev.settings) return true;
   if (state.nodeGridLayouts !== prev.nodeGridLayouts) return true;
   if (state.nodes === prev.nodes && state.edges === prev.edges) return false;
@@ -159,6 +162,7 @@ function snapshotDiffers(a: CanvasSnapshotPayload, b: CanvasSnapshotPayload): bo
     a.nodes !== b.nodes ||
     a.edges !== b.edges ||
     a.comments !== b.comments ||
+    a.canvas_drawings !== b.canvas_drawings ||
     a.settings !== b.settings ||
     a.node_grid_layouts !== b.node_grid_layouts ||
     a.viewport !== b.viewport
@@ -282,6 +286,7 @@ export function useSpaceLocalPersistence(space: SpaceRow, opts: SpacePersistence
           nodes: savedRow.nodes,
           edges: savedRow.edges,
           comments: savedRow.comments,
+          canvas_drawings: savedRow.canvas_drawings,
           settings: savedRow.settings,
           node_grid_layouts: savedRow.node_grid_layouts,
           viewport: savedRow.viewport,

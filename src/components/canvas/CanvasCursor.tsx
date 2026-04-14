@@ -14,6 +14,7 @@ export function CanvasCursor() {
   const enabled =
     trailsAllowed &&
     selectedTool !== 'hand' &&
+    selectedTool !== 'draw' &&
     !(canvasPerfFlags.reduceMotionDuringDrag && (settings.performanceMode || isDragging));
   useCanvasCursor(canvasRef, enabled);
 

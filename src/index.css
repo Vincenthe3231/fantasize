@@ -406,9 +406,12 @@
 }
 
 /*
- * Static edge SVGs paint below nodes. React Flow renders the drag preview in a *separate* SVG that also
- * uses `react-flow__edges` but adds `react-flow__connectionline` — that layer must stay above nodes or the
- * line is invisible while connecting.
+ * Static edge SVGs paint **above** the node layer (z-index 2 vs nodes 1) so connection paths stay visible
+ * on top of opaque cards. React Flow’s `.react-flow__edges` uses `pointer-events: none` on the SVG so
+ * empty areas pass through to nodes/handles; `.react-flow__edge` / stroke hit paths still receive events.
+ *
+ * React Flow renders the drag preview in a *separate* SVG (`react-flow__connectionline`) — that layer
+ * must stay above static edges or the preview can disappear behind them.
  *
  * IMPORTANT: `.react-flow__container` is `position: absolute; top: 0; left: 0; width/height 100%`. Do not
  * override edge/connection SVGs to `position: relative` — they stop filling the viewport and paths in
@@ -418,11 +421,11 @@
   position: absolute !important;
   top: 0;
   left: 0;
-  z-index: 0 !important;
+  z-index: 2 !important;
 }
 
 /*
- * Must sit above nodes (z-index 1), static edges while connecting (z-index 2), and snip-mode edges (z-index 5).
+ * Must sit above nodes (z-index 1), static edges (z-index 2), and snip-mode edges (z-index 5).
  * If z-index ties static edges (2), sibling paint order can hide the preview entirely.
  */
 .react-flow .react-flow__viewport svg.react-flow__connectionline {
@@ -440,10 +443,9 @@
 }
 
 /*
- * Snip (cut) tool: static edges default below nodes (z-index 0 vs 1), so wires under cards never receive
- * pointer events. Lift the edges SVG above the whole node layer while snipping only — do not set
- * pointer-events: none here (unlike vf-connecting-edge). If both snip and connection-drag classes apply,
- * connecting-edge rules still neutralize hits until the drag ends.
+ * Snip (cut) tool: lift the edges SVG further above nodes so wide hit paths receive pointer events.
+ * Do not set pointer-events: none here (unlike vf-connecting-edge). If both snip and connection-drag
+ * classes apply, connecting-edge rules still neutralize hits until the drag ends.
  */
 .vf-snip-tool .react-flow .react-flow__viewport svg.react-flow__edges:not(.react-flow__connectionline) {
   position: absolute !important;

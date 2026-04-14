@@ -2,6 +2,7 @@ import type { Node, Edge } from 'reactflow';
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 import type { Comment, WorkflowSettings, GridLayout } from '@/stores/workflowStore';
+import { sanitizeCanvasStrokes, type CanvasStroke } from '@/lib/canvasStrokeUtils';
 import { createVirtualProductionScoutTemplate } from '@/stores/workflowStore';
 
 function scoutTemplate(): { nodes: Node[]; edges: Edge[] } {
@@ -19,6 +20,7 @@ export interface SpaceRow {
   nodes: Node[];
   edges: Edge[];
   comments: Comment[];
+  canvas_drawings: CanvasStroke[];
   settings: WorkflowSettings | null;
   node_grid_layouts: Record<string, GridLayout>;
   viewport: ViewportState | null;
@@ -27,7 +29,7 @@ export interface SpaceRow {
 
 /** Explicit columns for reads — avoids `select('*')` shipping unused DB columns / huge accidental payloads. */
 const SPACE_SELECT_FULL =
-  'id,owner_id,name,nodes,edges,comments,settings,node_grid_layouts,viewport,updated_at';
+  'id,owner_id,name,nodes,edges,comments,canvas_drawings,settings,node_grid_layouts,viewport,updated_at';
 
 /** Accepts any canonical 8-4-4-4-12 hex id (matches Postgres `uuid` text form). */
 export function isUuidParam(value: string | undefined): value is string {
@@ -81,6 +83,7 @@ export async function fetchOrCreateSpace(ownerId: string): Promise<SpaceRow> {
         nodes: nodes as unknown as Json,
         edges: edges as unknown as Json,
         comments: [] as unknown as Json,
+        canvas_drawings: [] as unknown as Json,
         settings: null,
         node_grid_layouts: {} as unknown as Json,
         viewport: defaultViewport as unknown as Json,
@@ -101,6 +104,7 @@ function normalizeSpaceRow(r: Record<string, unknown>): SpaceRow {
     nodes: (r.nodes as Node[]) || [],
     edges: (r.edges as Edge[]) || [],
     comments: (r.comments as Comment[]) || [],
+    canvas_drawings: sanitizeCanvasStrokes(r.canvas_drawings ?? []),
     settings: r.settings as WorkflowSettings | null,
     node_grid_layouts: (r.node_grid_layouts as Record<string, GridLayout>) || {},
     viewport: (r.viewport as ViewportState) || { x: 0, y: 0, zoom: 1 },
@@ -114,6 +118,7 @@ export async function saveSpace(
     nodes: Node[];
     edges: Edge[];
     comments: Comment[];
+    canvas_drawings: CanvasStroke[];
     settings: WorkflowSettings;
     node_grid_layouts: Record<string, GridLayout>;
     viewport: ViewportState;
@@ -125,6 +130,7 @@ export async function saveSpace(
       nodes: payload.nodes as unknown as Json,
       edges: payload.edges as unknown as Json,
       comments: payload.comments as unknown as Json,
+      canvas_drawings: payload.canvas_drawings as unknown as Json,
       settings: payload.settings as unknown as Json,
       node_grid_layouts: payload.node_grid_layouts as unknown as Json,
       viewport: payload.viewport as unknown as Json,

@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useContext, useEffect, useRef } from 'react';
 import { Application, Container, Graphics } from 'pixi.js';
 import { useStoreApi } from 'reactflow';
 import type { Viewport2D } from '@/lib/pixiBoard/screenFlowTransform';
 import { canvasPerfFlags } from '@/lib/canvasPerf';
 import { useCanvasViewportGestureActive } from '@/contexts/CanvasViewportGestureContext';
+import { CanvasStrokeRenderContext } from '@/contexts/CanvasStrokeRenderContext';
+import { cssColorToPixiArgb, type CanvasStroke } from '@/lib/canvasStrokeUtils';
+import { useWorkflowStore } from '@/stores/workflowStore';
 
 /**
  * WebGL grid layer behind React Flow DOM (hybrid mode). Does not handle pointer events.
@@ -36,11 +39,14 @@ function visibleFlowBounds(
 }
 
 export function PixiHybridBackground() {
+  const strokeRenderCtx = useContext(CanvasStrokeRenderContext);
   const hostRef = useRef<HTMLDivElement>(null);
   const hostSizeRef = useRef({ width: 0, height: 0 });
   const worldRef = useRef<Container | null>(null);
   const gridRef = useRef<Graphics | null>(null);
+  const strokesRef = useRef<Graphics | null>(null);
   const edgeRef = useRef<Graphics | null>(null);
+  const drawingsRef = useRef<CanvasStroke[]>([]);
   const vpRef = useRef<Viewport2D>({ x: 0, y: 0, zoom: 1 });
   const graphRef = useRef<{
     edgeIds: string[];
@@ -61,6 +67,7 @@ export function PixiHybridBackground() {
     const world = worldRef.current;
     const gGrid = gridRef.current;
     const gEdge = edgeRef.current;
+    const gStroke = strokesRef.current;
     if (!world || !gGrid || !gEdge) return;
 
     const v = vpRef.current;
@@ -100,6 +107,28 @@ export function PixiHybridBackground() {
     }
     gGrid.stroke({ width: 1, color: 0xffffff, alpha: 0.055 });
 
+    if (gStroke) {
+      gStroke.clear();
+      const zoom = Math.max(v.zoom, 1e-6);
+      const drawPolyline = (pts: [number, number][], colorStr: string, widthPx: number) => {
+        if (pts.length < 2) return;
+        const { color, alpha } = cssColorToPixiArgb(colorStr);
+        const lw = widthPx / zoom;
+        gStroke.moveTo(pts[0]![0], pts[0]![1]);
+        for (let i = 1; i < pts.length; i++) {
+          gStroke.lineTo(pts[i]![0], pts[i]![1]);
+        }
+        gStroke.stroke({ width: lw, color, alpha, cap: 'round', join: 'round' });
+      };
+      for (const s of drawingsRef.current) {
+        drawPolyline(s.points, s.color, s.widthPx);
+      }
+      const preview = strokeRenderCtx?.previewPointsRef.current;
+      if (preview && preview.length >= 2) {
+        drawPolyline(preview, '#22d3ee', 2.25);
+      }
+    }
+
     gEdge.clear();
     if (!canvasPerfFlags.hybridEdgeLayer) return;
     const {
@@ -138,7 +167,7 @@ export function PixiHybridBackground() {
       gEdge.lineTo(t.x, t.y);
     }
     gEdge.stroke({ width: edgeWidth, color: 0xaab4c5, alpha: edgeAlpha });
-  }, [gestureActive]);
+  }, [gestureActive, strokeRenderCtx]);
 
   const scheduleDraw = useCallback(() => {
     if (drawRafRef.current != null) {
@@ -210,6 +239,21 @@ export function PixiHybridBackground() {
   }, [store, scheduleDraw]);
 
   useEffect(() => {
+    drawingsRef.current = useWorkflowStore.getState().canvasDrawings;
+    const unsub = useWorkflowStore.subscribe((state) => {
+      drawingsRef.current = state.canvasDrawings;
+      scheduleDraw();
+    });
+    return () => unsub();
+  }, [scheduleDraw]);
+
+  useEffect(() => {
+    const cb = () => scheduleDraw();
+    strokeRenderCtx?.registerRedraw(cb);
+    return () => strokeRenderCtx?.registerRedraw(null);
+  }, [strokeRenderCtx, scheduleDraw]);
+
+  useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     const ro = new ResizeObserver((entries) => {
@@ -262,6 +306,10 @@ export function PixiHybridBackground() {
         world.addChild(gGrid);
         gridRef.current = gGrid;
 
+        const gStroke = new Graphics();
+        world.addChild(gStroke);
+        strokesRef.current = gStroke;
+
         const gEdge = new Graphics();
         world.addChild(gEdge);
         edgeRef.current = gEdge;
@@ -288,6 +336,7 @@ export function PixiHybridBackground() {
       detachRef.current = null;
       worldRef.current = null;
       gridRef.current = null;
+      strokesRef.current = null;
       edgeRef.current = null;
       const a = appRef.current;
       appRef.current = null;

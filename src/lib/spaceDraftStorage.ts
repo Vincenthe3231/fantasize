@@ -3,6 +3,7 @@ import { createStore, get, set, del } from 'idb-keyval';
 import { logLocalDraftWrite } from '@/lib/persistenceConsole';
 import { DEFAULT_WORKFLOW_SETTINGS, type Comment, type GridLayout, type WorkflowSettings } from '@/stores/workflowStore';
 import type { SpaceRow, ViewportState } from '@/lib/spaceApi';
+import type { CanvasStroke } from '@/lib/canvasStrokeUtils';
 
 const LS_KEY_PREFIX = 'vf-space-draft:';
 
@@ -60,10 +61,23 @@ export type CanvasSnapshotPayload = {
   nodes: Node[];
   edges: Edge[];
   comments: Comment[];
+  /** Omitted in older local drafts — treat as []. */
+  canvas_drawings?: CanvasStroke[];
   settings: WorkflowSettings;
   node_grid_layouts: Record<string, GridLayout>;
   viewport: ViewportState;
 };
+
+export function normalizeSnapshotPayload(p: CanvasSnapshotPayload): CanvasSnapshotPayload {
+  return {
+    ...p,
+    canvas_drawings: p.canvas_drawings ?? [],
+  };
+}
+
+function withNormalizedDraft(d: StoredSpaceDraft): StoredSpaceDraft {
+  return { ...d, payload: normalizeSnapshotPayload(d.payload) };
+}
 
 export type StoredSpaceDraft = {
   v: 1 | 2;
@@ -118,7 +132,7 @@ export async function writeSpaceDraft(
     spaceId,
     clientUpdatedAt,
     remoteBaselineIso,
-    payload,
+    payload: normalizeSnapshotPayload(payload),
   };
   if (!draftStore) {
     writeDraftLocalStorageMirror(spaceId, draft);
@@ -158,7 +172,7 @@ export async function readSpaceDraft(spaceId: string): Promise<StoredSpaceDraft 
     try {
       const fromIdb = await get<StoredSpaceDraft>(idbKey(spaceId), draftStore);
       if (fromIdb && isValidDraft(fromIdb, spaceId)) {
-        return fromIdb;
+        return withNormalizedDraft(fromIdb);
       }
     } catch (e) {
       console.warn('[Vision Forge] IndexedDB draft read failed:', e);
@@ -173,9 +187,10 @@ export async function readSpaceDraft(spaceId: string): Promise<StoredSpaceDraft 
         /* ignore */
       }
     }
-    return fromMirror;
+    return withNormalizedDraft(fromMirror);
   }
-  return migrateFromLocalStorage(spaceId);
+  const migrated = migrateFromLocalStorage(spaceId);
+  return migrated ? withNormalizedDraft(migrated) : null;
 }
 
 function mergedSettingsFromSpace(space: SpaceRow): WorkflowSettings {
@@ -232,6 +247,7 @@ export function canvasSnapshotPayloadParityEqual(a: CanvasSnapshotPayload, b: Ca
     }
     return (
       JSON.stringify(a.comments) === JSON.stringify(b.comments) &&
+      JSON.stringify(a.canvas_drawings ?? []) === JSON.stringify(b.canvas_drawings ?? []) &&
       JSON.stringify(a.node_grid_layouts) === JSON.stringify(b.node_grid_layouts) &&
       JSON.stringify(a.settings) === JSON.stringify(b.settings)
     );
@@ -277,6 +293,7 @@ export function canvasSnapshotMatchesSpaceRow(payload: CanvasSnapshotPayload, sp
     }
     return (
       JSON.stringify(payload.comments) === JSON.stringify(space.comments ?? []) &&
+      JSON.stringify(payload.canvas_drawings ?? []) === JSON.stringify(space.canvas_drawings ?? []) &&
       JSON.stringify(payload.node_grid_layouts) === JSON.stringify(space.node_grid_layouts ?? {}) &&
       JSON.stringify(payload.settings) === JSON.stringify(mergedSettingsFromSpace(space))
     );

@@ -33,6 +33,13 @@ import { createVirtualProductionScoutTemplate } from '@/stores/workflowScoutTemp
 import { migrateEdgesToScopedHandles } from '@/lib/portHandles';
 import { canvasPerfFlags, runWithCanvasPerfMark } from '@/lib/canvasPerf';
 import { normalizeListNodeImageItemsInNodeData } from '@/lib/listNodeImageSort';
+import {
+  sanitizeCanvasStrokes,
+  decimateByMinDistance,
+  type CanvasStroke,
+} from '@/lib/canvasStrokeUtils';
+
+export type { CanvasStroke };
 export type { ScoutPipelineState } from '@/lib/scoutPipeline';
 export type { ScoutRunOptions } from '@/lib/scoutRunCoordinator';
 const pendingNodeDataUpdates = new Map<
@@ -198,6 +205,7 @@ interface GraphSnapshot {
   nodes: Node[];
   edges: Edge[];
   comments: Comment[];
+  canvasDrawings: CanvasStroke[];
 }
 
 /** Payload from Supabase `spaces` row (hydrate without undo history) */
@@ -206,6 +214,7 @@ export interface HydratableSpace {
   nodes: Node[];
   edges: Edge[];
   comments?: Comment[];
+  canvas_drawings?: CanvasStroke[];
   settings?: Partial<WorkflowSettings> | null;
   node_grid_layouts?: Record<string, GridLayout>;
 }
@@ -214,6 +223,7 @@ export interface WorkflowState {
   nodes: Node[];
   edges: Edge[];
   comments: Comment[];
+  canvasDrawings: CanvasStroke[];
   runningNodes: Set<string>;
   runningEdges: Set<string>;
   /** Per `runFromNode` root id: edge ids for that run (unioned into `runningEdges`). */
@@ -307,6 +317,9 @@ export interface WorkflowState {
   updateComment: (id: string, text: string) => void;
   resolveComment: (id: string) => void;
   deleteComment: (id: string) => void;
+
+  /** Append one polyline stroke (flow space); records undo. */
+  commitCanvasStroke: (points: [number, number][], opts?: { color?: string; widthPx?: number }) => void;
 
   updateSettings: (s: Partial<WorkflowSettings>) => void;
 
@@ -519,6 +532,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     nodes: initialTemplate.nodes,
     edges: migrateEdgesToScopedHandles(structuredClone(initialTemplate.edges)),
     comments: [],
+    canvasDrawings: [],
     runningNodes: new Set(),
     runningEdges: new Set(),
     runningEdgeIdsByRunSource: {},
@@ -600,6 +614,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         ),
         edges: migrateEdgesToScopedHandles(structuredClone(space.edges)),
         comments: structuredClone(space.comments || []),
+        canvasDrawings: sanitizeCanvasStrokes(space.canvas_drawings ?? []),
         nodeGridLayouts: structuredClone(space.node_grid_layouts || {}),
         settings: merged,
         currentSpaceId: space.id,
@@ -643,6 +658,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         nodes: nextNodes,
         edges: nextEdges,
         comments: structuredClone(space.comments || []),
+        canvasDrawings: sanitizeCanvasStrokes(space.canvas_drawings ?? []),
         nodeGridLayouts: structuredClone(space.node_grid_layouts || {}),
         settings: merged,
         currentSpaceId: space.id,
@@ -1610,6 +1626,26 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       });
     },
 
+    commitCanvasStroke: (rawPoints, opts) => {
+      const pts = decimateByMinDistance(rawPoints, 0.35);
+      if (pts.length < 2) return;
+      const sid = `stroke-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const stroke: CanvasStroke = {
+        id: sid,
+        points: pts,
+        color: (opts?.color?.trim() || '#22d3ee').slice(0, 32),
+        widthPx:
+          typeof opts?.widthPx === 'number' && Number.isFinite(opts.widthPx) && opts.widthPx > 0
+            ? Math.min(48, opts.widthPx)
+            : 2.25,
+      };
+      set((s) => ({ canvasDrawings: [...s.canvasDrawings, stroke] }));
+      pushCmd({
+        undo: () => set((st) => ({ canvasDrawings: st.canvasDrawings.filter((x) => x.id !== sid) })),
+        execute: () => set((st) => ({ canvasDrawings: [...st.canvasDrawings, { ...stroke }] })),
+      });
+    },
+
     updateSettings: (partial) => {
       set((s) => {
         const next = { ...s.settings, ...partial };
@@ -1652,6 +1688,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         nodes: structuredClone(s.nodes),
         edges: structuredClone(s.edges),
         comments: structuredClone(s.comments),
+        canvasDrawings: structuredClone(s.canvasDrawings),
       };
       const afterNodes = structuredClone(nodes);
       const afterEdges = migrateEdgesToScopedHandles(structuredClone(edges));
@@ -1659,6 +1696,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         nodes: afterNodes,
         edges: afterEdges,
         comments: [],
+        canvasDrawings: [],
         runningNodes: new Set(),
         runningEdges: new Set(),
         runningEdgeIdsByRunSource: {},
@@ -1670,6 +1708,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
             nodes: structuredClone(before.nodes),
             edges: structuredClone(before.edges),
             comments: structuredClone(before.comments),
+            canvasDrawings: structuredClone(before.canvasDrawings),
             runningNodes: new Set(),
             runningEdges: new Set(),
             runningEdgeIdsByRunSource: {},
@@ -1680,6 +1719,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
             nodes: structuredClone(afterNodes),
             edges: structuredClone(afterEdges),
             comments: [],
+            canvasDrawings: [],
             runningNodes: new Set(),
             runningEdges: new Set(),
             runningEdgeIdsByRunSource: {},

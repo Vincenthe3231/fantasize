@@ -17,6 +17,9 @@ import { SpacePersistenceContext } from '@/contexts/SpacePersistenceContext';
 import { CanvasEdgeLodProvider } from '@/contexts/CanvasEdgeLodContext';
 import { CanvasViewportGestureContext } from '@/contexts/CanvasViewportGestureContext';
 import { CanvasViewportImagePolicyBridge } from '@/contexts/CanvasViewportImagePolicyContext';
+import { CanvasStrokeRenderProvider } from '@/contexts/CanvasStrokeRenderContext';
+import { CanvasDrawInteraction } from '@/components/canvas/CanvasDrawInteraction';
+import { CanvasFlowDrawingsSvg } from '@/components/canvas/CanvasFlowDrawingsSvg';
 import { useSpaceLocalPersistence } from '@/hooks/useSpaceLocalPersistence';
 import { useAuth } from '@/hooks/useAuth';
 import ReactFlow, {
@@ -589,6 +592,7 @@ const CanvasInnerReactFlow = ({
           nodes: draft.payload.nodes,
           edges: draft.payload.edges,
           comments: draft.payload.comments,
+          canvas_drawings: draft.payload.canvas_drawings ?? [],
           settings: draft.payload.settings,
           node_grid_layouts: draft.payload.node_grid_layouts,
           viewport: draft.payload.viewport,
@@ -632,6 +636,7 @@ const CanvasInnerReactFlow = ({
           nodes: resolvedDraft.payload.nodes,
           edges: resolvedDraft.payload.edges,
           comments: resolvedDraft.payload.comments,
+          canvas_drawings: resolvedDraft.payload.canvas_drawings ?? [],
           settings: resolvedDraft.payload.settings,
           node_grid_layouts: resolvedDraft.payload.node_grid_layouts,
           viewport: resolvedDraft.payload.viewport,
@@ -881,10 +886,12 @@ const CanvasInnerReactFlow = ({
 
   const handleCanvasClick = useCallback(
     (event: React.MouseEvent) => {
-      if ((event.target as HTMLElement).closest('.react-flow__node')) return;
+      const el = event.target as HTMLElement;
+      if (el.closest('.react-flow__node')) return;
+      const onCommentUi = el.closest('[data-vf-comment-ui]') != null;
       setFocusedNodeContentId(null);
       setContextMenu(null);
-      if (selectedTool === 'comment') {
+      if (selectedTool === 'comment' && !onCommentUi) {
         const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
         const x = event.clientX - bounds.left;
         const y = event.clientY - bounds.top;
@@ -896,7 +903,9 @@ const CanvasInnerReactFlow = ({
 
   const handleContextMenu = useCallback(
     (event: React.MouseEvent) => {
-      if ((event.target as HTMLElement).closest('.react-flow__node')) return;
+      const el = event.target as HTMLElement;
+      if (el.closest('.react-flow__node')) return;
+      if (el.closest('[data-vf-comment-ui]')) return;
       event.preventDefault();
       setContextMenu({ x: event.clientX, y: event.clientY, type: 'canvas' });
     },
@@ -1028,7 +1037,7 @@ const CanvasInnerReactFlow = ({
       ? 'cursor-scissors'
       : selectedTool === 'hand'
         ? 'cursor-grab'
-        : selectedTool === 'connection'
+        : selectedTool === 'connection' || selectedTool === 'draw'
           ? 'cursor-crosshair'
           : '';
 
@@ -1078,6 +1087,7 @@ const CanvasInnerReactFlow = ({
         isSavingToRemote: persistence.isSavingToRemote,
       }}
     >
+    <CanvasStrokeRenderProvider>
     <DevReactProfiler id="vf-canvas-inner">
     <CanvasViewportGestureContext.Provider value={isViewportInteracting}>
     <CanvasViewportImagePolicyBridge>
@@ -1392,6 +1402,8 @@ const CanvasInnerReactFlow = ({
                   : 'rgba(0,0,0,0.08)'
           }
         />
+        {!hybridBackground ? <CanvasFlowDrawingsSvg /> : null}
+        <CanvasDrawInteraction shellRef={reactFlowWrapper} />
         {showMinimap && (!canvasPerfFlags.deferNonCriticalCanvasUi || deferredUiReady) && (
           <MiniMap
             className="minimap-light !border rounded-lg overflow-hidden !bg-[#1a1a1e]/95 dark:!bg-[#1a1a1e]/95 !border-white/10 dark:!border-white/10"
@@ -1425,6 +1437,7 @@ const CanvasInnerReactFlow = ({
     </CanvasViewportImagePolicyBridge>
     </CanvasViewportGestureContext.Provider>
     </DevReactProfiler>
+    </CanvasStrokeRenderProvider>
     </SpacePersistenceContext.Provider>
   );
 };

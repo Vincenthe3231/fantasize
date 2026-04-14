@@ -59,6 +59,8 @@ Use **WASM** only for proven hot math paths (edge picking/spatial queries), not 
 
 ## Review
 
+- **Canvas draw tool + `canvas_drawings` (2026-04-14):** Supabase migration `20260414120000_spaces_canvas_drawings.sql`; `SpaceRow` / drafts / `sanitizeSnapshotForRemoteSave` carry `canvas_drawings`; `workflowStore` `commitCanvasStroke` + undo/redo; hybrid **Pixi** stroke layer + non-hybrid **SVG** portal into `.react-flow__viewport`; `CanvasDrawInteraction` (pane, flow coords, UI blocklist); `cursor-crosshair` + cursor trails off while drawing. **Verify:** `pnpm exec tsc --noEmit`; `pnpm test` (Vitest may still report unrelated Supabase auth unhandled rejections in some files).
+
 - **Marquee selection (2026-04-13):** `getNodesMarqueeIntersectRect` in `Index.tsx` — select nodes whose measured bbox **intersects** the marquee (`overlap > 0`), not 100% containment; still skips unmeasured `width`/`height`. **`pnpm exec tsc --noEmit`** OK.
 
 - **Rich-text toolbar portal (2026-04-13):** `floating-above` toolbars render via `createPortal` to `document.body` with `useRichTextToolbarPortalPosition` (clamp, resize/scroll, React Flow `transform`). Anchor order: `toolbarAnchorRef` (TextNode glass shell) → `closest('.react-flow__node')` → field root. Blur handling includes the portaled toolbar and Radix surfaces (`.node-canvas-dropdown` / `.node-canvas-popover`). `CommentPin` stays `toolbarVariant="top"`. **Verify:** `pnpm exec tsc --noEmit`; manually confirm focus, pan/zoom tracking, block/color menus, and window resize on Text + Assistant (or another migrated node).

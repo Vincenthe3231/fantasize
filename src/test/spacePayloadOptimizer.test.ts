@@ -13,6 +13,7 @@ function minimalPayload(overrides: Partial<CanvasSnapshotPayload> = {}): CanvasS
     nodes: [],
     edges: [],
     comments: [],
+    canvas_drawings: [],
     settings: { ...DEFAULT_WORKFLOW_SETTINGS },
     node_grid_layouts: {},
     viewport: { x: 0, y: 0, zoom: 1 },

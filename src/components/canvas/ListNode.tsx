@@ -20,7 +20,7 @@ import {
   Download,
   ExternalLink,
 } from 'lucide-react';
-import { Reorder, AnimatePresence, motion } from 'framer-motion';
+import { Reorder, AnimatePresence, motion, useDragControls } from 'framer-motion';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useWorkflowStore } from '@/stores/workflowStore';
@@ -33,6 +33,8 @@ import { useCanvasReduceMotion } from '@/hooks/useCanvasReduceMotion';
 import { mergeTextAndSortedListImages } from '@/lib/listNodeImageSort';
 import CanvasNodeImage from '@/components/canvas/CanvasNodeImage';
 import { TooltipWrap } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+import { NODE_INTERACTIVE_CLASS } from '@/components/canvas/nodeResizeUtils';
 
 type ListItemType = 'text' | 'image';
 
@@ -48,6 +50,35 @@ interface ListItem {
   /** ISO-8601; used with timestamp for newest-first image order */
   created_at?: string;
   supabaseUrl?: string;
+  /** Pixel size when known (e.g. measured on upload) */
+  mediaWidth?: number;
+  mediaHeight?: number;
+}
+
+/** Compact secondary line for list-view image rows: time, dimensions, source. */
+function listImageCompactMetaLine(item: ListItem): string {
+  const parts: string[] = [];
+  const ts = item.timestamp;
+  let ms: number | undefined =
+    typeof ts === 'number' && Number.isFinite(ts) ? ts
+    : undefined;
+  if (ms === undefined) {
+    const iso = item.created_at?.trim();
+    if (iso && !Number.isNaN(Date.parse(iso))) ms = Date.parse(iso);
+  }
+  if (ms !== undefined) {
+    parts.push(
+      new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(ms)
+    );
+  }
+  const w = item.mediaWidth;
+  const h = item.mediaHeight;
+  if (typeof w === 'number' && typeof h === 'number' && w > 0 && h > 0) {
+    parts.push(`${w}×${h}`);
+  }
+  const source = item.generatedBy ? 'Generated' : 'Uploaded';
+  parts.push(item.referer ? `${source} · ${item.referer}` : source);
+  return parts.join(' · ');
 }
 
 /** Preserve invariant: all text items first, then all image items (required by Reorder merge). New images prepend (newest first); new text appends after existing text. */
@@ -231,6 +262,157 @@ const ListNodeGridImageTile = memo(function ListNodeGridImageTile({
   );
 });
 
+/** `CanvasNodeImage`’s outer wrapper uses `w-full`; in a flex row that can grow to the full node width and sit on top of the meta column and action buttons. Keep the thumb in a fixed box. */
+const LIST_IMAGE_THUMB_CLASS =
+  'nodrag nopan relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-[var(--node-control-bg)]';
+
+type ListImageListRowThumbSlot = {
+  onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
+  reorderCursorClass?: string;
+};
+
+const ListImageListRowInner = memo(function ListImageListRowInner({
+  item,
+  multiSelectMode,
+  selectedImageIdSet,
+  onToggleSelect,
+  onOpenPreview,
+  onDownload,
+  onRemove,
+  thumbSlot,
+}: {
+  item: ListItem;
+  multiSelectMode: boolean;
+  selectedImageIdSet: Set<string>;
+  onToggleSelect: (itemId: string) => void;
+  onOpenPreview: () => void;
+  onDownload: () => void;
+  onRemove: () => void;
+  thumbSlot: ListImageListRowThumbSlot;
+}) {
+  const selected = selectedImageIdSet.has(item.id);
+  return (
+    <div
+      className={`group ${NODE_INTERACTIVE_CLASS} flex items-center gap-2.5 rounded-lg border-b border-[var(--node-divider)] px-2 py-1.5 transition-colors last:border-b-0 hover:bg-[var(--node-action-bar-hover-bg)]`}
+    >
+      {multiSelectMode && (
+        <TooltipWrap
+          label={selected ? 'Deselect image' : 'Select image'}
+          side="top"
+          contentClassName="z-[100]"
+        >
+          <button
+            type="button"
+            onClick={() => onToggleSelect(item.id)}
+            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+              selected
+                ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
+                : 'border-[var(--node-control-border)] text-transparent hover:text-[var(--node-control-muted)]'
+            }`}
+          >
+            <Check size={10} />
+          </button>
+        </TooltipWrap>
+      )}
+      <div
+        className={cn(LIST_IMAGE_THUMB_CLASS, thumbSlot.reorderCursorClass)}
+        onPointerDown={thumbSlot.onPointerDown}
+        style={thumbSlot.onPointerDown ? { touchAction: 'none' } : undefined}
+      >
+        <CanvasNodeImage
+          mediaUrl={item.mediaUrl || '/placeholder.svg'}
+          fixedCssWidth={56}
+          fixedCssHeight={56}
+          quality={55}
+          alt={item.mediaName ?? ''}
+          className="h-full w-full object-cover"
+        />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[12px] text-[var(--node-control-text)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+          {item.mediaName}
+        </p>
+        <p className="mt-0.5 truncate font-mono text-[10px] leading-snug text-[var(--node-control-muted)]">
+          {listImageCompactMetaLine(item)}
+        </p>
+      </div>
+      <div className={`${NODE_INTERACTIVE_CLASS} flex shrink-0 items-center gap-0.5`}>
+        <TooltipWrap label="Open preview" side="top" contentClassName="z-[100]">
+          <button
+            type="button"
+            onClick={onOpenPreview}
+            className="shrink-0 text-[var(--node-control-muted)] opacity-0 transition-opacity hover:text-[var(--node-control-text)] group-hover:opacity-100"
+          >
+            <ExternalLink size={11} />
+          </button>
+        </TooltipWrap>
+        <TooltipWrap label="Download image" side="top" contentClassName="z-[100]">
+          <button
+            type="button"
+            onClick={onDownload}
+            className="shrink-0 text-[var(--node-control-muted)] opacity-0 transition-opacity hover:text-[var(--node-control-text)] group-hover:opacity-100"
+          >
+            <Download size={11} />
+          </button>
+        </TooltipWrap>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="shrink-0 text-[var(--node-control-muted)] opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+        >
+          <X size={11} />
+        </button>
+      </div>
+    </div>
+  );
+});
+
+ListImageListRowInner.displayName = 'ListImageListRowInner';
+
+const ListImageListReorderRow = memo(function ListImageListReorderRow({
+  item,
+  multiSelectMode,
+  selectedImageIdSet,
+  onToggleSelect,
+  onOpenPreview,
+  onDownload,
+  onRemove,
+}: {
+  item: ListItem;
+  multiSelectMode: boolean;
+  selectedImageIdSet: Set<string>;
+  onToggleSelect: (itemId: string) => void;
+  onOpenPreview: () => void;
+  onDownload: () => void;
+  onRemove: () => void;
+}) {
+  const dragControls = useDragControls();
+  return (
+    <Reorder.Item
+      value={item}
+      dragListener={false}
+      dragControls={dragControls}
+      className="m-0 list-none p-0"
+    >
+      <ListImageListRowInner
+        item={item}
+        multiSelectMode={multiSelectMode}
+        selectedImageIdSet={selectedImageIdSet}
+        onToggleSelect={onToggleSelect}
+        onOpenPreview={onOpenPreview}
+        onDownload={onDownload}
+        onRemove={onRemove}
+        thumbSlot={{
+          onPointerDown: (e) => dragControls.start(e),
+          reorderCursorClass: 'cursor-grab touch-none active:cursor-grabbing',
+        }}
+      />
+    </Reorder.Item>
+  );
+});
+
+ListImageListReorderRow.displayName = 'ListImageListReorderRow';
+
 const ListNode = memo(({ id, data, selected }: NodeProps) => {
   const {
     updateNodeData,
@@ -303,17 +485,40 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
     });
   };
 
-  const addMediaItem = (file: File) => {
+  const addMediaItem = async (file: File) => {
+    let mediaWidth: number | undefined;
+    let mediaHeight: number | undefined;
+    if (file.type.startsWith('image/')) {
+      try {
+        const bmp = await createImageBitmap(file);
+        mediaWidth = bmp.width;
+        mediaHeight = bmp.height;
+        bmp.close();
+      } catch {
+        /* dimensions optional */
+      }
+    }
     const url = URL.createObjectURL(file);
-    const { text, image } = splitListItems(items);
     const now = Date.now();
     const created_at = new Date(now).toISOString();
-    setItems(
-      mergeTextAndSortedListImages(text, [
-        { id: `m-${now}`, type: 'image', mediaUrl: url, mediaName: file.name, timestamp: now, created_at },
-        ...image,
-      ])
-    );
+    const row: ListItem = {
+      id: `m-${now}`,
+      type: 'image',
+      mediaUrl: url,
+      mediaName: file.name,
+      timestamp: now,
+      created_at,
+      ...(typeof mediaWidth === 'number' &&
+      typeof mediaHeight === 'number' &&
+      mediaWidth > 0 &&
+      mediaHeight > 0 ?
+        { mediaWidth, mediaHeight }
+      : {}),
+    };
+    const node = useWorkflowStore.getState().nodes.find((n) => n.id === id);
+    const raw = (node?.data?.items as ListItem[] | undefined) ?? [];
+    const { text, image } = splitListItems(Array.isArray(raw) ? raw : []);
+    updateNodeData(id, { items: mergeTextAndSortedListImages(text, [row, ...image]) });
   };
 
   const removeListImageFromStorage = useCallback((item: ListItem) => {
@@ -567,7 +772,7 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
 
               {/* Items */}
               {items.length > 0 && (
-                <ScrollArea className="nowheel max-h-[300px] flex-1">
+                <ScrollArea className={`${NODE_INTERACTIVE_CLASS} nowheel max-h-[300px] flex-1`}>
                   <div className="space-y-1 pr-2">
                   {/* Text items always in list */}
                   {textItems.length > 0 && !reduceMotion && (
@@ -629,106 +834,36 @@ const ListNode = memo(({ id, data, selected }: NodeProps) => {
                       className="space-y-0.5"
                     >
                       {imageItems.map((item) => (
-                        <Reorder.Item key={item.id} value={item} className="cursor-grab active:cursor-grabbing">
-                          <div className="group flex items-center gap-2.5 rounded-lg border-b border-[var(--node-divider)] px-2 py-1.5 transition-colors last:border-b-0 hover:bg-[var(--node-action-bar-hover-bg)]">
-                            {multiSelectMode && (
-                              <TooltipWrap
-                                label={selectedImageIdSet.has(item.id) ? 'Deselect image' : 'Select image'}
-                                side="top"
-                                contentClassName="z-[100]"
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => toggleImageSelected(item.id)}
-                                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                                    selectedImageIdSet.has(item.id)
-                                      ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
-                                      : 'border-[var(--node-control-border)] text-transparent hover:text-[var(--node-control-muted)]'
-                                  }`}
-                                >
-                                  <Check size={10} />
-                                </button>
-                              </TooltipWrap>
-                            )}
-                            <CanvasNodeImage
-                              mediaUrl={item.mediaUrl || '/placeholder.svg'}
-                              fixedCssWidth={56}
-                              fixedCssHeight={56}
-                              quality={55}
-                              alt={item.mediaName ?? ''}
-                              className="h-14 w-14 shrink-0 rounded-lg bg-[var(--node-control-bg)] object-cover"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-[12px] text-[var(--node-control-text)]" style={{ fontFamily: 'Inter, sans-serif' }}>{item.mediaName}</p>
-                              <p className="mt-0.5 font-mono text-[11px] text-[var(--node-control-muted)]">
-                                {item.generatedBy ? 'Generated' : 'Uploaded'}
-                                {item.referer ? ` • ${item.referer}` : ''}
-                              </p>
-                            </div>
-                            <TooltipWrap label="Open preview" side="top" contentClassName="z-[100]">
-                              <button
-                                type="button"
-                                onClick={() => openImage(item.supabaseUrl || item.mediaUrl || '')}
-                                className="shrink-0 text-[var(--node-control-muted)] opacity-0 transition-opacity hover:text-[var(--node-control-text)] group-hover:opacity-100"
-                              >
-                                <ExternalLink size={11} />
-                              </button>
-                            </TooltipWrap>
-                            <TooltipWrap label="Download image" side="top" contentClassName="z-[100]">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  downloadImage(item.supabaseUrl || item.mediaUrl || '', item.mediaName || `image-${item.id}`)
-                                }
-                                className="shrink-0 text-[var(--node-control-muted)] opacity-0 transition-opacity hover:text-[var(--node-control-text)] group-hover:opacity-100"
-                              >
-                                <Download size={11} />
-                              </button>
-                            </TooltipWrap>
-                            <button type="button" onClick={() => removeItem(item.id)} className="shrink-0 text-[var(--node-control-muted)] opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"><X size={11} /></button>
-                          </div>
-                        </Reorder.Item>
+                        <ListImageListReorderRow
+                          key={item.id}
+                          item={item}
+                          multiSelectMode={multiSelectMode}
+                          selectedImageIdSet={selectedImageIdSet}
+                          onToggleSelect={toggleImageSelected}
+                          onOpenPreview={() => openImage(item.supabaseUrl || item.mediaUrl || '')}
+                          onDownload={() =>
+                            downloadImage(item.supabaseUrl || item.mediaUrl || '', item.mediaName || `image-${item.id}`)
+                          }
+                          onRemove={() => removeItem(item.id)}
+                        />
                       ))}
                     </Reorder.Group>
                   ) : viewMode === 'list' ? (
                     <div className="space-y-0.5">
                       {imageItems.map((item) => (
-                        <div key={item.id} className="group flex items-center gap-2.5 rounded-lg border-b border-[var(--node-divider)] px-2 py-1.5 last:border-b-0">
-                          {multiSelectMode && (
-                            <TooltipWrap
-                              label={selectedImageIdSet.has(item.id) ? 'Deselect image' : 'Select image'}
-                              side="top"
-                              contentClassName="z-[100]"
-                            >
-                              <button
-                                type="button"
-                                onClick={() => toggleImageSelected(item.id)}
-                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                                  selectedImageIdSet.has(item.id)
-                                    ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
-                                    : 'border-[var(--node-control-border)] text-transparent hover:text-[var(--node-control-muted)]'
-                                }`}
-                              >
-                                <Check size={10} />
-                              </button>
-                            </TooltipWrap>
-                          )}
-                          <CanvasNodeImage
-                            mediaUrl={item.mediaUrl || '/placeholder.svg'}
-                            fixedCssWidth={56}
-                            fixedCssHeight={56}
-                            quality={55}
-                            alt={item.mediaName ?? ''}
-                            className="h-14 w-14 shrink-0 rounded-lg bg-[var(--node-control-bg)] object-cover"
+                        <div key={item.id}>
+                          <ListImageListRowInner
+                            item={item}
+                            multiSelectMode={multiSelectMode}
+                            selectedImageIdSet={selectedImageIdSet}
+                            onToggleSelect={toggleImageSelected}
+                            onOpenPreview={() => openImage(item.supabaseUrl || item.mediaUrl || '')}
+                            onDownload={() =>
+                              downloadImage(item.supabaseUrl || item.mediaUrl || '', item.mediaName || `image-${item.id}`)
+                            }
+                            onRemove={() => removeItem(item.id)}
+                            thumbSlot={{}}
                           />
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-[12px] text-[var(--node-control-text)]" style={{ fontFamily: 'Inter, sans-serif' }}>{item.mediaName}</p>
-                            <p className="mt-0.5 font-mono text-[11px] text-[var(--node-control-muted)]">
-                              {item.generatedBy ? 'Generated' : 'Uploaded'}
-                              {item.referer ? ` • ${item.referer}` : ''}
-                            </p>
-                          </div>
-                          <button type="button" onClick={() => removeItem(item.id)} className="shrink-0 text-[var(--node-control-muted)] hover:text-destructive"><X size={11} /></button>
                         </div>
                       ))}
                     </div>

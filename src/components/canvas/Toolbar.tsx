@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, memo } from 'react';
 import { motion } from 'framer-motion';
 import {
   Plus, Play, MousePointer2, Hand, Scissors, Link2,
-  Pen, Smile, StickyNote, MessageCircle, Square,
+  Pen, Smile, StickyNote, MessageCircle,
   Undo2, Redo2, Settings,
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -295,15 +295,6 @@ const Toolbar = memo(function Toolbar({
           </button>
         </TooltipWrap>
       ))}
-
-      <TooltipWrap label="Group / Panel" side="right" contentClassName="z-[100]">
-        <button
-          type="button"
-          className="p-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
-        >
-          <Square size={18} />
-        </button>
-      </TooltipWrap>
 
       <div className="w-full h-px bg-border my-0.5" />
 
